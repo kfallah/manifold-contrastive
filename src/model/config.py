@@ -12,6 +12,12 @@ from model.contrastive.config import ContrastiveHeaderConfig
 
 
 @dataclass
+class LossConfig:
+    ntxent_loss_active: bool = True
+    ntxent_temp: float = 0.5
+
+
+@dataclass
 class BackboneConfig:
     # PyTorch hub model name https://pytorch.org/hub/research-models
     hub_model_name: str = "resnet18"
@@ -22,3 +28,4 @@ class BackboneConfig:
 class ModelConfig:
     backbone_cfg: BackboneConfig = BackboneConfig()
     header_cfg: ContrastiveHeaderConfig = ContrastiveHeaderConfig()
+    loss_cfg: LossConfig = LossConfig()

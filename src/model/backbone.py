@@ -26,5 +26,6 @@ class Backbone(nn.Module):
         backbone_network = torch.hub.load(
             "pytorch/vision:v0.10.0", backbone_cfg.hub_model_name, pretrained=backbone_cfg.pretrained
         )
+        backbone_feature_dim = backbone_network.fc.in_features
         backbone_network.fc = nn.Identity()
-        return Backbone(backbone_cfg, backbone_network)
+        return Backbone(backbone_cfg, backbone_network), backbone_feature_dim

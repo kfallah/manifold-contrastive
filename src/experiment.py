@@ -12,6 +12,8 @@ from dataclasses import MISSING, dataclass
 from typing import Tuple
 
 import hydra
+import numpy as np
+import torch
 import wandb
 from hydra.core.config_store import ConfigStore
 
@@ -33,12 +35,13 @@ class ExperimentConfig:
     eval_dataloader_cfg: DataLoaderConfig = MISSING
     model_cfg: ModelConfig = MISSING
     trainer_cfg: TrainerConfig = MISSING
-    eval_cfg: EvaluatorConfig = MISSING
+    evaluator_cfg: EvaluatorConfig = MISSING
 
     # Experimental settings
     exp_name: str = MISSING
     exp_dir: str = MISSING
     devices: Tuple[int] = MISSING
+    seed: int = 0
 
 
 def register_configs() -> None:
@@ -61,9 +64,10 @@ def run_experiment(
     log.info("Running experiment...")
     for epoch in range(cfg.trainer_cfg.num_epochs):
         train_metadata = trainer.train_epoch(epoch, train_dataloader)
+        log.info(f"Epoch {epoch} of {cfg.trainer_cfg.num_epochs}, {train_metadata}")
 
-        if epoch % cfg.eval_cfg.eval_frequency == 0:
-            eval_metadata = evaluator.run_eval(epoch, eval_dataloader)
+        eval_metadata = evaluator.run_eval(epoch, eval_dataloader)
+        wandb.log(eval_metadata)
 
 
 @hydra.main(version_base=None, config_path="../config", config_name="base")
@@ -80,20 +84,26 @@ def initialize_experiment(cfg: ExperimentConfig) -> None:
     train_dataset, train_dataloder = get_dataloader(cfg.train_dataloader_cfg)
     eval_dataset, eval_dataloader = get_dataloader(cfg.eval_dataloader_cfg)
 
+    # Set random seeds
+    torch.manual_seed(cfg.seed)
+    np.random.seed(cfg.seed)
+
     # Initialize the model
     log.info(
         f"Initializing model with {cfg.model_cfg.backbone_cfg.hub_model_name} backbone"
         + f"and {cfg.model_cfg.header_cfg.header_name} header..."
     )
     model = Model.initialize_model(cfg.model_cfg)
+    # TODO: support multiple GPUs
+    model = model.to("cuda:0")
 
     # Initialize the trainer and evaluator
-    trainer = Trainer.initialize_trainer(cfg, model)
-    evaluator = Evaluator.initialize_evaluator(cfg, model)
+    trainer = Trainer.initialize_trainer(cfg.trainer_cfg, model, torch.device("cuda:0"))
+    evaluator = Evaluator.initialize_evaluator(cfg.evaluator_cfg, model, torch.device("cuda:0"))
 
     # Run experiment
     log.info("...Starting experiment.")
-    run_experiment(cfg, trainer, evaluator)
+    run_experiment(cfg, trainer, evaluator, train_dataloder, eval_dataloader)
 
 
 if __name__ == "__main__":

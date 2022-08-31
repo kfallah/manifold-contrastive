@@ -23,7 +23,8 @@ class SchedulerConfig:
 
 @dataclass
 class TrainerConfig:
-    num_epochs: int = MISSING
-    use_amp: bool = MISSING
     optimizer_cfg: OptimizerConfig = MISSING
     scheduler_cfg: SchedulerConfig = MISSING
+    num_epochs: int = 300
+    use_amp: bool = False
+    logging_freq: int = 100

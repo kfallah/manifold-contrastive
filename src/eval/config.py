@@ -6,7 +6,7 @@ Class that contains all config DataClasses for evaluation.
 @Created     08/31/22
 """
 
-from dataclasses import dataclass
+from dataclasses import MISSING, dataclass
 
 
 @dataclass

@@ -7,8 +7,8 @@ Main evaluator wrapper that runs all validation metrics to measure the success o
 """
 from typing import Dict
 
+import torch
 import torch.nn as nn
-from experiment import ExperimentConfig
 from model.model import Model
 
 from eval.config import EvaluatorConfig
@@ -21,8 +21,8 @@ class Evaluator(nn.Module):
         # Initialize optimizer and scheduler
 
     @staticmethod
-    def initialize_evaluator(exp_cfg: ExperimentConfig, model: Model) -> "Evaluator":
-        return Evaluator(exp_cfg.eval_cfg, model)
+    def initialize_evaluator(eval_cfg: EvaluatorConfig, model: Model, device: torch.device) -> "Evaluator":
+        return Evaluator(eval_cfg, model)
 
     def run_eval(epoch: int, eval_dataloader: torch.utils.data.DataLoader) -> Dict[str, float]:
         return {}
