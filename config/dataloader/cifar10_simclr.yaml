@@ -1,0 +1,10 @@
+dataset_cfg: 
+  dataset_name: CIFAR10
+collate_fn_cfg:
+  collate_fn_type: LIGHTLY_IMAGE
+  cj_prob: 0.5
+  gausian_blur: 0.0
+batch_size: 2048
+train: true
+shuffle: true
+num_workers: 8

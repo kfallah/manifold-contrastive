@@ -1,0 +1,27 @@
+defaults:
+  - exp_cfg
+  - default_hydra
+  - dataloader/cifar10_simclr@train_dataloader_cfg
+  - dataloader/cifar10_simclr@eval_dataloader_cfg
+  - header/simclr@model_cfg.header_cfg
+  - _self_
+
+exp_name: SimCLR
+exp_dir: results
+devices: [0, 1]
+trainer_cfg:
+  num_epochs: 300
+  use_amp: true
+  optimizer_cfg:
+    optimizer: Adam
+    initial_lr: 1e-2
+  scheduler_cfg:
+    scheduler: LinearDecay
+evaluator_cfg:
+  eval_frequency: 10
+eval_dataloader_cfg:
+  collate_fn_cfg:
+    collate_fn_type: NONE
+  train: false
+  shuffle: false
+  batch_size: 256
