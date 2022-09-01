@@ -28,9 +28,9 @@ def initialize_optimizer(config: OptimizerConfig, model_params: nn.Module) -> to
 
 
 def initialize_scheduler(
-    config: SchedulerConfig, num_epochs: int, optimizer: torch.optim.Optimizer
+    config: SchedulerConfig, num_epochs: int, num_iters: int, optimizer: torch.optim.Optimizer
 ) -> torch.optim.lr_scheduler._LRScheduler:
     if config.scheduler == "CosineAnnealingLR":
-        return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, num_epochs, eta_min=0, last_epoch=-1)
+        return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, num_iters, eta_min=0, last_epoch=-1)
     else:
         raise NotImplementedError

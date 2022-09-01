@@ -8,6 +8,7 @@ experiment tracker.
 """
 
 import logging
+import os
 from dataclasses import MISSING, dataclass
 from typing import Tuple
 
@@ -62,10 +63,18 @@ def run_experiment(
     eval_dataloader: torch.utils.data.DataLoader,
 ) -> None:
     log.info("Running experiment...")
+    # Used to save the
+    current_best = 1e99
     for epoch in range(cfg.trainer_cfg.num_epochs):
-        train_metadata = trainer.train_epoch(epoch, train_dataloader)
+        _ = trainer.train_epoch(epoch, train_dataloader)
+        if epoch % cfg.trainer_cfg.save_interval == 0:
+            trainer.save_model(epoch, os.getcwd() + "/checkpoints/")
 
-        eval_metadata = evaluator.run_eval(epoch, eval_dataloader)
+        save_metric, eval_metadata = evaluator.run_eval(epoch, eval_dataloader)
+        # If the current model has a better key metric than previous models, save its weights.
+        if current_best > save_metric:
+            trainer.save_model(epoch, os.getcwd() + "/checkpoints/", save_best=True)
+            current_best = save_metric
         if wandb.run is not None:
             wandb.log(eval_metadata)
 
@@ -79,9 +88,12 @@ def initialize_experiment(cfg: ExperimentConfig) -> None:
     # wandb.init(project="manifold-contrastive", entity="kfallah",
     #            settings=wandb.Settings(start_method="thread"))
 
+    assert len(cfg.devices) > 0
+    default_device = torch.device(cfg.devices[0])
+
     # Initialize train_loader and eval_loader
     log.info("Initializing dataloaders for " + cfg.train_dataloader_cfg.dataset_cfg.dataset_name + " dataset...")
-    train_dataset, train_dataloder = get_dataloader(cfg.train_dataloader_cfg)
+    train_dataset, train_dataloader = get_dataloader(cfg.train_dataloader_cfg)
     eval_dataset, eval_dataloader = get_dataloader(cfg.eval_dataloader_cfg)
 
     # Set random seeds
@@ -93,16 +105,16 @@ def initialize_experiment(cfg: ExperimentConfig) -> None:
         f"Initializing model with {cfg.model_cfg.backbone_cfg.hub_model_name} backbone "
         + f"and {cfg.model_cfg.header_cfg.header_name} header..."
     )
-    model = Model.initialize_model(cfg.model_cfg)
-    # TODO: support multiple GPUs
-    model = model.to("cuda:0")
+    model = Model.initialize_model(cfg.model_cfg, cfg.devices)
 
     # Initialize the trainer and evaluator
-    trainer = Trainer.initialize_trainer(cfg.trainer_cfg, model, torch.device("cuda:0"))
-    evaluator = Evaluator.initialize_evaluator(cfg.evaluator_cfg, model, torch.device("cuda:0"))
+    trainer = Trainer.initialize_trainer(
+        cfg.trainer_cfg, model, cfg.trainer_cfg.num_epochs * len(train_dataloader), default_device
+    )
+    evaluator = Evaluator.initialize_evaluator(cfg.evaluator_cfg, model, default_device)
 
     # Run experiment
-    run_experiment(cfg, trainer, evaluator, train_dataloder, eval_dataloader)
+    run_experiment(cfg, trainer, evaluator, train_dataloader, eval_dataloader)
 
 
 if __name__ == "__main__":

@@ -21,14 +21,17 @@ trainer_cfg:
   use_amp: true
   optimizer_cfg:
     optimizer: LARS
-    initial_lr: 2.4
+    initial_lr: 1.2
     weight_decay: 1e-6
   scheduler_cfg:
     scheduler: CosineAnnealingLR
   metric_logger_cfg:
     enable_wandb_logging: false
     enable_console_logging: true
+    enable_local_figure_saving: true
     enable_optimizer_logging: false
+    enable_tsne_plot: true
+    enable_log_spectra_plot: true
 
 evaluator_cfg:
   eval_frequency: 10

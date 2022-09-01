@@ -25,4 +25,4 @@ class Evaluator(nn.Module):
         return Evaluator(eval_cfg, model)
 
     def run_eval(self, epoch: int, eval_dataloader: torch.utils.data.DataLoader) -> Dict[str, float]:
-        return {}
+        return 0, {}
