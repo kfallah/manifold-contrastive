@@ -5,7 +5,7 @@ Config for all the different contrastive headers.
 @Author      Kion
 @Created     08/31/22
 """
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 
 from hydra.core.config_store import ConfigStore
 

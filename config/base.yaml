@@ -9,14 +9,27 @@ defaults:
 exp_name: SimCLR
 exp_dir: results
 devices: [0, 1]
+
+model_cfg:
+  concat_different_views: false
+  loss_cfg:
+    ntxent_loss_active: true
+    ntxent_temp: 0.5
+
 trainer_cfg:
   num_epochs: 300
   use_amp: true
   optimizer_cfg:
-    optimizer: Adam
-    initial_lr: 1e-2
+    optimizer: LARS
+    initial_lr: 2.4
+    weight_decay: 1e-6
   scheduler_cfg:
-    scheduler: LinearDecay
+    scheduler: CosineAnnealingLR
+  metric_logger_cfg:
+    enable_wandb_logging: false
+    enable_console_logging: true
+    enable_optimizer_logging: false
+
 evaluator_cfg:
   eval_frequency: 10
 eval_dataloader_cfg:

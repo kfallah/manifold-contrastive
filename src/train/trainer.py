@@ -10,11 +10,12 @@ from typing import Dict
 
 import torch
 import torch.nn as nn
-import wandb
 from model.model import Model
+from model.optimizer import initialize_optimizer, initialize_scheduler
 from torch.cuda.amp import GradScaler, autocast
 
 from train.config import TrainerConfig
+from train.metric_logger import MetricLogger
 
 
 class Trainer(nn.Module):
@@ -25,33 +26,60 @@ class Trainer(nn.Module):
         self.device = device
 
         # Initialize optimizer and scheduler
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-1)
-        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, 7324)
+        self.optimizer = initialize_optimizer(self.trainer_cfg.optimizer_cfg, self.model.parameters())
+        self.scheduler = initialize_scheduler(
+            self.trainer_cfg.scheduler_cfg, self.trainer_cfg.num_epochs, self.optimizer
+        )
         self.scaler = GradScaler(enabled=self.trainer_cfg.use_amp)
 
+        # Initialize metric logger
+        self.metric_logger = MetricLogger.initialize_metric_logger(
+            self.trainer_cfg.metric_logger_cfg, self.model, self.scheduler
+        )
+
     def train_epoch(self, epoch: int, train_dataloader: torch.utils.data.DataLoader) -> Dict[str, float]:
-        with autocast(enabled=self.trainer_cfg.use_amp):
-            self.model.train()
-            for idx, (x0, x1), _, _ in enumerate(train_dataloader):
-                x0, x1 = x0.to(self.device), x1.to(self.device)
+        self.model.train()
+        for idx, batch in enumerate(train_dataloader):
+            x_list = list(batch[0])
+            x_gpu = [x.to(self.device) for x in x_list]
+            x_idx = batch[2]
 
+            with autocast(enabled=self.trainer_cfg.use_amp):
                 # Send inputs through model
-                feat0, pred0 = self.model(x0)
-                feat1, pred1 = self.model(x1)
-                # Compute loss
-                total_loss, loss_metadata = self.model.compute_loss(x0, x1, feat0, feat1, pred0, pred1)
+                model_output, loss_metadata, total_loss = self.model(x_gpu, x_idx)
 
-                # Backpropagate loss
-                self.optimizer.zero_grad()
-                self.scaler.scale(total_loss).backward()
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
-                self.scheduler.step()
+            # Backpropagate loss
+            self.optimizer.zero_grad()
+            self.scaler.scale(total_loss).backward()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.scheduler.step()
 
-                if idx % self.trainer_cfg.logging_freq == 0:
-                    wandb.log(loss_metadata)
+            self.metric_logger.log_metrics(idx + (epoch * len(train_dataloader)), epoch, model_output, loss_metadata)
+
         return loss_metadata
+
+    def save_model(self, curr_epoch: int, save_path: str) -> None:
+        torch.save(
+            {
+                "model_state": self.model.state_dict,
+                "optimizer": self.optimizer,
+                "scheduler": self.scheduler,
+                "current_epoch": curr_epoch,
+            },
+            save_path + f"checkpoint_epoch{curr_epoch}.pt",
+        )
 
     @staticmethod
     def initialize_trainer(trainer_cfg: TrainerConfig, model: Model, device: torch.device) -> "Trainer":
         return Trainer(trainer_cfg, model, device)
+
+    @staticmethod
+    def load_trainer(load_path: str, trainer_cfg: TrainerConfig, model: Model, device: torch.device) -> "Trainer":
+        model_dict = torch.load(load_path)
+
+        trainer = Trainer.initialize_trainer(trainer_cfg, model, device)
+        trainer.optimizer.load_state_dict(model_dict["optimizer"])
+        trainer.scheduler.load_state_dict(model_dict["scheduler"])
+        model.load_state_dict(model_dict["model_state"])
+        return trainer

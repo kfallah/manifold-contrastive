@@ -24,5 +24,5 @@ class Evaluator(nn.Module):
     def initialize_evaluator(eval_cfg: EvaluatorConfig, model: Model, device: torch.device) -> "Evaluator":
         return Evaluator(eval_cfg, model)
 
-    def run_eval(epoch: int, eval_dataloader: torch.utils.data.DataLoader) -> Dict[str, float]:
+    def run_eval(self, epoch: int, eval_dataloader: torch.utils.data.DataLoader) -> Dict[str, float]:
         return {}

@@ -9,9 +9,9 @@ contrastive learning.
 
 from typing import Callable, Tuple
 
-import torchvision
 import lightly.data as data
-from torch.utils.data import Dataset, DataLoader
+import torchvision
+from torch.utils.data import DataLoader, Dataset
 
 from dataloader.config import CollateFunctionConfig, DataLoaderConfig, DatasetConfig
 
@@ -68,14 +68,16 @@ def get_dataloader(config: DataLoaderConfig) -> Tuple[Dataset, DataLoader]:
         Tuple[Dataset, DataLoader]: Returns both the dataset and the
         dataloader.
     """
-    dataset = get_dataset(config.dataset_cfg, config.train)
+    pytorch_dataset = get_dataset(config.dataset_cfg, config.train)
+    lightly_dataset = data.LightlyDataset.from_torch_dataset(pytorch_dataset)
     collate_fn = get_collate_fn(config.collate_fn_cfg, config.dataset_cfg.image_size)
     dataloader = DataLoader(
-        dataset,
+        lightly_dataset,
         batch_size=config.batch_size,
         shuffle=config.shuffle,
         num_workers=config.num_workers,
         collate_fn=collate_fn,
+        persistent_workers=config.persistent_workers,
     )
 
-    return (dataset, dataloader)
+    return (pytorch_dataset, dataloader)

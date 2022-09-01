@@ -64,10 +64,10 @@ def run_experiment(
     log.info("Running experiment...")
     for epoch in range(cfg.trainer_cfg.num_epochs):
         train_metadata = trainer.train_epoch(epoch, train_dataloader)
-        log.info(f"Epoch {epoch} of {cfg.trainer_cfg.num_epochs}, {train_metadata}")
 
         eval_metadata = evaluator.run_eval(epoch, eval_dataloader)
-        wandb.log(eval_metadata)
+        if wandb.run is not None:
+            wandb.log(eval_metadata)
 
 
 @hydra.main(version_base=None, config_path="../config", config_name="base")
@@ -90,7 +90,7 @@ def initialize_experiment(cfg: ExperimentConfig) -> None:
 
     # Initialize the model
     log.info(
-        f"Initializing model with {cfg.model_cfg.backbone_cfg.hub_model_name} backbone"
+        f"Initializing model with {cfg.model_cfg.backbone_cfg.hub_model_name} backbone "
         + f"and {cfg.model_cfg.header_cfg.header_name} header..."
     )
     model = Model.initialize_model(cfg.model_cfg)
@@ -102,7 +102,6 @@ def initialize_experiment(cfg: ExperimentConfig) -> None:
     evaluator = Evaluator.initialize_evaluator(cfg.evaluator_cfg, model, torch.device("cuda:0"))
 
     # Run experiment
-    log.info("...Starting experiment.")
     run_experiment(cfg, trainer, evaluator, train_dataloder, eval_dataloader)
 
 

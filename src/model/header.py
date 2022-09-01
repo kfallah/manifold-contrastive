@@ -16,7 +16,7 @@ from model.contrastive.config import ContrastiveHeaderConfig, SimCLRHeaderConfig
 class ContrastiveHeader(nn.Module):
     def __init__(self, header_cfg: ContrastiveHeaderConfig, backbone_feature_dim: int):
         super(ContrastiveHeader, self).__init__()
-        self.config = header_cfg
+        self.header_cfg = header_cfg
         if header_cfg.header_name == "SimCLR":
             simclr_cfg = SimCLRHeaderConfig(header_cfg)
             self.header = SimCLRProjectionHead(backbone_feature_dim, simclr_cfg.hidden_dim, simclr_cfg.output_dim)

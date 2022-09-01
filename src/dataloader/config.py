@@ -32,4 +32,5 @@ class DataLoaderConfig:
     train: bool = True
     batch_size: int = 64
     shuffle: bool = False
+    persistent_workers: bool = True
     num_workers: int = 0
