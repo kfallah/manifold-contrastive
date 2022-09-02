@@ -6,18 +6,33 @@ Class that contains all config DataClasses for evaluation.
 @Created     08/31/22
 """
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 
 
 @dataclass
-class ClusteringEvalConfig:
+class EvalRunnerConfig:
+    # Whether to run this metric or not
+    enable_runner: bool = False
+    # Whether to use this metric as the key metric for saving the best checkpoint
+    use_for_best_checkpoint: bool = False
+    # Evaluation frequency in epochs
+    eval_freq: int = 50
+
+
+@dataclass
+class ClusteringEvalConfig(EvalRunnerConfig):
     num_points_cluster: int = 5000
+    num_clusters: int = 10
+
+
+@dataclass
+class KNNEvalConfig(EvalRunnerConfig):
+    k: int = 20
 
 
 @dataclass
 class EvaluatorConfig:
-    eval_frequency: int = MISSING
-    # k-NN accuracy in the feature space of test features
-    enable_clustering_eval: bool = False
-    clustering_eval_freq: int = 50
+    # Clustering accuracy in the feature space of test features
     clustering_eval_cfg: ClusteringEvalConfig = ClusteringEvalConfig()
+    # k-NN accuracy in the feature space of test features
+    knn_eval_cfg: KNNEvalConfig = KNNEvalConfig()

@@ -17,6 +17,7 @@ import numpy as np
 import torch
 import wandb
 from hydra.core.config_store import ConfigStore
+from omegaconf import OmegaConf
 
 import model.contrastive.config as header_config
 from dataloader.config import DataLoaderConfig
@@ -42,6 +43,7 @@ class ExperimentConfig:
     exp_name: str = MISSING
     exp_dir: str = MISSING
     devices: Tuple[int] = MISSING
+    enable_wandb: bool = True
     seed: int = 0
 
 
@@ -66,27 +68,37 @@ def run_experiment(
     # Used to save the
     current_best = 1e99
     for epoch in range(cfg.trainer_cfg.num_epochs):
-        _ = trainer.train_epoch(epoch, train_dataloader)
+        # Perform a training epoch
+        # _ = trainer.train_epoch(epoch, train_dataloader)
+        # Save the model every few epochs
         if epoch % cfg.trainer_cfg.save_interval == 0:
             trainer.save_model(epoch, os.getcwd() + "/checkpoints/")
 
-        save_metric, eval_metadata = evaluator.run_eval(epoch, eval_dataloader)
-        # If the current model has a better key metric than previous models, save its weights.
-        if current_best > save_metric:
-            trainer.save_model(epoch, os.getcwd() + "/checkpoints/", save_best=True)
-            current_best = save_metric
-        if wandb.run is not None:
-            wandb.log(eval_metadata)
+        # Run evaluation metrics on the model
+        eval_out = evaluator.run_eval(epoch, eval_dataloader)
+        # Only not equal to None when an evaluation was run
+        if eval_out is not None:
+            save_metric, eval_metadata = eval_out
+            format_eval = [f"{key}: {eval_metadata[key]:.3E}" for key in eval_metadata.keys()]
+            log.info(f"[Evaluation epoch {epoch}]: " + ", ".join(format_eval))
+            # If the current model has a better key metric than previous models, save its weights.
+            if current_best > save_metric:
+                trainer.save_model(epoch, os.getcwd() + "/checkpoints/", save_best=True)
+                current_best = save_metric
+            if wandb.run is not None:
+                wandb.log(eval_metadata)
 
 
 @hydra.main(version_base=None, config_path="../config", config_name="base")
 def initialize_experiment(cfg: ExperimentConfig) -> None:
     log.info("Initializing experiment...")
-    # wandb.config = OmegaConf.to_container(
-    #     cfg, resolve=True, throw_on_missing=True
-    # )
-    # wandb.init(project="manifold-contrastive", entity="kfallah",
-    #            settings=wandb.Settings(start_method="thread"))
+    wandb.init(
+        project="manifold-contrastive",
+        entity="kfallah",
+        mode="online" if cfg.enable_wandb else "disabled",
+        settings=wandb.Settings(start_method="thread"),
+        config=OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True),
+    )
 
     assert len(cfg.devices) > 0
     default_device = torch.device(cfg.devices[0])

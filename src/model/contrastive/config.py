@@ -22,5 +22,6 @@ class ContrastiveHeaderConfig:
 
 @dataclass
 class SimCLRHeaderConfig(ContrastiveHeaderConfig):
+    enable_proj_head: bool = True
     hidden_dim: int = 2048
     output_dim: int = 128

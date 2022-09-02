@@ -1,1 +1,5 @@
+defaults:
+  - /exp_cfg/model_cfg/header_cfg/simclr@_here_
+  - _self_
 header_name: SimCLR
+enable_proj_head: true

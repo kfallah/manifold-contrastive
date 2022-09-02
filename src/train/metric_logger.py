@@ -7,6 +7,7 @@ Module responsible for logging all metrics related to training.
 """
 
 import logging
+import math
 import os
 from typing import Dict
 
@@ -31,6 +32,7 @@ class MetricLogger:
         self.scheduler = scheduler
         self.metadata_avg = {}
         self.feature_cache = []
+        self.pred_cache = []
         self.label_cache = []
 
     def enable_feature_cache(self):
@@ -55,6 +57,8 @@ class MetricLogger:
         if self.enable_feature_cache():
             self.feature_cache.extend(model_output.feature_list[:, 0].detach().cpu().numpy())
             self.feature_cache = self.feature_cache[-self.cfg.feature_cache_size :]
+            self.pred_cache.extend(model_output.prediction_list[:, 0].detach().cpu().numpy())
+            self.pred_cache = self.pred_cache[-self.cfg.feature_cache_size :]
             self.label_cache.extend(labels.numpy())
             self.label_cache = self.label_cache[-self.cfg.feature_cache_size :]
         metrics = {}
@@ -77,12 +81,26 @@ class MetricLogger:
                     # Reset all values to zero for the next loop
                     self.metadata_avg = dict.fromkeys(self.metadata_avg, 0.0)
 
-        # Plotting optimizer LR
+        # Logging optimizer LR
         if self.cfg.enable_optimizer_logging and curr_iter % self.cfg.optimizer_log_freq == 0:
             optim_lr = self.scheduler.get_last_lr()
             metrics["optim_lr"] = optim_lr
             if self.cfg.enable_console_logging:
-                log.info(f"Optimizer LR: {optim_lr}")
+                log.info(f"[Epoch {curr_epoch}, iter {curr_iter}]: Optimizer LR: {optim_lr}")
+
+        # Logging collapse level
+        if self.cfg.enable_collapse_logging and curr_iter % self.cfg.collapse_log_freq == 0:
+            feat_var = np.std(np.array(self.feature_cache), axis=0)
+            feat_collapse = max(0.0, 1 - math.sqrt(len(feat_var)) * feat_var.mean())
+            pred_var = np.std(np.array(self.pred_cache), axis=0)
+            pred_collapse = max(0.0, 1 - math.sqrt(len(pred_var)) * pred_var.mean())
+            metrics["feat_collapse"] = feat_collapse
+            metrics["pred_collapse"] = pred_collapse
+            if self.cfg.enable_console_logging:
+                log.info(
+                    f"[Epoch {curr_epoch}, iter {curr_iter}]: Feature collapse: {feat_collapse:.2f}"
+                    + f", Prediction collapse: {pred_collapse:.2f}"
+                )
 
         # t-SNE Plotting of backbone features
         if (
@@ -92,7 +110,7 @@ class MetricLogger:
         ):
             tsne_fig = plot_tsne(np.array(self.feature_cache), np.array(self.label_cache))
             if self.cfg.enable_wandb_logging:
-                wandb.log({"tsne": tsne_fig}, step=curr_iter)
+                wandb.log({"tsne": wandb.Image(tsne_fig)}, step=curr_iter)
             if self.cfg.enable_local_figure_saving:
                 self.save_figure(f"tsne_iter{curr_iter}", tsne_fig)
 
@@ -102,12 +120,16 @@ class MetricLogger:
             and (self.cfg.enable_wandb_logging or self.cfg.enable_local_figure_saving)
             and curr_iter % self.cfg.log_spectra_plot_freq == 0
         ):
-            log_spectra_plot, log_spectra = plot_log_spectra(np.array(self.feature_cache))
-            metrics["log_spectra"] = log_spectra
+            feat_log_spectra_plot, feat_log_spectra = plot_log_spectra(np.array(self.feature_cache))
+            pred_log_spectra_plot, pred_log_spectra = plot_log_spectra(np.array(self.pred_cache))
+            metrics["feat_log_spectra"] = feat_log_spectra
+            metrics["pred_log_spectra"] = pred_log_spectra
             if self.cfg.enable_wandb_logging:
-                wandb.log({"log_spectra": log_spectra_plot}, step=curr_iter)
+                wandb.log({"feat_log_spectra_plot": wandb.Image(feat_log_spectra_plot)}, step=curr_iter)
+                wandb.log({"pred_log_spectra_plot": wandb.Image(pred_log_spectra_plot)}, step=curr_iter)
             if self.cfg.enable_local_figure_saving:
-                self.save_figure(f"log_spectra_iter{curr_iter}", log_spectra_plot)
+                self.save_figure(f"feat_log_spectra_iter{curr_iter}", feat_log_spectra_plot)
+                self.save_figure(f"pred_log_spectra_iter{curr_iter}", pred_log_spectra_plot)
 
         if self.cfg.enable_wandb_logging:
             wandb.log(metrics, step=curr_iter)

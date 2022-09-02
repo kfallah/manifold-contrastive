@@ -19,14 +19,19 @@ class ContrastiveHeader(nn.Module):
         self.header_cfg = header_cfg
         if header_cfg.header_name == "SimCLR":
             simclr_cfg = SimCLRHeaderConfig(header_cfg)
-            self.header = SimCLRProjectionHead(backbone_feature_dim, simclr_cfg.hidden_dim, simclr_cfg.output_dim)
+            self.header = None
+            if self.header_cfg.enable_proj_head:
+                self.header = SimCLRProjectionHead(backbone_feature_dim, simclr_cfg.hidden_dim, simclr_cfg.output_dim)
         else:
             raise NotImplementedError
 
     def forward(self, x, z) -> torch.Tensor:
         prediction_out = None
         if self.header_cfg.header_name == "SimCLR":
-            prediction_out = self.header(z)
+            if self.header_cfg.enable_proj_head:
+                prediction_out = self.header(z)
+            else:
+                prediction_out = z
         return prediction_out
 
     @staticmethod

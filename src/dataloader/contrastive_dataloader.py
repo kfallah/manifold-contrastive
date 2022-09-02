@@ -11,27 +11,36 @@ from typing import Callable, Tuple
 
 import lightly.data as data
 import torchvision
+import torchvision.transforms as T
 from torch.utils.data import DataLoader, Dataset
 
 from dataloader.config import CollateFunctionConfig, DataLoaderConfig, DatasetConfig
 
 
-def get_dataset(config: DatasetConfig, train: bool = True) -> Dataset:
+def get_dataset(config: DatasetConfig, enable_collate: bool = True, train: bool = True) -> Dataset:
     """Return torchvision dataset for a given config.
 
     Args:
         config (DatasetConfig): Dataset config
+        enable_collate (bool): Whether a collate function is enabled with the dataset.
         train (bool): Whether to load the training dataset.
 
     Returns:
         Dataset: Returns the torchvision dataset.
     """
+    # Return transform for conversion to lightly dataset
+    transform = None
+    transform_list = [] if enable_collate else [T.ToTensor()]
+
     if config.dataset_name == "CIFAR10":
-        transform = None if config.image_size == 32 else torchvision.transforms.Resize(config.image_size)
+        if config.image_size != 32:
+            # Prepend transform so it comes before ToTensor()
+            transform_list.insert(0, T.Resize(config.image_size))
+        transform = T.Compose(transform_list)
         dataset = torchvision.datasets.CIFAR10(config.dataset_dir, transform=transform, train=train, download=False)
     else:
         raise NotImplementedError
-    return dataset
+    return dataset, transform
 
 
 def get_collate_fn(config: CollateFunctionConfig, image_size: int) -> Callable:
@@ -68,8 +77,10 @@ def get_dataloader(config: DataLoaderConfig) -> Tuple[Dataset, DataLoader]:
         Tuple[Dataset, DataLoader]: Returns both the dataset and the
         dataloader.
     """
-    pytorch_dataset = get_dataset(config.dataset_cfg, config.train)
-    lightly_dataset = data.LightlyDataset.from_torch_dataset(pytorch_dataset)
+    pytorch_dataset, transform = get_dataset(
+        config.dataset_cfg, config.collate_fn_cfg.collate_fn_type != "NONE", config.train
+    )
+    lightly_dataset = data.LightlyDataset.from_torch_dataset(pytorch_dataset, transform=transform)
     collate_fn = get_collate_fn(config.collate_fn_cfg, config.dataset_cfg.image_size)
     dataloader = DataLoader(
         lightly_dataset,

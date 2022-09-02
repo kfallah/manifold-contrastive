@@ -50,6 +50,7 @@ class Trainer(nn.Module):
         for idx, batch in enumerate(train_dataloader):
             pre_time = time.time()
             x_list = list(batch[0])
+            # Tensor of input images of shape [B x V x H x W x C]
             x_gpu = torch.stack([x.to(self.device) for x in x_list]).transpose(0, 1)
             x_idx = torch.Tensor([int(idx) for idx in batch[2]])
 

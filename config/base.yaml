@@ -9,6 +9,8 @@ defaults:
 exp_name: SimCLR
 exp_dir: results
 devices: [0, 1]
+enable_wandb: true
+seed: 0
 
 model_cfg:
   concat_different_views: false
@@ -26,15 +28,19 @@ trainer_cfg:
   scheduler_cfg:
     scheduler: CosineAnnealingLR
   metric_logger_cfg:
-    enable_wandb_logging: false
+    enable_wandb_logging: true
     enable_console_logging: true
     enable_local_figure_saving: true
-    enable_optimizer_logging: false
+    enable_optimizer_logging: true
+    enable_collapse_logging: true
     enable_tsne_plot: true
     enable_log_spectra_plot: true
 
 evaluator_cfg:
-  eval_frequency: 10
+  clustering_eval_cfg:
+    use_for_best_checkpoint: true
+    enable_runner: true
+    eval_freq: 50
 eval_dataloader_cfg:
   collate_fn_cfg:
     collate_fn_type: NONE
