@@ -45,7 +45,7 @@ class ClusteringEval(EvalRunner):
             feature_cluster.labels_, val_eval_input.labels[feat_cluster_idx].numpy()
         )
         # Save to metadata dictionary
-        cluster_metrics["feature_cluster_acc"] = feature_cluster_acc
+        cluster_metrics["feat_cluster_acc"] = feature_cluster_acc
 
         pred_cluster_idx = np.linspace(
             0, len(val_eval_input.prediction_list) - 1, self.get_config().num_points_cluster, dtype=int

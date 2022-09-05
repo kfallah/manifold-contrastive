@@ -26,3 +26,4 @@ class SimCLRHeaderConfig(ContrastiveHeaderConfig):
     projection_type: str = "MLP"
     hidden_dim: int = 2048
     output_dim: int = 128
+    direct_proj_num_dim: int = 64

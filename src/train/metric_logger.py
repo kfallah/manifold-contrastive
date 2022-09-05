@@ -122,8 +122,12 @@ class MetricLogger:
             and (self.cfg.enable_wandb_logging or self.cfg.enable_local_figure_saving)
             and curr_iter % self.cfg.log_spectra_plot_freq == 0
         ):
-            feat_log_spectra_plot, feat_log_spectra = plot_log_spectra(np.array(self.feature_cache))
-            pred_log_spectra_plot, pred_log_spectra = plot_log_spectra(np.array(self.pred_cache))
+            feat_norm = torch.nn.functional.normalize(torch.tensor(np.array(self.feature_cache)).float(), dim=1)
+            feat_cov = np.cov(feat_norm.numpy().T)
+            feat_log_spectra_plot, feat_log_spectra = plot_log_spectra(feat_cov)
+            pred_norm = torch.nn.functional.normalize(torch.tensor(np.array(self.pred_cache)).float(), dim=1)
+            pred_cov = np.cov(pred_norm.numpy().T)
+            pred_log_spectra_plot, pred_log_spectra = plot_log_spectra(pred_cov)
             metrics["feat_log_spectra"] = feat_log_spectra
             metrics["pred_log_spectra"] = pred_log_spectra
             if self.cfg.enable_wandb_logging:

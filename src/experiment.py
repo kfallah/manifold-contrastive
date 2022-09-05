@@ -92,13 +92,14 @@ def run_experiment(
     # Used to save the
     current_best = 1e99
     for epoch in range(cfg.trainer_cfg.num_epochs):
+        # Run eval metrics on the model
+        run_eval(epoch, current_best, trainer, evaluator, train_dataloader, eval_dataloader)
+
         # Perform a training epoch
         _ = trainer.train_epoch(epoch, train_dataloader)
         # Save the model every few epochs
         if epoch % cfg.trainer_cfg.save_interval == 0:
             trainer.save_model(epoch, os.getcwd() + "/checkpoints/")
-
-        run_eval(epoch, current_best, trainer, evaluator, train_dataloader, eval_dataloader)
 
     # Save the model and force all evals after training is complete
     run_eval(epoch, current_best, trainer, evaluator, train_dataloader, eval_dataloader, last_epoch=True)

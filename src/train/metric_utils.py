@@ -23,7 +23,7 @@ def plot_tsne(features: np.array, labels: np.array) -> Figure:
 
 def plot_log_spectra(features: np.array) -> Figure:
     fig = plt.figure(figsize=(8, 8))
-    _, s, _ = np.linalg.svd(features.astype(float))
+    _, s, _ = np.linalg.svd(features)
     log_spectra = np.log(s)
     plt.plot(log_spectra)
     plt.xlabel("Dimension", fontsize=18)

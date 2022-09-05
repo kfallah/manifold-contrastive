@@ -6,7 +6,9 @@ Class that contains all config DataClasses for evaluation.
 @Created     08/31/22
 """
 
-from dataclasses import dataclass
+from dataclasses import MISSING, dataclass
+
+from train.config import OptimizerConfig, SchedulerConfig
 
 
 @dataclass
@@ -21,6 +23,8 @@ class EvalRunnerConfig:
 
 @dataclass
 class LinearProbeConfig(EvalRunnerConfig):
+    optimizer_cfg: OptimizerConfig = OptimizerConfig()
+    scheduler_cfg: SchedulerConfig = SchedulerConfig()
     num_epochs: int = 100
 
 
@@ -41,3 +45,5 @@ class EvaluatorConfig:
     clustering_eval_cfg: ClusteringEvalConfig = ClusteringEvalConfig()
     # k-NN accuracy in the feature space of test features
     knn_eval_cfg: KNNEvalConfig = KNNEvalConfig()
+    # Linear classification probe on top of frozen backbone features.
+    linear_probe_eval_cfg: LinearProbeConfig = LinearProbeConfig()

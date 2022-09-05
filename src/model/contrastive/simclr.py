@@ -21,10 +21,10 @@ class RandomProjection(nn.Module):
         self.out_dim = out_dim
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        random_proj = torch.randn((self.out_dim, self.in_dim), device=x.device, dtype=x.dtype) * (
+        random_proj = torch.randn((len(x), self.out_dim, self.in_dim), device=x.device, dtype=x.dtype) * (
             1 / math.sqrt(self.out_dim)
         )
-        return x @ random_proj.T
+        return (random_proj @ x.unsqueeze(-1)).squeeze(-1)
 
 
 class SimCLRHeader(nn.Module):
@@ -40,10 +40,14 @@ class SimCLRHeader(nn.Module):
             self.projector = nn.Linear(backbone_feature_dim, self.simclr_cfg.output_dim)
         elif self.simclr_cfg.projection_type == "RandomProjection":
             self.projector = RandomProjection(backbone_feature_dim, self.simclr_cfg.output_dim)
-        elif self.simclr_cfg.projection_type == "None":
+        elif self.simclr_cfg.projection_type == "None" or self.simclr_cfg.projection_type == "Direct":
             self.projector = nn.Identity()
         else:
             raise NotImplementedError
 
     def forward(self, feat) -> torch.Tensor:
-        return self.projector(feat)
+        pred = self.projector(feat)
+        # For DirectCLR only use a subset of the features for prediction
+        if self.simclr_cfg.projection_type == "Direct":
+            pred = pred[..., : self.simclr_cfg.direct_proj_num_dim]
+        return pred

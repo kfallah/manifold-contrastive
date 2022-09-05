@@ -31,20 +31,20 @@ class MetricLoggerConfig:
 
 @dataclass
 class OptimizerConfig:
-    optimizer: str = MISSING
-    initial_lr: float = MISSING
-    weight_decay: float = MISSING
+    optimizer: str = "SGD"
+    initial_lr: float = 0.1
+    weight_decay: float = 1e-6
 
 
 @dataclass
 class SchedulerConfig:
-    scheduler: str = MISSING
+    scheduler: str = "CosineAnnealingLR"
 
 
 @dataclass
 class TrainerConfig:
-    optimizer_cfg: OptimizerConfig = MISSING
-    scheduler_cfg: SchedulerConfig = MISSING
+    optimizer_cfg: OptimizerConfig = OptimizerConfig()
+    scheduler_cfg: SchedulerConfig = SchedulerConfig()
     metric_logger_cfg: MetricLoggerConfig = MetricLoggerConfig()
     num_epochs: int = 300
     save_interval: int = 50
