@@ -1,0 +1,15 @@
+dataset_cfg: 
+  dataset_name: CIFAR10
+  image_size: 64
+collate_fn_cfg:
+  collate_fn_type: LIGHTLY_IMAGE
+  cj_bright: 0.4
+  cj_contrast: 0.4
+  cj_sat: 0.4
+  cj_hue: 0.1
+  min_scale: 0.5
+batch_size: 2048
+train: true
+shuffle: true
+persistent_workers: true
+num_workers: 20

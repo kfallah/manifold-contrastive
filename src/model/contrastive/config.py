@@ -6,6 +6,7 @@ Config for all the different contrastive headers.
 @Created     08/31/22
 """
 from dataclasses import dataclass
+from typing import Tuple
 
 from hydra.core.config_store import ConfigStore
 
@@ -22,6 +23,6 @@ class ContrastiveHeaderConfig:
 
 @dataclass
 class SimCLRHeaderConfig(ContrastiveHeaderConfig):
-    enable_proj_head: bool = True
+    projection_type: str = "MLP"
     hidden_dim: int = 2048
     output_dim: int = 128

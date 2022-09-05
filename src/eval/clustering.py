@@ -25,31 +25,35 @@ class ClusteringEval(EvalRunner):
             purity_label = sp.stats.mode(true_labels[pred_labels == i])[0]
             correct_labels = purity_label == true_labels[pred_labels == i]
             acc += correct_labels.sum()
-        acc = 100 * (acc / len(pred_labels))
+        acc = acc / len(pred_labels)
         return acc
 
-    def run_eval(self, eval_input: EvaluationInput) -> Tuple[Dict[str, float], float]:
+    def run_eval(
+        self, train_eval_input: EvaluationInput, val_eval_input: EvaluationInput
+    ) -> Tuple[Dict[str, float], float]:
         cluster_metrics = {}
         # Take a linear spacing of features indices based on the number of points used for clustering
         feat_cluster_idx = np.linspace(
-            0, len(eval_input.feature_list) - 1, self.get_config().num_points_cluster, dtype=int
+            0, len(val_eval_input.feature_list) - 1, self.get_config().num_points_cluster, dtype=int
         )
         # Fit k-means clustering to the selected points
         feature_cluster = KMeans(n_clusters=self.get_config().num_clusters, random_state=0).fit(
-            eval_input.feature_list[feat_cluster_idx]
+            val_eval_input.feature_list[feat_cluster_idx]
         )
         # Get the purity accuracy of the estimated clusters
-        feature_cluster_acc = self.get_purity_acc(feature_cluster.labels_, eval_input.labels[feat_cluster_idx].numpy())
+        feature_cluster_acc = self.get_purity_acc(
+            feature_cluster.labels_, val_eval_input.labels[feat_cluster_idx].numpy()
+        )
         # Save to metadata dictionary
         cluster_metrics["feature_cluster_acc"] = feature_cluster_acc
 
         pred_cluster_idx = np.linspace(
-            0, len(eval_input.prediction_list) - 1, self.get_config().num_points_cluster, dtype=int
+            0, len(val_eval_input.prediction_list) - 1, self.get_config().num_points_cluster, dtype=int
         )
         pred_cluster = KMeans(n_clusters=self.get_config().num_clusters, random_state=0).fit(
-            eval_input.prediction_list[pred_cluster_idx]
+            val_eval_input.prediction_list[pred_cluster_idx]
         )
-        pred_cluster_acc = self.get_purity_acc(pred_cluster.labels_, eval_input.labels[pred_cluster_idx].numpy())
+        pred_cluster_acc = self.get_purity_acc(pred_cluster.labels_, val_eval_input.labels[pred_cluster_idx].numpy())
         cluster_metrics["pred_cluster_acc"] = pred_cluster_acc
 
         return cluster_metrics, feature_cluster_acc

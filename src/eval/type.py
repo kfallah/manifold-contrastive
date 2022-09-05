@@ -18,11 +18,11 @@ class EvaluationInput(NamedTuple):
     # Model used for evaluation
     model: Model
     # All the input images used for evaluation [N x H x W x 3] (expected on CPU)
-    x_eval: torch.Tensor
-    # Labels for all of the validation samples [N] (expected on CPU)
-    labels: torch.Tensor
+    x: torch.Tensor
     # Indices for input data from dataloader [N] (expected on CPU)
     x_idx: torch.Tensor
+    # Labels for all of the validation samples [N] (expected on CPU)
+    labels: torch.Tensor
     # Encoded features from backbone for the val dataloader [N x D] (expected on CPU)
     feature_list: torch.Tensor
     # Prediction from the model header for the val dataloader [N x D] (expected on CPU)
@@ -34,7 +34,7 @@ class EvalRunner:
         super(EvalRunner, self).__init__()
         self.cfg = cfg
 
-    def run_eval(self, eval_input: EvaluationInput) -> Tuple[Dict[str, float], float]:
+    def run_eval(self, **kwargs) -> Tuple[Dict[str, float], float]:
         raise NotImplementedError
 
     def get_eval_freq(self) -> int:

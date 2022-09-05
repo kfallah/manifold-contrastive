@@ -57,6 +57,30 @@ cs = ConfigStore.instance()
 register_configs()
 
 
+def run_eval(
+    epoch: int,
+    current_best: float,
+    trainer: Trainer,
+    evaluator: Evaluator,
+    train_dataloader: torch.utils.data.DataLoader,
+    eval_dataloader: torch.utils.data.DataLoader,
+    last_epoch: bool = False,
+):
+    # Run evaluation metrics on the model
+    eval_out = evaluator.run_eval(epoch, train_dataloader, eval_dataloader, last_epoch)
+    # Only not equal to None when an evaluation was run
+    if eval_out is not None:
+        save_metric, eval_metadata = eval_out
+        format_eval = [f"{key}: {eval_metadata[key]:.3E}" for key in eval_metadata.keys()]
+        log.info(f"[Evaluation epoch {epoch}]: " + ", ".join(format_eval))
+        # If the current model has a better key metric than previous models, save its weights.
+        if current_best > save_metric:
+            trainer.save_model(epoch, os.getcwd() + "/checkpoints/", save_best=True)
+            current_best = save_metric
+        if wandb.run is not None:
+            wandb.log(eval_metadata)
+
+
 def run_experiment(
     cfg: ExperimentConfig,
     trainer: Trainer,
@@ -69,24 +93,17 @@ def run_experiment(
     current_best = 1e99
     for epoch in range(cfg.trainer_cfg.num_epochs):
         # Perform a training epoch
-        # _ = trainer.train_epoch(epoch, train_dataloader)
+        _ = trainer.train_epoch(epoch, train_dataloader)
         # Save the model every few epochs
         if epoch % cfg.trainer_cfg.save_interval == 0:
             trainer.save_model(epoch, os.getcwd() + "/checkpoints/")
 
-        # Run evaluation metrics on the model
-        eval_out = evaluator.run_eval(epoch, eval_dataloader)
-        # Only not equal to None when an evaluation was run
-        if eval_out is not None:
-            save_metric, eval_metadata = eval_out
-            format_eval = [f"{key}: {eval_metadata[key]:.3E}" for key in eval_metadata.keys()]
-            log.info(f"[Evaluation epoch {epoch}]: " + ", ".join(format_eval))
-            # If the current model has a better key metric than previous models, save its weights.
-            if current_best > save_metric:
-                trainer.save_model(epoch, os.getcwd() + "/checkpoints/", save_best=True)
-                current_best = save_metric
-            if wandb.run is not None:
-                wandb.log(eval_metadata)
+        run_eval(epoch, current_best, trainer, evaluator, train_dataloader, eval_dataloader)
+
+    # Save the model and force all evals after training is complete
+    run_eval(epoch, current_best, trainer, evaluator, train_dataloader, eval_dataloader, last_epoch=True)
+    trainer.save_model(epoch, os.getcwd() + "/checkpoints/")
+    log.info("...Experiment complete!")
 
 
 @hydra.main(version_base=None, config_path="../config", config_name="base")

@@ -10,12 +10,14 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import torch
 import torch.nn as nn
+from dataloader.utils import get_unaugmented_dataloader
 from model.model import Model
 
 from eval.clustering import ClusteringEval
 from eval.config import EvaluatorConfig
 from eval.knn_acc import KNNEval
-from eval.type import EvalRunner, EvaluationInput
+from eval.type import EvalRunner
+from eval.utils import encode_features
 
 
 class Evaluator(nn.Module):
@@ -36,42 +38,26 @@ class Evaluator(nn.Module):
         return np.any(eval_runner_list)
 
     def run_eval(
-        self, epoch: int, eval_dataloader: torch.utils.data.DataLoader
+        self,
+        epoch: int,
+        train_dataloader: torch.utils.data.DataLoader,
+        eval_dataloader: torch.utils.data.DataLoader,
+        last_epoch: bool = False,
     ) -> Optional[Tuple[float, Dict[str, float]]]:
-        if not self.eval_needed(epoch):
+        if not self.eval_needed(epoch) and not last_epoch:
             return None
         eval_metrics = {}
 
-        self.model.eval()
-        x_eval = []
-        labels = []
-        x_idx = []
-        feature_list = []
-        prediction_list = []
-        for _, batch in enumerate(eval_dataloader):
-            x, batch_label, batch_idx = batch
-            x_gpu = x.to(self.device).unsqueeze(1)
-            batch_idx = torch.Tensor([int(idx) for idx in batch_idx])
-            model_output = self.model(x_gpu, batch_idx)
-
-            x_eval.append(x.detach().cpu())
-            labels.append(batch_label.detach().cpu())
-            x_idx.append(batch_idx.detach().cpu())
-            feature_list.append(model_output.feature_list.detach().cpu())
-            prediction_list.append(model_output.prediction_list.detach().cpu())
-        # Flatten all encoded data to a single tensor
-        x_eval = torch.cat(x_eval)
-        labels = torch.cat(labels)
-        x_idx = torch.cat(x_idx)
-        feature_list = torch.cat(feature_list).squeeze(1)
-        prediction_list = torch.cat(prediction_list).squeeze(1)
-        # Create evaluation input from all encoded data
-        eval_input = EvaluationInput(self.model, x_eval, labels, x_idx, feature_list, prediction_list)
+        unaugmented_train_dataloader = get_unaugmented_dataloader(train_dataloader)
+        train_eval_input = encode_features(self.model, unaugmented_train_dataloader, self.device)
+        val_eval_input = encode_features(self.model, eval_dataloader, self.device)
 
         checkpoint_metric = 0.0
         for eval_runner in self.eval_runners:
-            if epoch % eval_runner.get_eval_freq() == 0:
-                metric_metadata, key_metric_value = eval_runner.run_eval(eval_input)
+            if epoch % eval_runner.get_eval_freq() == 0 or last_epoch:
+                metric_metadata, key_metric_value = eval_runner.run_eval(
+                    train_eval_input=train_eval_input, val_eval_input=val_eval_input
+                )
                 eval_metrics.update(metric_metadata)
                 if eval_runner.cfg.use_for_best_checkpoint:
                     checkpoint_metric = key_metric_value

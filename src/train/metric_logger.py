@@ -90,9 +90,11 @@ class MetricLogger:
 
         # Logging collapse level
         if self.cfg.enable_collapse_logging and curr_iter % self.cfg.collapse_log_freq == 0:
-            feat_var = np.std(np.array(self.feature_cache), axis=0)
-            feat_collapse = max(0.0, 1 - math.sqrt(len(feat_var)) * feat_var.mean())
-            pred_var = np.std(np.array(self.pred_cache), axis=0)
+            feat_norm = torch.nn.functional.normalize(torch.tensor(np.array(self.feature_cache)).float(), dim=1)
+            feat_var = torch.std(feat_norm, dim=0)
+            feat_collapse = max(0.0, 1 - math.sqrt(len(feat_var)) * feat_var.mean().item())
+            pred_norm = torch.nn.functional.normalize(torch.tensor(np.array(self.pred_cache)).float(), dim=1)
+            pred_var = torch.std(pred_norm, dim=0)
             pred_collapse = max(0.0, 1 - math.sqrt(len(pred_var)) * pred_var.mean())
             metrics["feat_collapse"] = feat_collapse
             metrics["pred_collapse"] = pred_collapse

@@ -21,7 +21,12 @@ class DatasetConfig:
 class CollateFunctionConfig:
     # Supported values: ["LIGHTLY_IMAGE", "NONE"]
     collate_fn_type: str = MISSING
-    cj_prob: float = 0.5
+    cj_prob: float = 0.8
+    cj_bright: float = 0.8
+    cj_contrast: float = 0.8
+    cj_sat: float = 0.8
+    cj_hue: float = 0.2
+    min_scale: float = 0.08
     gausian_blur: float = 0.0
 
 

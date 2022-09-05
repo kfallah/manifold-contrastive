@@ -8,30 +8,26 @@ Wrapper for different contrastive headers.
 
 import torch
 import torch.nn as nn
-from lightly.models.modules.heads import SimCLRProjectionHead
 
 from model.contrastive.config import ContrastiveHeaderConfig, SimCLRHeaderConfig
+from model.contrastive.simclr import SimCLRHeader
 
 
 class ContrastiveHeader(nn.Module):
     def __init__(self, header_cfg: ContrastiveHeaderConfig, backbone_feature_dim: int):
         super(ContrastiveHeader, self).__init__()
         self.header_cfg = header_cfg
+
+        self.simclr_header = None
         if header_cfg.header_name == "SimCLR":
-            simclr_cfg = SimCLRHeaderConfig(header_cfg)
-            self.header = None
-            if self.header_cfg.enable_proj_head:
-                self.header = SimCLRProjectionHead(backbone_feature_dim, simclr_cfg.hidden_dim, simclr_cfg.output_dim)
+            self.simclr_header = SimCLRHeader(header_cfg, backbone_feature_dim)
         else:
             raise NotImplementedError
 
     def forward(self, x, z) -> torch.Tensor:
         prediction_out = None
         if self.header_cfg.header_name == "SimCLR":
-            if self.header_cfg.enable_proj_head:
-                prediction_out = self.header(z)
-            else:
-                prediction_out = z
+            prediction_out = self.simclr_header(z)
         return prediction_out
 
     @staticmethod

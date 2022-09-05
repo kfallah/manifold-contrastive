@@ -82,9 +82,9 @@ class Trainer(nn.Module):
             save_path = save_path + f"checkpoint_epoch{curr_epoch}.pt"
         torch.save(
             {
-                "model_state": self.get_model(),
-                "optimizer": self.optimizer,
-                "scheduler": self.scheduler,
+                "model_state": self.get_model().state_dict(),
+                "optimizer": self.optimizer.state_dict(),
+                "scheduler": self.scheduler.state_dict(),
                 "current_epoch": curr_epoch,
             },
             save_path,

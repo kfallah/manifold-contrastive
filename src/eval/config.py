@@ -20,6 +20,11 @@ class EvalRunnerConfig:
 
 
 @dataclass
+class LinearProbeConfig(EvalRunnerConfig):
+    num_epochs: int = 100
+
+
+@dataclass
 class ClusteringEvalConfig(EvalRunnerConfig):
     num_points_cluster: int = 5000
     num_clusters: int = 10

@@ -55,7 +55,14 @@ def get_collate_fn(config: CollateFunctionConfig, image_size: int) -> Callable:
     """
     if config.collate_fn_type == "LIGHTLY_IMAGE":
         collate_fn = data.collate.ImageCollateFunction(
-            image_size, cj_prob=config.cj_prob, gaussian_blur=config.gausian_blur
+            image_size,
+            cj_prob=config.cj_prob,
+            cj_bright=config.cj_bright,
+            cj_contrast=config.cj_contrast,
+            cj_sat=config.cj_sat,
+            cj_hue=config.cj_hue,
+            min_scale=config.min_scale,
+            gaussian_blur=config.gausian_blur,
         )
     elif config.collate_fn_type == "NONE":
         collate_fn = None
@@ -92,3 +99,4 @@ def get_dataloader(config: DataLoaderConfig) -> Tuple[Dataset, DataLoader]:
     )
 
     return (pytorch_dataset, dataloader)
+
