@@ -1,0 +1,9 @@
+defaults:
+  - base
+  - _self_
+
+model_cfg:
+  enable_momentum_network: true
+  momentum_network_update_rate: 0.99
+  loss_cfg:
+    memory_bank_size: 4096

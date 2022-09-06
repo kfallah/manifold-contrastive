@@ -15,6 +15,7 @@ from model.contrastive.config import ContrastiveHeaderConfig
 class LossConfig:
     ntxent_loss_active: bool = True
     ntxent_temp: float = 0.07
+    memory_bank_size: int = 0
 
 
 @dataclass
@@ -31,3 +32,8 @@ class ModelConfig:
     loss_cfg: LossConfig = LossConfig()
     # Whether to concatenate different views of a batch of images and feed them into the model all at once
     concat_different_views: bool = False
+    # Whether to shuffle input batches (to prevent overfitting to the ordering of the positive/negative pairs)
+    enable_batch_shuffle: bool = False
+    # Whether to use momentum networks
+    enable_momentum_network: bool = False
+    momentum_network_update_rate: float = 0.99

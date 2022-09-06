@@ -54,6 +54,10 @@ class Trainer(nn.Module):
             x_gpu = torch.stack([x.to(self.device) for x in x_list]).transpose(0, 1)
             x_idx = torch.Tensor([int(idx) for idx in batch[2]])
 
+            # Update momentum networks if they are enabled
+            if self.get_model().model_cfg.enable_momentum_network:
+                self.get_model().update_momentum_network()
+
             with autocast(enabled=self.trainer_cfg.use_amp):
                 # Send inputs through model
                 model_output = self.model(x_gpu, x_idx)

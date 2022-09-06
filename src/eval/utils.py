@@ -36,17 +36,18 @@ def encode_features(
     feature_list = []
     prediction_list = []
     model.eval()
-    for _, batch in enumerate(data_loader):
-        x, batch_label, batch_idx = batch
-        x_gpu = x.to(device).unsqueeze(1)
-        batch_idx = torch.Tensor([int(idx) for idx in batch_idx])
-        model_output = model(x_gpu, batch_idx)
+    with torch.no_grad():
+        for _, batch in enumerate(data_loader):
+            x, batch_label, batch_idx = batch
+            x_gpu = x.to(device).unsqueeze(1)
+            batch_idx = torch.Tensor([int(idx) for idx in batch_idx])
+            model_output = model(x_gpu, batch_idx)
 
-        x_eval.append(x.detach().cpu())
-        labels.append(batch_label.detach().cpu())
-        x_idx.append(batch_idx.detach().cpu())
-        feature_list.append(model_output.feature_list.detach().cpu())
-        prediction_list.append(model_output.prediction_list.detach().cpu())
+            x_eval.append(x.detach().cpu())
+            labels.append(batch_label.detach().cpu())
+            x_idx.append(batch_idx.detach().cpu())
+            feature_list.append(model_output.feature_list.detach().cpu())
+            prediction_list.append(model_output.prediction_list.detach().cpu())
     # Flatten all encoded data to a single tensor
     x_eval = torch.cat(x_eval)
     labels = torch.cat(labels)
