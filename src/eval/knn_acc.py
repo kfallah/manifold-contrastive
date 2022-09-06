@@ -19,7 +19,7 @@ from eval.type import EvalRunner, EvaluationInput
 
 class KNNEval(EvalRunner):
     def run_eval(
-        self, train_eval_input: EvaluationInput, val_eval_input: EvaluationInput
+        self, train_eval_input: EvaluationInput, val_eval_input: EvaluationInput, **kwargs
     ) -> Tuple[Dict[str, float], float]:
         knn_metrics = {}
 
@@ -40,4 +40,4 @@ class KNNEval(EvalRunner):
         return knn_metrics, feat_knn_acc
 
     def get_config(self) -> KNNEvalConfig:
-        return KNNEvalConfig(self.cfg)
+        return self.cfg

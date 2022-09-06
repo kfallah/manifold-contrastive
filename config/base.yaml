@@ -48,7 +48,8 @@ evaluator_cfg:
     eval_freq: 50
   linear_probe_eval_cfg:
     enable_runner: true
-    eval_freq: 100
+    eval_freq: 150
+    num_epochs: 100
 eval_dataloader_cfg:
   collate_fn_cfg:
     collate_fn_type: NONE

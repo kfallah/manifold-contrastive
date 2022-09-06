@@ -63,15 +63,18 @@ def run_eval(
     trainer: Trainer,
     evaluator: Evaluator,
     train_dataloader: torch.utils.data.DataLoader,
+    train_dataloader_cfg: DataLoaderConfig,
     eval_dataloader: torch.utils.data.DataLoader,
     last_epoch: bool = False,
 ):
     # Run evaluation metrics on the model
-    eval_out = evaluator.run_eval(epoch, train_dataloader, eval_dataloader, last_epoch)
+    eval_out = evaluator.run_eval(epoch, train_dataloader, train_dataloader_cfg, eval_dataloader, last_epoch)
     # Only not equal to None when an evaluation was run
     if eval_out is not None:
         save_metric, eval_metadata = eval_out
-        format_eval = [f"{key}: {eval_metadata[key]:.3E}" for key in eval_metadata.keys()]
+        format_eval = [
+            f"{key}: {eval_metadata[key]:.3E}" for key in eval_metadata.keys() if isinstance(eval_metadata[key], float)
+        ]
         log.info(f"[Evaluation epoch {epoch}]: " + ", ".join(format_eval))
         # If the current model has a better key metric than previous models, save its weights.
         if current_best > save_metric:
@@ -93,7 +96,7 @@ def run_experiment(
     current_best = 1e99
     for epoch in range(cfg.trainer_cfg.num_epochs):
         # Run eval metrics on the model
-        run_eval(epoch, current_best, trainer, evaluator, train_dataloader, eval_dataloader)
+        run_eval(epoch, current_best, trainer, evaluator, train_dataloader, cfg.train_dataloader_cfg, eval_dataloader)
 
         # Perform a training epoch
         _ = trainer.train_epoch(epoch, train_dataloader)
@@ -102,7 +105,16 @@ def run_experiment(
             trainer.save_model(epoch, os.getcwd() + "/checkpoints/")
 
     # Save the model and force all evals after training is complete
-    run_eval(epoch, current_best, trainer, evaluator, train_dataloader, eval_dataloader, last_epoch=True)
+    run_eval(
+        epoch,
+        current_best,
+        trainer,
+        evaluator,
+        train_dataloader,
+        cfg.train_dataloader_cfg,
+        eval_dataloader,
+        last_epoch=True,
+    )
     trainer.save_model(epoch, os.getcwd() + "/checkpoints/")
     log.info("...Experiment complete!")
 

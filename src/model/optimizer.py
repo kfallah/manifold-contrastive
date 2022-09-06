@@ -14,7 +14,15 @@ from model.public.lars import LARS
 
 
 def initialize_optimizer(config: OptimizerConfig, model_params: nn.Module) -> torch.optim.Optimizer:
-    if config.optimizer == "Adam":
+    if config.optimizer == "SGD":
+        return torch.optim.SGD(
+            model_params,
+            lr=config.initial_lr,
+            weight_decay=config.weight_decay,
+            momentum=0.9,
+            nesterov=config.enable_nesterov,
+        )
+    elif config.optimizer == "Adam":
         return torch.optim.Adam(model_params, lr=config.initial_lr, weight_decay=config.weight_decay)
     elif config.optimizer == "LARS":
         return LARS(

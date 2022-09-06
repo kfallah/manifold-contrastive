@@ -34,6 +34,7 @@ class OptimizerConfig:
     optimizer: str = "SGD"
     initial_lr: float = 0.1
     weight_decay: float = 1e-6
+    enable_nesterov: bool = False
 
 
 @dataclass

@@ -6,7 +6,7 @@ Class that contains all config DataClasses for evaluation.
 @Created     08/31/22
 """
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 
 from train.config import OptimizerConfig, SchedulerConfig
 
@@ -26,6 +26,8 @@ class LinearProbeConfig(EvalRunnerConfig):
     optimizer_cfg: OptimizerConfig = OptimizerConfig()
     scheduler_cfg: SchedulerConfig = SchedulerConfig()
     num_epochs: int = 100
+    val_acc_epoch_freq: int = 10
+    use_amp: bool = True
 
 
 @dataclass

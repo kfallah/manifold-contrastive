@@ -6,7 +6,6 @@ Config for all the different contrastive headers.
 @Created     08/31/22
 """
 from dataclasses import dataclass
-from typing import Tuple
 
 from hydra.core.config_store import ConfigStore
 

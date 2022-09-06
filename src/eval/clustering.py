@@ -29,7 +29,7 @@ class ClusteringEval(EvalRunner):
         return acc
 
     def run_eval(
-        self, train_eval_input: EvaluationInput, val_eval_input: EvaluationInput
+        self, train_eval_input: EvaluationInput, val_eval_input: EvaluationInput, **kwargs
     ) -> Tuple[Dict[str, float], float]:
         cluster_metrics = {}
         # Take a linear spacing of features indices based on the number of points used for clustering
@@ -59,4 +59,4 @@ class ClusteringEval(EvalRunner):
         return cluster_metrics, feature_cluster_acc
 
     def get_config(self) -> ClusteringEvalConfig:
-        return ClusteringEvalConfig(self.cfg)
+        return self.cfg
