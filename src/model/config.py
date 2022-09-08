@@ -15,6 +15,8 @@ from model.contrastive.config import ContrastiveHeaderConfig
 class LossConfig:
     ntxent_loss_active: bool = True
     ntxent_temp: float = 0.07
+    kl_loss_active: bool = False
+    kl_loss_weight: float = 0.1
     memory_bank_size: int = 0
 
 

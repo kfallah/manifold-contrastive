@@ -3,7 +3,6 @@ defaults:
   - default_hydra
   - dataloader/cifar10_simclr_strong@train_dataloader_cfg
   - dataloader/cifar10_simclr_strong@eval_dataloader_cfg
-  - header/simclr@model_cfg.header_cfg
   - _self_
 
 exp_name: SimCLR

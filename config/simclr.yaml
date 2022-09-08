@@ -1,0 +1,3 @@
+defaults:
+  - base
+  - header/simclr@model_cfg.header_cfg

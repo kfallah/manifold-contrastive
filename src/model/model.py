@@ -7,7 +7,7 @@ Main model wrapper that initializes the model used for training.
 """
 
 import copy
-from typing import Dict, List, NamedTuple, Tuple
+from typing import Dict, List, Tuple
 
 import torch
 import torch.nn as nn
@@ -22,21 +22,7 @@ from lightly.models.utils import (
 from model.backbone import Backbone
 from model.config import ModelConfig
 from model.header import ContrastiveHeader
-
-
-class ModelOutput(NamedTuple):
-    # List of batch of input images, where each list entry is a different view
-    # Dimensions [B x V x H x W x C]
-    x_list: torch.Tensor
-    # List of indices for each entry in the batch
-    # Dimensions [B]
-    x_idx: torch.Tensor
-    # List of features from backbone encoder
-    # Dimensions [B x V x D]
-    feature_list: torch.Tensor
-    # List of predictions from contrastive header
-    # Dimensions [B x V x D]
-    prediction_list: torch.Tensor
+from model.type import HeaderInput, HeaderOutput, ModelOutput
 
 
 class Model(nn.Module):
@@ -51,9 +37,7 @@ class Model(nn.Module):
         self.momentum_header = None
         if self.model_cfg.enable_momentum_network:
             self.momentum_backbone = copy.deepcopy(self.backbone)
-            self.momentum_header = copy.deepcopy(self.contrastive_header)
             deactivate_requires_grad(self.momentum_backbone)
-            deactivate_requires_grad(self.momentum_header)
 
         self.criterion = {}
         if self.loss_cfg.ntxent_loss_active:
@@ -61,7 +45,23 @@ class Model(nn.Module):
                 memory_bank_size=self.loss_cfg.memory_bank_size, temperature=self.loss_cfg.ntxent_temp
             )
 
-    def forward(self, x_list: torch.Tensor, x_idx: List) -> Tuple[ModelOutput]:
+    def unshuffle_outputs(
+        self, shuffle_idx, header_input: HeaderInput, header_out: HeaderOutput
+    ) -> Tuple[HeaderInput, HeaderOutput]:
+        x_1 = batch_unshuffle(header_input.x_1, shuffle_idx)
+        feature_1 = batch_unshuffle(header_input.feature_1, shuffle_idx)
+        prediction_1 = batch_unshuffle(header_out.prediction_1, shuffle_idx)
+        header_input = HeaderInput(
+            header_input.x_0,
+            x_1,
+            header_input.x_idx,
+            header_input.feature_0,
+            feature_1,
+        )
+        header_out = HeaderOutput(header_out.prediciton_0, prediction_1, header_out.distribution_data)
+        return header_input, header_out
+
+    def forward(self, x: torch.Tensor, x_idx: List) -> Tuple[ModelOutput]:
         """Take input image and get prediction from contrastive header.
 
         Args:
@@ -72,59 +72,68 @@ class Model(nn.Module):
         Returns:
             Returns the encoded features from the backbone and the prediction provided by the header.
         """
-        if not self.model_cfg.enable_momentum_network:
-            if self.model_cfg.concat_different_views:
-                feature = self.backbone(x_list)  # [B x V x D]
-                prediction = self.contrastive_header(x_list, feature)  # [B x V x D]
+        # Only a single view of an image is used
+        if x.shape[1] == 1:
+            feature_0 = self.backbone(x[:, 0]).unsqueeze(1)
+            header_input = HeaderInput(x, None, x_idx, feature_0, None)
+        # Two views of an image are provided
+        elif x.shape[1] == 2:
+            # No momentum encoder used for the backbone
+            if not self.model_cfg.enable_momentum_network:
+                feature_0, feature_1 = self.backbone(x[:, 0]), self.backbone(x[:, 1])
+                x_1 = x[:, 1]
             else:
-                x_view_first = x_list.transpose(0, 1)  # [V x B x H x W x C]
-                feature = torch.stack([self.backbone(x) for x in x_view_first])
-                prediction = torch.stack(
-                    [self.contrastive_header(x, features) for (x, features) in zip(x_view_first, feature)]
-                )
-            feature, prediction = feature.transpose(0, 1), prediction.transpose(0, 1)
+                feature_0 = self.backbone(x[:, 0])
+                x_1, shuffle_idx = batch_shuffle(x[:, 1])
+                feature_1 = self.momentum_backbone(x_1)
+            header_input = HeaderInput(x[:, 0].unsqueeze(1), x_1.unsqueeze(1), x_idx, feature_0, feature_1)
+        # All other cases are not currently supported
         else:
-            # Apply momentum encoder to the negative samples
-            feature = self.backbone(x_list[:, 0])
-            prediction = self.contrastive_header(x_list[:, 0], feature)
+            raise NotImplementedError
 
-            # Only encode negatives if we are given a second view
-            if x_list.shape[1] > 1:
-                x_negative, shuffle = batch_shuffle(x_list[:, 1])
-                feature_neg = self.momentum_backbone(x_negative)
-                prediction_neg = self.momentum_header(x_negative, feature_neg)
-                feature_neg, prediction_neg = batch_unshuffle(feature_neg, shuffle), batch_unshuffle(
-                    prediction_neg, shuffle
-                )
-                feature = torch.stack([feature, feature_neg]).transpose(0, 1)
-                prediction = torch.stack([prediction, prediction_neg]).transpose(0, 1)
+        header_out = self.contrastive_header(header_input)
+        # Unshuffle the second view in case of a momentum network
+        if self.model_cfg.enable_momentum_network and x.shape[1] == 2:
+            header_input, header_out = self.unshuffle_outputs(shuffle_idx, header_input, header_out)
 
-        model_output = ModelOutput(x_list, x_idx, feature, prediction)
-        return model_output
+        return ModelOutput(*header_input, *header_out)
 
     def compute_loss(self, model_output: ModelOutput) -> Tuple[Dict[str, float], float]:
         loss_meta = {}
         total_loss = 0.0
 
         if self.loss_cfg.ntxent_loss_active:
-            assert model_output.prediction_list.shape[1] == 2
-            ntxent_loss = self.criterion["ntxent_loss"](
-                model_output.prediction_list[:, 0], model_output.prediction_list[:, 1]
-            )
+            assert model_output.prediction_1 is not None
+            ntxent_loss = self.criterion["ntxent_loss"](model_output.prediction_0, model_output.prediction_1)
             total_loss += ntxent_loss
             loss_meta["ntxent_loss"] = ntxent_loss.item()
+        if self.loss_cfg.kl_loss_active:
+            assert model_output.distribution_data is not None
+            distr = model_output.distribution_data
+            scale = torch.exp(distr.log_scale)
+            logscale_prior = torch.log(distr.scale_prior)
+            kl_loss = (distr.shift.abs() / distr.scale_prior) + logscale_prior - distr.log_scale - 1
+            kl_loss += (scale / distr.scale_prior) * (-(distr.shift.abs() / scale)).exp()
+            kl_loss = kl_loss.sum(dim=-1).mean()
+            total_loss += self.loss_cfg.kl_loss_weight * kl_loss
+            loss_meta["kl_loss"] = kl_loss.item()
 
         return loss_meta, total_loss
 
     def update_momentum_network(self) -> None:
-        assert self.momentum_backbone is not None and self.momentum_header is not None
+        assert self.momentum_backbone is not None
         update_momentum(self.backbone, self.momentum_backbone, self.model_cfg.momentum_network_update_rate)
-        update_momentum(self.contrastive_header, self.momentum_header, self.model_cfg.momentum_network_update_rate)
+        self.contrastive_header.update_momentum_network()
 
     @staticmethod
     def initialize_model(model_cfg: ModelConfig, devices: List[int]) -> "Model":
         backbone, backbone_feature_dim = Backbone.initialize_backbone(model_cfg.backbone_cfg)
-        contrastive_header = ContrastiveHeader.initialize_header(model_cfg.header_cfg, backbone_feature_dim)
+        contrastive_header = ContrastiveHeader.initialize_header(
+            model_cfg.header_cfg,
+            backbone_feature_dim,
+            model_cfg.enable_momentum_network,
+            model_cfg.momentum_network_update_rate,
+        )
         model = Model(model_cfg, backbone, contrastive_header)
         model = model.to(devices[0])
         if len(devices) > 1:

@@ -46,8 +46,8 @@ def encode_features(
             x_eval.append(x.detach().cpu())
             labels.append(batch_label.detach().cpu())
             x_idx.append(batch_idx.detach().cpu())
-            feature_list.append(model_output.feature_list.detach().cpu())
-            prediction_list.append(model_output.prediction_list.detach().cpu())
+            feature_list.append(model_output.feature_0.detach().cpu())
+            prediction_list.append(model_output.prediction_0.detach().cpu())
     # Flatten all encoded data to a single tensor
     x_eval = torch.cat(x_eval)
     labels = torch.cat(labels)

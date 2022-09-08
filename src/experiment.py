@@ -119,7 +119,7 @@ def run_experiment(
     log.info("...Experiment complete!")
 
 
-@hydra.main(version_base=None, config_path="../config", config_name="base")
+@hydra.main(version_base=None, config_path="../config", config_name="simclr")
 def initialize_experiment(cfg: ExperimentConfig) -> None:
     log.info("Initializing experiment...")
     wandb.init(

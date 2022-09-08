@@ -6,6 +6,8 @@ Utility functions used for computing metrics.
 @Created     09/01/22
 """
 
+from typing import Dict
+
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
@@ -29,3 +31,8 @@ def plot_log_spectra(features: np.array) -> Figure:
     plt.xlabel("Dimension", fontsize=18)
     plt.ylabel("Log Singular Value", fontsize=18)
     return fig, log_spectra
+
+
+def transop_plots(coefficients: np.array, psi: np.array) -> Dict[str, Figure]:
+
+    return {}

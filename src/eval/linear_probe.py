@@ -55,7 +55,7 @@ class LinearProbeEval(EvalRunner):
             with autocast(enabled=self.get_config().use_amp):
                 # Send inputs through model
                 model_out = self.model(x, batch_idx)
-                y_logit = self.linear_head(model_out.feature_list).squeeze(1)
+                y_logit = self.linear_head(model_out.feature_0).squeeze(1)
                 loss = F.cross_entropy(y_logit, y)
 
             epoch_loss.append(loss.item())
@@ -80,7 +80,7 @@ class LinearProbeEval(EvalRunner):
                 x, y = x.unsqueeze(1).to(device), y.to(device)
 
                 model_out = self.model(x, batch_idx)
-                y_logit = self.linear_head(model_out.feature_list).squeeze(1)
+                y_logit = self.linear_head(model_out.feature_0).squeeze(1)
                 loss = F.cross_entropy(y_logit, y)
                 val_loss.append(loss.item())
 

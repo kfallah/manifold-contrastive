@@ -55,9 +55,9 @@ class MetricLogger:
         if self.cfg.enable_wandb_logging:
             assert wandb.run is not None, "wandb not initialized!"
         if self.enable_feature_cache():
-            self.feature_cache.extend(model_output.feature_list[:, 0].detach().cpu().numpy())
+            self.feature_cache.extend(model_output.feature_0.detach().cpu().numpy())
             self.feature_cache = self.feature_cache[-self.cfg.feature_cache_size :]
-            self.pred_cache.extend(model_output.prediction_list[:, 0].detach().cpu().numpy())
+            self.pred_cache.extend(model_output.prediction_0.detach().cpu().numpy())
             self.pred_cache = self.pred_cache[-self.cfg.feature_cache_size :]
             self.label_cache.extend(labels.numpy())
             self.label_cache = self.label_cache[-self.cfg.feature_cache_size :]
@@ -103,6 +103,35 @@ class MetricLogger:
                     f"[Epoch {curr_epoch}, iter {curr_iter}]: Feature collapse: {feat_collapse:.2f}"
                     + f", Prediction collapse: {pred_collapse:.2f}"
                 )
+
+        if self.cfg.enable_transop_logging and curr_iter % self.cfg.transop_log_freq == 0:
+            assert (
+                self.model.model_cfg.header_cfg.header_name == "TransOp" and model_output.distribution_data is not None
+            )
+            psi = self.model.contrastive_header.transop_header.transop.get_psi()
+            c = model_output.distribution_data.samples
+            count_nz = np.zeros(len(psi) + 1, dtype=int)
+            coeff_np = c.detach().cpu().numpy()
+            coeff_nz = np.count_nonzero(coeff_np, axis=0)
+            nz_tot = np.count_nonzero(coeff_nz)
+            total_nz = np.count_nonzero(coeff_np, axis=1)
+            for z in range(len(total_nz)):
+                count_nz[total_nz[z]] += 1
+            psi_mag = torch.norm(psi.data.reshape(len(psi.data), -1), dim=-1)
+            to_metrics = {
+                "avg_transop_mag": psi_mag.mean(),
+                "total_transop_used": nz_tot,
+                "avg_transop_used": total_nz.mean(),
+                "avg_coeff_mag": np.abs(coeff_np[np.abs(coeff_np) > 0]).mean(),
+            }
+            if self.cfg.enable_console_logging:
+                log.info(
+                    f"[Transport Operator iter {curr_iter}]: Average transop mag: {psi_mag.mean():.2f}"
+                    + f", total # operators used: {nz_tot}/{len(psi)}"
+                    + f", avg # operators used: {total_nz.mean()}/{len(psi)}"
+                    + f", avg coeff mag: {to_metrics['avg_coeff_mag']:.2f}"
+                )
+            metrics.update(to_metrics)
 
         # t-SNE Plotting of backbone features
         if (

@@ -36,7 +36,7 @@ class Trainer(nn.Module):
 
         # Initialize metric logger
         self.metric_logger = MetricLogger.initialize_metric_logger(
-            self.trainer_cfg.metric_logger_cfg, self.model, self.scheduler
+            self.trainer_cfg.metric_logger_cfg, self.get_model(), self.scheduler
         )
 
     def get_model(self) -> Model:

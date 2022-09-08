@@ -6,7 +6,7 @@ Class that contains all config DataClasses for the trainer.
 @Created     08/31/22
 """
 
-from dataclasses import MISSING, dataclass
+from dataclasses import dataclass
 
 
 @dataclass
@@ -22,6 +22,8 @@ class MetricLoggerConfig:
     optimizer_log_freq: int = 100
     enable_collapse_logging: bool = False
     collapse_log_freq: int = 100
+    enable_transop_logging: bool = False
+    transop_log_freq: int = 500
 
     enable_tsne_plot: bool = False
     tsne_plot_freq: int = 2000
