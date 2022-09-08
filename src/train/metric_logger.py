@@ -13,12 +13,13 @@ from typing import Dict
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 import wandb
 from matplotlib.figure import Figure
 from model.model import Model, ModelOutput
 
 from train.config import MetricLoggerConfig
-from train.metric_utils import plot_log_spectra, plot_tsne
+from train.metric_utils import plot_log_spectra, plot_tsne, transop_plots
 
 log = logging.getLogger(__name__)
 
@@ -34,9 +35,10 @@ class MetricLogger:
         self.feature_cache = []
         self.pred_cache = []
         self.label_cache = []
+        self.c_cache = []
 
     def enable_feature_cache(self):
-        return self.cfg.enable_log_spectra_plot or self.cfg.enable_tsne_plot
+        return self.cfg.enable_log_spectra_plot or self.cfg.enable_tsne_plot or self.cfg.enable_transop_logging
 
     def save_figure(self, figure_name: str, fig: Figure):
         save_path = os.getcwd() + "/figures/"
@@ -61,6 +63,10 @@ class MetricLogger:
             self.pred_cache = self.pred_cache[-self.cfg.feature_cache_size :]
             self.label_cache.extend(labels.numpy())
             self.label_cache = self.label_cache[-self.cfg.feature_cache_size :]
+
+            if self.cfg.enable_transop_logging:
+                self.c_cache.extend(model_output.distribution_data.samples.detach().cpu().numpy())
+                self.c_cache = self.c_cache[-self.cfg.feature_cache_size :]
         metrics = {}
 
         # Logging training heuristics
@@ -109,28 +115,38 @@ class MetricLogger:
                 self.model.model_cfg.header_cfg.header_name == "TransOp" and model_output.distribution_data is not None
             )
             psi = self.model.contrastive_header.transop_header.transop.get_psi()
-            c = model_output.distribution_data.samples
-            count_nz = np.zeros(len(psi) + 1, dtype=int)
-            coeff_np = c.detach().cpu().numpy()
-            coeff_nz = np.count_nonzero(coeff_np, axis=0)
+            c = np.array(self.c_cache)
+            coeff_nz = np.count_nonzero(c, axis=0)
             nz_tot = np.count_nonzero(coeff_nz)
-            total_nz = np.count_nonzero(coeff_np, axis=1)
-            for z in range(len(total_nz)):
-                count_nz[total_nz[z]] += 1
+            total_nz = np.count_nonzero(c, axis=1)
+            transop_loss = F.mse_loss(model_output.prediction_0, model_output.prediction_1).item()
+
             psi_mag = torch.norm(psi.data.reshape(len(psi.data), -1), dim=-1)
             to_metrics = {
                 "avg_transop_mag": psi_mag.mean(),
                 "total_transop_used": nz_tot,
                 "avg_transop_used": total_nz.mean(),
-                "avg_coeff_mag": np.abs(coeff_np[np.abs(coeff_np) > 0]).mean(),
+                "avg_coeff_mag": np.abs(c[np.abs(c) > 0]).mean(),
+                "transop_loss": transop_loss,
             }
             if self.cfg.enable_console_logging:
                 log.info(
-                    f"[Transport Operator iter {curr_iter}]: Average transop mag: {psi_mag.mean():.2f}"
+                    f"[Transport Operator iter {curr_iter}]: transop loss: {transop_loss:.3E}"
+                    + f", average transop mag: {psi_mag.mean():.3E}"
                     + f", total # operators used: {nz_tot}/{len(psi)}"
                     + f", avg # operators used: {total_nz.mean()}/{len(psi)}"
                     + f", avg coeff mag: {to_metrics['avg_coeff_mag']:.2f}"
                 )
+
+            # Generate transport operator plots
+            fig_dict = transop_plots(curr_iter, c, psi)
+            if self.cfg.enable_wandb_logging:
+                for fig_name in fig_dict.keys():
+                    wandb.log({fig_name: wandb.Image(fig_dict[fig_name])}, step=curr_iter)
+            if self.cfg.enable_local_figure_saving:
+                for fig_name in fig_dict.keys():
+                    self.save_figure(fig_name, fig_dict[fig_name])
+
             metrics.update(to_metrics)
 
         # t-SNE Plotting of backbone features

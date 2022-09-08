@@ -33,6 +33,42 @@ def plot_log_spectra(features: np.array) -> Figure:
     return fig, log_spectra
 
 
-def transop_plots(coefficients: np.array, psi: np.array) -> Dict[str, Figure]:
+def transop_plots(iteration: int, coefficients: np.array, psi: np.array) -> Dict[str, Figure]:
+    psi_norms = ((psi.reshape(len(psi), -1))**2).sum(dim=-1).detach().cpu().numpy()
+    count_nz = np.zeros(len(psi) + 1, dtype=int)
+    total_nz = np.count_nonzero(coefficients, axis=1)
+    for z in range(len(total_nz)):
+        count_nz[total_nz[z]] += 1
+    number_operator_uses = np.count_nonzero(coefficients, axis=0) / len(coefficients)
 
-    return {}
+    psi_mag_fig = plt.figure(figsize=(20, 4))
+    plt.bar(np.arange(len(psi)), psi_norms, width=1)
+    plt.xlabel("Transport Operator Index", fontsize=18)
+    plt.ylabel("F-Norm", fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
+    plt.title("F-Norm of Transport Operators", fontsize=20)
+
+    coeff_use_fig = plt.figure(figsize=(20, 4))
+    plt.bar(np.arange(len(psi) + 1), count_nz, width=1)
+    plt.xlabel("Number of Coefficients Used per Point Pair", fontsize=18)
+    plt.ylabel("Occurences", fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
+    plt.title("Number of Non-Zero Coefficients", fontsize=20)
+
+    psi_use_fig = plt.figure(figsize=(20, 4))
+    plt.bar(np.arange(len(psi)), number_operator_uses, width=1)
+    plt.xlabel("Percentage of Point Pairs an Operator is Used For", fontsize=18)
+    plt.ylabel("% Of Point Pairs", fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
+    plt.title("Transport Operator Index", fontsize=20)
+
+    figure_dict = {
+        f"psi_mag_iter{iteration}": psi_mag_fig,
+        f"coeff_use_iter{iteration}": coeff_use_fig,
+        f"psi_use_iter{iteration}": psi_use_fig,
+    }
+
+    return figure_dict
