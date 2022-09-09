@@ -24,8 +24,10 @@ class VIEncoder(nn.Module):
         if self.enc_type == "mlp":
             self.enc = nn.Sequential(
                 nn.Linear(2 * input_size, 4 * input_size),
+                nn.BatchNorm1d(4 * input_size),
                 nn.ReLU(),
                 nn.Linear(4 * input_size, 4 * input_size),
+                nn.BatchNorm1d(4 * input_size),
                 nn.ReLU(),
                 nn.Linear(4 * input_size, self.feat_dim),
             )

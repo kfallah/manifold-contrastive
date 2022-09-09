@@ -109,7 +109,7 @@ class LARS(Optimizer):
 
                 # TODO: get param names
                 # if self._use_weight_decay(param_name):
-                grad += self.weight_decay * param
+                grad += weight_decay * param
 
                 if self.classic_momentum:
                     trust_ratio = 1.0
