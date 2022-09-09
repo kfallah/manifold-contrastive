@@ -33,6 +33,7 @@ class ProjectionHeaderConfig(ContrastiveHeaderConfig):
 class TransportOperatorConfig(ContrastiveHeaderConfig):
     dictionary_size: int = 128
     lambda_prior: float = 1e-1
+    transop_lr: float = 1e-2
     transop_weight_decay: float = 1e-6
     num_coefficient_samples: int = 10
 

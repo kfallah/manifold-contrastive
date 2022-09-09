@@ -5,7 +5,8 @@ header_name: TransOp
 dictionary_size: 128
 lambda_prior: 0.15
 transop_weight_decay: 0.0001
-num_coefficient_samples: 5
+transop_lr: 0.01
+num_coefficient_samples: 10
 
 use_warmpup: false
 variational_scale_prior: 0.1

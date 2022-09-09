@@ -139,13 +139,13 @@ class MetricLogger:
                 )
 
             # Generate transport operator plots
-            fig_dict = transop_plots(curr_iter, c, psi)
+            fig_dict = transop_plots(c, psi)
             if self.cfg.enable_wandb_logging:
                 for fig_name in fig_dict.keys():
                     wandb.log({fig_name: wandb.Image(fig_dict[fig_name])}, step=curr_iter)
             if self.cfg.enable_local_figure_saving:
                 for fig_name in fig_dict.keys():
-                    self.save_figure(fig_name, fig_dict[fig_name])
+                    self.save_figure(f"{fig_name}{curr_iter}", fig_dict[fig_name])
 
             metrics.update(to_metrics)
 

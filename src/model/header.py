@@ -46,6 +46,12 @@ class ContrastiveHeader(nn.Module):
             prediction_out = self.transop_header(header_input)
         return prediction_out
 
+    def get_param_groups(self):
+        if self.projection_header is not None:
+            return [{'params': self.projection_header.parameters()}]
+        elif self.transop_header is not None:
+            return [{'params': self.transop_header.parameters(), 'lr': self.header_cfg.transop_lr, 'weight_decay': self.header_cfg.transop_weight_decay}]
+
     @staticmethod
     def initialize_header(
         header_cfg: ContrastiveHeaderConfig,

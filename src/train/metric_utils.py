@@ -33,7 +33,7 @@ def plot_log_spectra(features: np.array) -> Figure:
     return fig, log_spectra
 
 
-def transop_plots(iteration: int, coefficients: np.array, psi: np.array) -> Dict[str, Figure]:
+def transop_plots(coefficients: np.array, psi: np.array) -> Dict[str, Figure]:
     psi_norms = ((psi.reshape(len(psi), -1))**2).sum(dim=-1).detach().cpu().numpy()
     count_nz = np.zeros(len(psi) + 1, dtype=int)
     total_nz = np.count_nonzero(coefficients, axis=1)
@@ -66,9 +66,9 @@ def transop_plots(iteration: int, coefficients: np.array, psi: np.array) -> Dict
     plt.title("Transport Operator Index", fontsize=20)
 
     figure_dict = {
-        f"psi_mag_iter{iteration}": psi_mag_fig,
-        f"coeff_use_iter{iteration}": coeff_use_fig,
-        f"psi_use_iter{iteration}": psi_use_fig,
+        f"psi_mag_iter": psi_mag_fig,
+        f"coeff_use_iter": coeff_use_fig,
+        f"psi_use_iter": psi_use_fig,
     }
 
     return figure_dict

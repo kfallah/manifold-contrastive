@@ -28,7 +28,7 @@ class Trainer(nn.Module):
         self.device = device
 
         # Initialize optimizer and scheduler
-        self.optimizer = initialize_optimizer(self.trainer_cfg.optimizer_cfg, self.model.parameters())
+        self.optimizer = initialize_optimizer(self.trainer_cfg.optimizer_cfg, self.get_model().get_param_groups())
         self.scheduler = initialize_scheduler(
             self.trainer_cfg.scheduler_cfg, self.trainer_cfg.num_epochs, num_train_iters, self.optimizer
         )

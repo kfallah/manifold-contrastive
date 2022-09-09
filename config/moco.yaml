@@ -3,6 +3,7 @@ defaults:
   - header/simclr@model_cfg.header_cfg
   - _self_
 
+exp_name: MoCo
 model_cfg:
   enable_momentum_network: true
   momentum_network_update_rate: 0.99

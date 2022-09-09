@@ -125,6 +125,9 @@ class Model(nn.Module):
         update_momentum(self.backbone, self.momentum_backbone, self.model_cfg.momentum_network_update_rate)
         self.contrastive_header.update_momentum_network()
 
+    def get_param_groups(self):
+        return [{'params': self.backbone.parameters()}] + self.contrastive_header.get_param_groups()
+
     @staticmethod
     def initialize_model(model_cfg: ModelConfig, devices: List[int]) -> "Model":
         backbone, backbone_feature_dim = Backbone.initialize_backbone(model_cfg.backbone_cfg)

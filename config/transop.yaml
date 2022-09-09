@@ -4,10 +4,6 @@ defaults:
   - _self_
 
 exp_name: TransOp
-exp_dir: results
-devices: [0, 1]
-enable_wandb: true
-seed: 0
 
 model_cfg:
   concat_different_views: false
@@ -16,19 +12,21 @@ model_cfg:
   loss_cfg:
     kl_loss_active: true
     kl_loss_weight: 0.01
-    ntxent_temp: 0.5
+    ntxent_temp: 0.1
 
 trainer_cfg:
   optimizer_cfg:
     optimizer: LARS
-    initial_lr: 0.15
+    initial_lr: 0.3
   metric_logger_cfg:
     enable_transop_logging: true
 train_dataloader_cfg:
-  batch_size: 128
+  batch_size: 256
 
 evaluator_cfg:
   knn_eval_cfg:
     eval_freq: 25
   clustering_eval_cfg:
     eval_freq: 25
+  linear_probe_eval_cfg:
+    enable_runner: false
