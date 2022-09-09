@@ -28,6 +28,18 @@ class TransportOperatorHeader(nn.Module):
                 self.transop_cfg, backbone_feature_dim, self.transop_cfg.dictionary_size
             )
 
+    def get_param_groups(self):
+        param_list = [
+            {
+                "params": self.transop.parameters(),
+                "lr": self.transop_cfg.transop_lr,
+                "weight_decay": self.transop_cfg.transop_weight_decay,
+            },
+        ]
+        if self.coefficient_encoder is not None:
+            param_list.append({"params": self.coefficient_encoder.parameters()})
+        return param_list
+
     def forward(self, header_input: HeaderInput) -> HeaderOutput:
         z0, z1 = header_input.feature_0, header_input.feature_1
         distribution_data = None
