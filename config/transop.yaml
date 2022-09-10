@@ -16,13 +16,13 @@ model_cfg:
 
 trainer_cfg:
   optimizer_cfg:
-    optimizer: SGD
-    initial_lr: 0.001
+    optimizer: LARS
+    initial_lr: 0.15
   metric_logger_cfg:
     enable_transop_logging: true
     transop_log_freq: 500
 train_dataloader_cfg:
-  batch_size: 256
+  batch_size: 128
 
 evaluator_cfg:
   knn_eval_cfg:

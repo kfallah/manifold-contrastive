@@ -94,6 +94,9 @@ class LARS(Optimizer):
 
         for group in self.param_groups:
             weight_decay = group["weight_decay"]
+            disable_layer_adaptation = (
+                group["disable_layer_adaptation"] if "disable_layer_adaptation" in group.keys() else False
+            )
             momentum = group["momentum"]
             eeta = group["eeta"]
             lr = group["lr"]
@@ -119,16 +122,19 @@ class LARS(Optimizer):
                     w_norm = torch.norm(param)
                     g_norm = torch.norm(grad)
 
-                    device = g_norm.get_device()
-                    trust_ratio = torch.where(
-                        w_norm.ge(0),
-                        torch.where(
-                            g_norm.ge(0),
-                            (self.eeta * w_norm / g_norm),
+                    if disable_layer_adaptation:
+                        trust_ratio = 1.0
+                    else:
+                        device = g_norm.get_device()
+                        trust_ratio = torch.where(
+                            w_norm.ge(0),
+                            torch.where(
+                                g_norm.ge(0),
+                                (self.eeta * w_norm / g_norm),
+                                torch.Tensor([1.0]).to(device),
+                            ),
                             torch.Tensor([1.0]).to(device),
-                        ),
-                        torch.Tensor([1.0]).to(device),
-                    ).item()
+                        ).item()
 
                     scaled_lr = lr * trust_ratio
                     if "momentum_buffer" not in param_state:

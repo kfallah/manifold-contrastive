@@ -34,6 +34,7 @@ class TransportOperatorHeader(nn.Module):
                 "params": self.transop.parameters(),
                 "lr": self.transop_cfg.transop_lr,
                 "weight_decay": self.transop_cfg.transop_weight_decay,
+                "disable_layer_adaptation": True
             },
         ]
         if self.coefficient_encoder is not None:

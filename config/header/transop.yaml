@@ -3,11 +3,11 @@ defaults:
   - _self_
 header_name: TransOp
 dictionary_size: 128
-lambda_prior: 1.2
-transop_weight_decay: 0.02
+lambda_prior: 0.18
+transop_weight_decay: 0.05
 transop_lr: 0.001
 num_coefficient_samples: 5
 
 use_warmpup: false
-variational_scale_prior: 0.5
+variational_scale_prior: 0.1
 variational_feature_dim: 256
