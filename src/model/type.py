@@ -22,8 +22,6 @@ class DistributionData(NamedTuple):
     scale_prior: torch.Tensor
     # Prior shift
     shift_prior: torch.Tensor
-    # Noise values used in reparameterization to get respective samples
-    noise: torch.Tensor
 
 
 class ModelOutput(NamedTuple):

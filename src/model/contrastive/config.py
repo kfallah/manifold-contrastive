@@ -35,10 +35,11 @@ class TransportOperatorConfig(ContrastiveHeaderConfig):
     lambda_prior: float = 1e-1
     transop_lr: float = 1e-2
     transop_weight_decay: float = 1e-6
-    num_coefficient_samples: int = 10
 
     # Config for variational network
     enable_variational_inference: bool = True
+    iter_variational_samples: int = 10
+    total_variational_samples: int = 100
     use_warmpup: bool = False
     variational_scale_prior: float = 0.1
     variational_encoder_type: str = "mlp"

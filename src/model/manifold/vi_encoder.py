@@ -17,8 +17,9 @@ class VIEncoder(nn.Module):
         self.scale_prior = transop_cfg.variational_scale_prior
         self.enc_type = transop_cfg.variational_encoder_type
         self.lambda_ = transop_cfg.lambda_prior
-        self.num_samples = transop_cfg.num_coefficient_samples
+        self.num_samples = transop_cfg.iter_variational_samples
         self.feat_dim = transop_cfg.variational_feature_dim
+        self.dictionary_size = dictionary_size
         self.threshold = True
 
         if self.enc_type == "mlp":
@@ -45,6 +46,9 @@ class VIEncoder(nn.Module):
     def soft_threshold(self, z: torch.Tensor, lambda_: torch.Tensor) -> torch.Tensor:
         return F.relu(torch.abs(z) - lambda_) * torch.sign(z)
 
+    def draw_noise_samples(self, batch_size, num_samples, device):
+        return torch.rand((batch_size, num_samples, self.dictionary_size), device=device) - 0.5
+
     def reparameterize(self, shift, logscale, u):
         scale = torch.exp(logscale)
         eps = -scale * torch.sign(u) * torch.log((1.0 - 2.0 * torch.abs(u)).clamp(min=1e-6))
@@ -65,18 +69,13 @@ class VIEncoder(nn.Module):
             z = self.enc(torch.cat((x0, x1), dim=-1))
 
         logscale, shift = self.scale(z), self.shift(z)
-        u = torch.rand_like(logscale.unsqueeze(1).repeat(1, self.num_samples, 1)) - 0.5
-        c = self.reparameterize(
-            shift.unsqueeze(1).repeat(1, self.num_samples, 1), logscale.unsqueeze(1).repeat(1, self.num_samples, 1), u
-        )
         distribution_data = DistributionData(
             # Wrap this in a list to support DataParallel
-            samples=c,
+            samples=None,
             log_scale=logscale,
             shift=shift,
             scale_prior=torch.ones_like(logscale) * self.scale_prior,
             shift_prior=torch.zeros_like(shift),
-            noise=u,
         )
 
-        return c, distribution_data
+        return distribution_data

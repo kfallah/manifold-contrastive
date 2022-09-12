@@ -2,11 +2,12 @@ defaults:
   - /exp_cfg/model_cfg/header_cfg/transop@_here_
   - _self_
 header_name: TransOp
-dictionary_size: 128
-lambda_prior: 0.18
+dictionary_size: 256
+lambda_prior: 0.26
 transop_weight_decay: 0.05
-transop_lr: 0.001
-num_coefficient_samples: 5
+transop_lr: 0.0001
+iter_variational_samples: 5
+total_variational_samples: 50
 
 use_warmpup: false
 variational_scale_prior: 0.1
