@@ -55,8 +55,7 @@ class Trainer(nn.Module):
             x_idx = torch.Tensor([int(idx) for idx in batch[2]])
 
             # Update momentum networks if they are enabled
-            if self.get_model().model_cfg.enable_momentum_network:
-                self.get_model().update_momentum_network()
+            self.get_model().update_momentum_network()
 
             with autocast(enabled=self.trainer_cfg.use_amp):
                 # Send inputs through model

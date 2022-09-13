@@ -63,6 +63,10 @@ class VIEncoder(nn.Module):
         return c
 
     def forward(self, x0, x1):
+        self.warmup += 5e-4
+        if self.warmup > 1.0:
+            self.warmup = 1.0
+
         if self.enc_type == "lstm":
             z = self.enc(torch.stack((x0, x1), dim=1))[0][:, -1]
         else:

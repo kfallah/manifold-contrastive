@@ -11,13 +11,16 @@ model_cfg:
     hub_model_name: resnet18
   loss_cfg:
     kl_loss_active: true
-    kl_loss_weight: 0.01
+    kl_loss_weight: 0.005
     ntxent_temp: 0.1
 
 trainer_cfg:
   optimizer_cfg:
     optimizer: LARS
     initial_lr: 0.3
+  scheduler_cfg:
+    scheduler: LinearWarmupCosineAnnealingLR
+    warmup_epochs: 10
   metric_logger_cfg:
     enable_transop_logging: true
     transop_log_freq: 500

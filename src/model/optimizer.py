@@ -11,6 +11,7 @@ import torch.nn as nn
 from train.config import OptimizerConfig, SchedulerConfig
 
 from model.public.lars import LARS
+from model.public.linear_warmup_cos_anneal import LinearWarmupCosineAnnealingLR
 
 
 def initialize_optimizer(config: OptimizerConfig, model_params: nn.Module) -> torch.optim.Optimizer:
@@ -40,5 +41,8 @@ def initialize_scheduler(
 ) -> torch.optim.lr_scheduler._LRScheduler:
     if config.scheduler == "CosineAnnealingLR":
         return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, num_iters, eta_min=0, last_epoch=-1)
+    elif config.scheduler == "LinearWarmupCosineAnnealingLR":
+        iters_per_epoch = num_iters / num_epochs
+        return LinearWarmupCosineAnnealingLR(optimizer, config.warmup_epochs * iters_per_epoch, num_iters)
     else:
         raise NotImplementedError

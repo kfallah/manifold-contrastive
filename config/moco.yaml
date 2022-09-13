@@ -5,8 +5,10 @@ defaults:
 
 exp_name: MoCo
 model_cfg:
-  enable_momentum_network: true
-  momentum_network_update_rate: 0.99
+  enable_backbone_momentum: true
+  backbone_momentum_update_rate: 0.99
+  enable_header_momentum: true
+  header_momentum_update_rate: 0.99
   header_cfg:
     header_name: MoCo
   loss_cfg:

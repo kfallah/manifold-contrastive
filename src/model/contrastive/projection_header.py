@@ -36,12 +36,10 @@ class ProjectionHeader(nn.Module):
         proj_cfg: ProjectionHeaderConfig,
         backbone_feature_dim: int,
         enable_momentum: bool = False,
-        momentum_rate: float = 0.99,
     ):
         super(ProjectionHeader, self).__init__()
         self.proj_cfg = proj_cfg
         self.enable_momentum = enable_momentum
-        self.momentum_rate = momentum_rate
         self.projector = None
         if self.proj_cfg.projection_type == "MLP":
             if self.proj_cfg.header_name == "SimCLR":
@@ -67,9 +65,9 @@ class ProjectionHeader(nn.Module):
             self.momentum_projector = copy.deepcopy(self.projector)
             deactivate_requires_grad(self.momentum_projector)
 
-    def update_momentum_network(self) -> None:
+    def update_momentum_network(self, momentum_rate: float) -> None:
         assert self.enable_momentum
-        update_momentum(self.projector, self.momentum_projector, self.momentum_rate)
+        update_momentum(self.projector, self.momentum_projector, momentum_rate)
 
     def forward(self, header_input: HeaderInput) -> HeaderOutput:
         pred_0 = self.projector(header_input.feature_0)

@@ -20,7 +20,6 @@ class ContrastiveHeader(nn.Module):
         header_cfg: ContrastiveHeaderConfig,
         backbone_feature_dim: int,
         enable_momentum: bool = False,
-        momentum_rate: float = 0.99,
     ):
         super(ContrastiveHeader, self).__init__()
         self.header_cfg = header_cfg
@@ -28,15 +27,17 @@ class ContrastiveHeader(nn.Module):
         self.projection_header = None
         self.transop_header = None
         if header_cfg.header_name == "SimCLR" or header_cfg.header_name == "MoCo":
-            self.projection_header = ProjectionHeader(header_cfg, backbone_feature_dim, enable_momentum, momentum_rate)
+            self.projection_header = ProjectionHeader(header_cfg, backbone_feature_dim, enable_momentum)
         elif header_cfg.header_name == "TransOp":
-            self.transop_header = TransportOperatorHeader(header_cfg, backbone_feature_dim)
+            self.transop_header = TransportOperatorHeader(header_cfg, backbone_feature_dim, enable_momentum)
         else:
             raise NotImplementedError
 
-    def update_momentum_network(self) -> None:
+    def update_momentum_network(self, momentum_rate: float) -> None:
         if self.projection_header is not None:
-            self.projection_header.update_momentum_network()
+            self.projection_header.update_momentum_network(momentum_rate)
+        if self.transop_header is not None:
+            self.transop_header.update_momentum_network(momentum_rate)
 
     def forward(self, header_input: HeaderInput) -> HeaderOutput:
         prediction_out = None
@@ -57,6 +58,5 @@ class ContrastiveHeader(nn.Module):
         header_cfg: ContrastiveHeaderConfig,
         backbone_feature_dim: int,
         enable_momentum: bool = False,
-        momentum_rate: float = 0.99,
     ) -> "ContrastiveHeader":
-        return ContrastiveHeader(header_cfg, backbone_feature_dim, enable_momentum, momentum_rate)
+        return ContrastiveHeader(header_cfg, backbone_feature_dim, enable_momentum)

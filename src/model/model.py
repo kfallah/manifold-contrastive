@@ -35,7 +35,7 @@ class Model(nn.Module):
 
         self.momentum_backbone = None
         self.momentum_header = None
-        if self.model_cfg.enable_momentum_network:
+        if self.model_cfg.enable_backbone_momentum:
             self.momentum_backbone = copy.deepcopy(self.backbone)
             deactivate_requires_grad(self.momentum_backbone)
 
@@ -79,7 +79,7 @@ class Model(nn.Module):
         # Two views of an image are provided
         elif x.shape[1] == 2:
             # No momentum encoder used for the backbone
-            if not self.model_cfg.enable_momentum_network:
+            if not self.model_cfg.enable_backbone_momentum:
                 feature_0, feature_1 = self.backbone(x[:, 0]), self.backbone(x[:, 1])
                 x_1 = x[:, 1]
             else:
@@ -93,7 +93,7 @@ class Model(nn.Module):
 
         header_out = self.contrastive_header(header_input)
         # Unshuffle the second view in case of a momentum network
-        if self.model_cfg.enable_momentum_network and x.shape[1] == 2:
+        if self.model_cfg.enable_backbone_momentum and x.shape[1] == 2:
             header_input, header_out = self.unshuffle_outputs(shuffle_idx, header_input, header_out)
 
         return ModelOutput(*header_input, *header_out)
@@ -121,12 +121,13 @@ class Model(nn.Module):
         return loss_meta, total_loss
 
     def update_momentum_network(self) -> None:
-        assert self.momentum_backbone is not None
-        update_momentum(self.backbone, self.momentum_backbone, self.model_cfg.momentum_network_update_rate)
-        self.contrastive_header.update_momentum_network()
+        if self.model_cfg.enable_backbone_momentum:
+            update_momentum(self.backbone, self.momentum_backbone, self.model_cfg.momentum_network_update_rate)
+        if self.model_cfg.enable_header_momentum:
+            self.contrastive_header.update_momentum_network(self.model_cfg.header_momentum_update_rate)
 
     def get_param_groups(self):
-        return [{'params': self.backbone.parameters()}] + self.contrastive_header.get_param_groups()
+        return [{"params": self.backbone.parameters()}] + self.contrastive_header.get_param_groups()
 
     @staticmethod
     def initialize_model(model_cfg: ModelConfig, devices: List[int]) -> "Model":
@@ -134,8 +135,7 @@ class Model(nn.Module):
         contrastive_header = ContrastiveHeader.initialize_header(
             model_cfg.header_cfg,
             backbone_feature_dim,
-            model_cfg.enable_momentum_network,
-            model_cfg.momentum_network_update_rate,
+            model_cfg.enable_header_momentum,
         )
         model = Model(model_cfg, backbone, contrastive_header)
         model = model.to(devices[0])

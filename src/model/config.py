@@ -37,5 +37,7 @@ class ModelConfig:
     # Whether to shuffle input batches (to prevent overfitting to the ordering of the positive/negative pairs)
     enable_batch_shuffle: bool = False
     # Whether to use momentum networks
-    enable_momentum_network: bool = False
-    momentum_network_update_rate: float = 0.99
+    enable_backbone_momentum: bool = False
+    backbone_momentum_update_rate: float = 0.99
+    enable_header_momentum: bool = False
+    header_momentum_update_rate: float = 0.99

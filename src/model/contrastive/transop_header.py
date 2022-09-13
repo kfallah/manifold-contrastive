@@ -5,6 +5,8 @@ Transport operator header that estimates the manifold path between a pair of poi
 @Author      Kion
 @Created     09/07/22
 """
+import copy
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -17,16 +19,26 @@ from torch.cuda.amp import autocast
 
 
 class TransportOperatorHeader(nn.Module):
-    def __init__(self, transop_cfg: TransportOperatorConfig, backbone_feature_dim: int):
+    def __init__(self, transop_cfg: TransportOperatorConfig, backbone_feature_dim: int, enable_momentum: bool):
         super(TransportOperatorHeader, self).__init__()
         self.transop_cfg = transop_cfg
         self.transop = TransOp_expm(M=self.transop_cfg.dictionary_size, N=backbone_feature_dim)
+        self.transop_ema = None
+        if enable_momentum:
+            self.transop_ema = copy.deepcopy(self.transop)
 
         self.coefficient_encoder = None
         if self.transop_cfg.enable_variational_inference:
             self.coefficient_encoder = VIEncoder(
                 self.transop_cfg, backbone_feature_dim, self.transop_cfg.dictionary_size
             )
+
+    def update_momentum_network(self, momentum_rate: float) -> None:
+        assert self.transop_ema is not None
+        self.transop.psi.data = (momentum_rate * self.transop_ema.psi.data) + (
+            (1.0 - momentum_rate) * self.transop.psi.data
+        )
+        self.transop_ema = copy.deepcopy(self.transop)
 
     def get_param_groups(self):
         param_list = [
@@ -38,9 +50,13 @@ class TransportOperatorHeader(nn.Module):
             },
         ]
         if self.coefficient_encoder is not None:
-            param_list.append({"params": self.coefficient_encoder.parameters()
-                               "lr": self.transop_cfg.variational_encoder_lr,
-                               "weight_decay": self.transop_cfg.variational_encoder_weight_decay})
+            param_list.append(
+                {
+                    "params": self.coefficient_encoder.parameters(),
+                    "lr": self.transop_cfg.variational_encoder_lr,
+                    "weight_decay": self.transop_cfg.variational_encoder_weight_decay,
+                }
+            )
         return param_list
 
     def forward(self, header_input: HeaderInput) -> HeaderOutput:

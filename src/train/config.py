@@ -42,6 +42,7 @@ class OptimizerConfig:
 @dataclass
 class SchedulerConfig:
     scheduler: str = "CosineAnnealingLR"
+    warmup_epochs: int = 10
 
 
 @dataclass
