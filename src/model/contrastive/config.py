@@ -38,6 +38,8 @@ class TransportOperatorConfig(ContrastiveHeaderConfig):
 
     # Config for variational network
     enable_variational_inference: bool = True
+    variational_encoder_lr: float = 1e-2
+    variational_encoder_weight_decay: float = 1e-6
     iter_variational_samples: int = 10
     total_variational_samples: int = 100
     use_warmpup: bool = False

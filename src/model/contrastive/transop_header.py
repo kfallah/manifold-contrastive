@@ -38,7 +38,9 @@ class TransportOperatorHeader(nn.Module):
             },
         ]
         if self.coefficient_encoder is not None:
-            param_list.append({"params": self.coefficient_encoder.parameters()})
+            param_list.append({"params": self.coefficient_encoder.parameters()
+                               "lr": self.transop_cfg.variational_encoder_lr,
+                               "weight_decay": self.transop_cfg.variational_encoder_weight_decay})
         return param_list
 
     def forward(self, header_input: HeaderInput) -> HeaderOutput:

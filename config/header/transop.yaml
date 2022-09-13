@@ -6,9 +6,10 @@ dictionary_size: 256
 lambda_prior: 0.26
 transop_weight_decay: 0.05
 transop_lr: 0.0001
-iter_variational_samples: 5
+iter_variational_samples: 10
 total_variational_samples: 50
 
 use_warmpup: false
 variational_scale_prior: 0.1
 variational_feature_dim: 256
+variational_encoder_lr: 0.01
