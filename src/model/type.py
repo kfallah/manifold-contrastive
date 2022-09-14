@@ -42,7 +42,10 @@ class ModelOutput(NamedTuple):
     prediction_0: torch.Tensor
     prediction_1: Optional[torch.Tensor]
     # Optional distribution data if using a variational model
-    distribution_data: Optional[DistributionData]
+    distribution_data: Optional[DistributionData] = None
+    # Optional non-detached prediction in the case where a stopgrad is performed on prediction_0
+    prediction_0_feat_detached: Optional[torch.Tensor] = None
+    prediction_1_feat_detached: Optional[torch.Tensor] = None
 
 
 class HeaderInput(NamedTuple):
@@ -68,3 +71,6 @@ class HeaderOutput(NamedTuple):
     prediction_1: torch.Tensor
     # Optional distribution data if using a variational model
     distribution_data: Optional[DistributionData]
+    # Optional non-detached prediction in the case where a stopgrad is performed on prediction_0
+    prediction_0_feat_detached: Optional[torch.Tensor] = None
+    prediction_1_feat_detached: Optional[torch.Tensor] = None

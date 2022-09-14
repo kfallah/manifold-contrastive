@@ -35,6 +35,8 @@ class TransportOperatorConfig(ContrastiveHeaderConfig):
     lambda_prior: float = 1e-1
     transop_lr: float = 1e-2
     transop_weight_decay: float = 1e-6
+    detach_prediction: bool = False
+    detach_feature: bool = False
 
     # Config for variational network
     enable_variational_inference: bool = True

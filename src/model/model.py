@@ -11,6 +11,7 @@ from typing import Dict, List, Tuple
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from lightly.loss import NTXentLoss
 from lightly.models.utils import (
     batch_shuffle,
@@ -117,6 +118,18 @@ class Model(nn.Module):
             kl_loss = kl_loss.sum(dim=-1).mean()
             total_loss += self.loss_cfg.kl_loss_weight * kl_loss
             loss_meta["kl_loss"] = kl_loss.item()
+        if self.loss_cfg.transop_loss_active:
+            assert (
+                model_output.prediction_0_feat_detached is not None
+                and model_output.prediction_1_feat_detached is not None
+            )
+            assert self.model_cfg.header_cfg.header_name == "TransOp"
+            transop_loss = F.mse_loss(
+                model_output.prediction_0_feat_detached,
+                model_output.prediction_1_feat_detached,
+            )
+            total_loss += self.loss_cfg.transop_loss_weight * transop_loss
+            loss_meta["transop_loss"] = transop_loss.item()
 
         return loss_meta, total_loss
 

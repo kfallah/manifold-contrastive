@@ -55,6 +55,7 @@ class TransportOperatorHeader(nn.Module):
                     "params": self.coefficient_encoder.parameters(),
                     "lr": self.transop_cfg.variational_encoder_lr,
                     "weight_decay": self.transop_cfg.variational_encoder_weight_decay,
+                    "disable_layer_adaptation": True,
                 }
             )
         return param_list
@@ -135,4 +136,19 @@ class TransportOperatorHeader(nn.Module):
         with autocast(enabled=False):
             z1_hat = self.transop(z0.float().unsqueeze(-1), c).squeeze()
 
-        return HeaderOutput(z1_hat, z1, distribution_data)
+        if self.transop_cfg.detach_prediction:
+            z1_hat = z1_hat.detach()
+
+        pred_0_detach, pred_1_detach = None, None
+        if self.transop_cfg.detach_feature:
+            with autocast(enabled=False):
+                pred_0_detach = self.transop(z0.detach().float().unsqueeze(-1), c).squeeze()
+            pred_1_detach = z1.detach()
+
+        return HeaderOutput(
+            z1_hat,
+            z1,
+            distribution_data=distribution_data,
+            prediction_0_feat_detached=pred_0_detach,
+            prediction_1_feat_detached=pred_1_detach,
+        )

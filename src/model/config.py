@@ -17,6 +17,8 @@ class LossConfig:
     ntxent_temp: float = 0.07
     kl_loss_active: bool = False
     kl_loss_weight: float = 0.1
+    transop_loss_active: bool = False
+    transop_loss_weight: float = 1.0
     memory_bank_size: int = 0
 
 
