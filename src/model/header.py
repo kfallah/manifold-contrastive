@@ -11,7 +11,7 @@ import torch.nn as nn
 from model.contrastive.config import ContrastiveHeaderConfig
 from model.contrastive.projection_header import ProjectionHeader
 from model.contrastive.transop_header import TransportOperatorHeader
-from model.type import HeaderInput, HeaderOutput
+from model.type import HeaderInput, HeaderOutput, ModelOutput
 
 
 class ContrastiveHeader(nn.Module):
@@ -33,11 +33,11 @@ class ContrastiveHeader(nn.Module):
         else:
             raise NotImplementedError
 
-    def update_momentum_network(self, momentum_rate: float) -> None:
+    def update_momentum_network(self, momentum_rate: float, model_out: ModelOutput) -> None:
         if self.projection_header is not None:
             self.projection_header.update_momentum_network(momentum_rate)
         if self.transop_header is not None:
-            self.transop_header.update_momentum_network(momentum_rate)
+            self.transop_header.update_momentum_network(momentum_rate, model_out)
 
     def forward(self, header_input: HeaderInput) -> HeaderOutput:
         prediction_out = None

@@ -120,6 +120,8 @@ class MetricLogger:
             nz_tot = np.count_nonzero(coeff_nz)
             total_nz = np.count_nonzero(c, axis=1)
             transop_loss = F.mse_loss(model_output.prediction_0, model_output.prediction_1).item()
+            failed_iters = self.model.contrastive_header.transop_header.failed_iters / self.cfg.transop_log_freq
+            self.model.contrastive_header.transop_header.failed_iters = 0
 
             psi_mag = torch.norm(psi.data.reshape(len(psi.data), -1), dim=-1)
             to_metrics = {
@@ -136,6 +138,7 @@ class MetricLogger:
                     + f", total # operators used: {nz_tot}/{len(psi)}"
                     + f", avg # operators used: {total_nz.mean()}/{len(psi)}"
                     + f", avg coeff mag: {to_metrics['avg_coeff_mag']:.2f}"
+                    + f", % failed iters: {100. * failed_iters:.2f}"
                 )
 
             # Generate transport operator plots

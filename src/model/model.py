@@ -119,25 +119,24 @@ class Model(nn.Module):
             total_loss += self.loss_cfg.kl_loss_weight * kl_loss
             loss_meta["kl_loss"] = kl_loss.item()
         if self.loss_cfg.transop_loss_active:
-            assert (
-                model_output.prediction_0_feat_detached is not None
-                and model_output.prediction_1_feat_detached is not None
-            )
             assert self.model_cfg.header_cfg.header_name == "TransOp"
-            transop_loss = F.mse_loss(
-                model_output.prediction_0_feat_detached,
-                model_output.prediction_1_feat_detached,
-            )
-            total_loss += self.loss_cfg.transop_loss_weight * transop_loss
+            if model_output.prediction_0_feat_detached is None or model_output.prediction_1_feat_detached is None:
+                z0, z1 = model_output.prediction_0, model_output.prediction_1
+            else:
+                z0, z1 = model_output.prediction_0_feat_detached, model_output.prediction_1_feat_detached
+
+            transop_loss = F.mse_loss(z0, z1)
+            if self.loss_cfg.transop_loss_weight > 0:
+                total_loss += self.loss_cfg.transop_loss_weight * transop_loss
             loss_meta["transop_loss"] = transop_loss.item()
 
         return loss_meta, total_loss
 
-    def update_momentum_network(self) -> None:
+    def update_momentum_network(self, model_out: ModelOutput) -> None:
         if self.model_cfg.enable_backbone_momentum:
             update_momentum(self.backbone, self.momentum_backbone, self.model_cfg.momentum_network_update_rate)
         if self.model_cfg.enable_header_momentum:
-            self.contrastive_header.update_momentum_network(self.model_cfg.header_momentum_update_rate)
+            self.contrastive_header.update_momentum_network(self.model_cfg.header_momentum_update_rate, model_out)
 
     def get_param_groups(self):
         return [{"params": self.backbone.parameters()}] + self.contrastive_header.get_param_groups()

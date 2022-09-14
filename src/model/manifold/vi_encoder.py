@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from model.contrastive.config import TransportOperatorConfig
+from model.public.wide_resnet import resnet20
 from model.type import DistributionData
 from torch.distributions import gamma as gamma
 
@@ -14,6 +15,7 @@ class VIEncoder(nn.Module):
             self.warmup = 0.1
         else:
             self.warmup = 1.0
+        self.transop_cfg = transop_cfg
         self.scale_prior = transop_cfg.variational_scale_prior
         self.enc_type = transop_cfg.variational_encoder_type
         self.lambda_ = transop_cfg.lambda_prior
@@ -22,20 +24,24 @@ class VIEncoder(nn.Module):
         self.dictionary_size = dictionary_size
         self.threshold = True
 
-        if self.enc_type == "mlp":
-            self.enc = nn.Sequential(
-                nn.Linear(2 * input_size, 4 * input_size),
-                nn.BatchNorm1d(4 * input_size),
-                nn.ReLU(),
-                nn.Linear(4 * input_size, 4 * input_size),
-                nn.BatchNorm1d(4 * input_size),
-                nn.ReLU(),
-                nn.Linear(4 * input_size, self.feat_dim),
-            )
-        elif self.enc_type == "lstm":
-            self.enc = nn.LSTM(input_size, self.feat_dim, num_layers=1)
+        if transop_cfg.variational_use_features:
+            if self.enc_type == "mlp":
+                self.enc = nn.Sequential(
+                    nn.Linear(2 * input_size, 4 * input_size),
+                    nn.BatchNorm1d(4 * input_size),
+                    nn.ReLU(),
+                    nn.Linear(4 * input_size, 4 * input_size),
+                    nn.BatchNorm1d(4 * input_size),
+                    nn.ReLU(),
+                    nn.Linear(4 * input_size, self.feat_dim),
+                )
+            elif self.enc_type == "lstm":
+                self.enc = nn.LSTM(input_size, self.feat_dim, num_layers=1)
+            else:
+                raise NotImplementedError
         else:
-            raise NotImplementedError
+            self.enc = resnet20()
+            self.enc_proj = nn.Linear(1024, self.feat_dim)
 
         self.scale = nn.Linear(self.feat_dim, dictionary_size)
         self.shift = nn.Linear(self.feat_dim, dictionary_size)
@@ -67,10 +73,14 @@ class VIEncoder(nn.Module):
         if self.warmup > 1.0:
             self.warmup = 1.0
 
-        if self.enc_type == "lstm":
-            z = self.enc(torch.stack((x0, x1), dim=1))[0][:, -1]
+        if self.transop_cfg.variational_use_features:
+            if self.enc_type == "lstm":
+                z = self.enc(torch.stack((x0, x1), dim=1))[0][:, -1]
+            else:
+                z = self.enc(torch.cat((x0, x1), dim=-1))
         else:
-            z = self.enc(torch.cat((x0, x1), dim=-1))
+            z0, z1 = self.enc(torch.cat((x0, x1)), dim=0).split(512, dim=0)
+            z = self.enc_proj(torch.cat((z0, z1), dim=-1))
 
         logscale, shift = self.scale(z), self.shift(z)
         distribution_data = DistributionData(

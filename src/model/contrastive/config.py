@@ -48,5 +48,6 @@ class TransportOperatorConfig(ContrastiveHeaderConfig):
     variational_scale_prior: float = 0.1
     variational_encoder_type: str = "mlp"
     variational_feature_dim: int = 256
+    variational_use_features: bool = True
     # Config for exact inference
     fista_num_iterations: int = 800

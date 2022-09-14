@@ -54,9 +54,6 @@ class Trainer(nn.Module):
             x_gpu = torch.stack([x.to(self.device) for x in x_list]).transpose(0, 1)
             x_idx = torch.Tensor([int(idx) for idx in batch[2]])
 
-            # Update momentum networks if they are enabled
-            self.get_model().update_momentum_network()
-
             with autocast(enabled=self.trainer_cfg.use_amp):
                 # Send inputs through model
                 model_output = self.model(x_gpu, x_idx)
@@ -68,6 +65,9 @@ class Trainer(nn.Module):
             self.scaler.step(self.optimizer)
             self.scaler.update()
             self.scheduler.step()
+
+            # Update momentum networks if they are enabled
+            self.get_model().update_momentum_network(model_output, loss_metadata)
 
             loss_metadata["iter_time"] = time.time() - pre_time
             self.metric_logger.log_metrics(

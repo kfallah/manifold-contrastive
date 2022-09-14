@@ -14,7 +14,7 @@ from model.contrastive.config import TransportOperatorConfig
 from model.manifold.l1_inference import infer_coefficients
 from model.manifold.transop import TransOp_expm
 from model.manifold.vi_encoder import VIEncoder
-from model.type import DistributionData, HeaderInput, HeaderOutput
+from model.type import DistributionData, HeaderInput, HeaderOutput, ModelOutput
 from torch.cuda.amp import autocast
 
 
@@ -23,6 +23,7 @@ class TransportOperatorHeader(nn.Module):
         super(TransportOperatorHeader, self).__init__()
         self.transop_cfg = transop_cfg
         self.transop = TransOp_expm(M=self.transop_cfg.dictionary_size, N=backbone_feature_dim)
+        self.failed_iters = 0
         self.transop_ema = None
         if enable_momentum:
             self.transop_ema = copy.deepcopy(self.transop)
@@ -33,12 +34,20 @@ class TransportOperatorHeader(nn.Module):
                 self.transop_cfg, backbone_feature_dim, self.transop_cfg.dictionary_size
             )
 
-    def update_momentum_network(self, momentum_rate: float) -> None:
+    def update_momentum_network(self, momentum_rate: float, model_out: ModelOutput) -> None:
         assert self.transop_ema is not None
-        self.transop.psi.data = (momentum_rate * self.transop_ema.psi.data) + (
-            (1.0 - momentum_rate) * self.transop.psi.data
-        )
-        self.transop_ema = copy.deepcopy(self.transop)
+        assert model_out.distribution_data is not None and model_out.feature_1 is not None
+        with torch.no_grad():
+            z0, z1 = model_out.feature_0, model_out.feature_1
+            c = model_out.distribution_data.samples
+            old_loss = F.mse_loss(model_out.prediction_0, model_out.prediction_1)
+            with autocast(enabled=False):
+                new_z1_hat = self.transop(z0.detach().float().unsqueeze(-1), c.detach()).squeeze()
+            new_loss = F.mse_loss(new_z1_hat, z1)
+            if new_loss > old_loss:
+                self.transop.psi.data = self.transop_ema.psi.data
+                self.failed_iters += 1
+            self.transop_ema = copy.deepcopy(self.transop)
 
     def get_param_groups(self):
         param_list = [
@@ -61,6 +70,7 @@ class TransportOperatorHeader(nn.Module):
         return param_list
 
     def forward(self, header_input: HeaderInput) -> HeaderOutput:
+        x0, x1 = header_input.x_0, header_input.x_1
         z0, z1 = header_input.feature_0, header_input.feature_1
         distribution_data = None
 
@@ -80,7 +90,10 @@ class TransportOperatorHeader(nn.Module):
                 device=z0.device,
             )
         else:
-            distribution_data = self.coefficient_encoder(z0, z1)
+            if self.transop_cfg.variational_use_features:
+                distribution_data = self.coefficient_encoder(z0, z1)
+            else:
+                distribution_data = self.coefficient_encoder(x0, x1)
 
             # If using best of many loss, use this trick to only differentiate through the coefficient with the lowest
             # L2 error.
