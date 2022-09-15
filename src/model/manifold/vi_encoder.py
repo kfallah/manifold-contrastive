@@ -41,7 +41,7 @@ class VIEncoder(nn.Module):
                 raise NotImplementedError
         else:
             self.enc = resnet20()
-            self.enc_proj = nn.Linear(1024, self.feat_dim)
+            self.enc_proj = nn.Linear(20, self.feat_dim)
 
         self.scale = nn.Linear(self.feat_dim, dictionary_size)
         self.shift = nn.Linear(self.feat_dim, dictionary_size)
@@ -79,7 +79,7 @@ class VIEncoder(nn.Module):
             else:
                 z = self.enc(torch.cat((x0, x1), dim=-1))
         else:
-            z0, z1 = self.enc(torch.cat((x0, x1)), dim=0).split(512, dim=0)
+            z0, z1 = self.enc(torch.cat((x0, x1), dim=0)[:, 0]).split(len(x0), dim=0)
             z = self.enc_proj(torch.cat((z0, z1), dim=-1))
 
         logscale, shift = self.scale(z), self.shift(z)

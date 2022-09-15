@@ -42,7 +42,7 @@ class TransportOperatorHeader(nn.Module):
             c = model_out.distribution_data.samples
             old_loss = F.mse_loss(model_out.prediction_0, model_out.prediction_1)
             with autocast(enabled=False):
-                new_z1_hat = self.transop(z0.detach().float().unsqueeze(-1), c.detach()).squeeze()
+                new_z1_hat = self.transop(z0.detach().float().unsqueeze(-1), c.detach()).squeeze(dim=-1)
             new_loss = F.mse_loss(new_z1_hat, z1)
             if new_loss > old_loss:
                 self.transop.psi.data = self.transop_ema.psi.data
@@ -77,6 +77,8 @@ class TransportOperatorHeader(nn.Module):
         # If no target point was provided, return the features as a prediction
         if z1 is None:
             return HeaderOutput(z0, z1, distribution_data)
+        if self.transop_cfg.detach_feature:
+            z0, z1 = z0.detach(), z1.detach()
 
         # First infer coefficients for point pair
         if self.coefficient_encoder is None:
@@ -118,7 +120,9 @@ class TransportOperatorHeader(nn.Module):
 
                     # Estimate z1 with transport operators
                     with autocast(enabled=False):
-                        z1_hat = self.transop(z0.detach().float().unsqueeze(-1), c.detach()).squeeze().transpose(0, 1)
+                        z1_hat = (
+                            self.transop(z0.detach().float().unsqueeze(-1), c.detach()).squeeze(dim=-1).transpose(0, 1)
+                        )
 
                     # Perform max ELBO sampling to find the highest likelihood coefficient for each entry in the batch
                     transop_loss = (
@@ -147,7 +151,7 @@ class TransportOperatorHeader(nn.Module):
 
         # Matrix exponential not supported with float16
         with autocast(enabled=False):
-            z1_hat = self.transop(z0.float().unsqueeze(-1), c).squeeze()
+            z1_hat = self.transop(z0.float().unsqueeze(-1), c).squeeze(dim=-1)
 
         if self.transop_cfg.detach_prediction:
             z1_hat = z1_hat.detach()
@@ -155,8 +159,8 @@ class TransportOperatorHeader(nn.Module):
         pred_0_detach, pred_1_detach = None, None
         if self.transop_cfg.detach_feature:
             with autocast(enabled=False):
-                pred_0_detach = self.transop(z0.detach().float().unsqueeze(-1), c).squeeze()
-            pred_1_detach = z1.detach()
+                pred_0_detach = self.transop(z0.float().unsqueeze(-1), c).squeeze(dim=-1)
+            pred_1_detach = z1
 
         return HeaderOutput(
             z1_hat,

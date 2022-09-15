@@ -67,7 +67,7 @@ class Trainer(nn.Module):
             self.scheduler.step()
 
             # Update momentum networks if they are enabled
-            self.get_model().update_momentum_network(model_output, loss_metadata)
+            self.get_model().update_momentum_network(model_output)
 
             loss_metadata["iter_time"] = time.time() - pre_time
             self.metric_logger.log_metrics(

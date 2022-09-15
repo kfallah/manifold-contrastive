@@ -7,11 +7,14 @@ exp_name: TransOp
 
 model_cfg:
   concat_different_views: false
+  enable_header_momentum: true
   backbone_cfg:
     hub_model_name: resnet18
   loss_cfg:
     kl_loss_active: true
-    kl_loss_weight: 0.005
+    kl_loss_weight: 0.01
+    transop_loss_active: false
+    transop_loss_weight: 1.0
     ntxent_temp: 0.1
 
 trainer_cfg:
