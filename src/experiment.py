@@ -121,7 +121,6 @@ def run_experiment(
 
 @hydra.main(version_base=None, config_path="../config", config_name="simclr")
 def initialize_experiment(cfg: ExperimentConfig) -> None:
-    log.info("Initializing experiment...")
     wandb.init(
         project="manifold-contrastive",
         entity="kfallah",
@@ -129,6 +128,7 @@ def initialize_experiment(cfg: ExperimentConfig) -> None:
         settings=wandb.Settings(start_method="thread"),
         config=OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True),
     )
+    log.info(f"Initializing experiment {wandb.run.name}...")
 
     assert len(cfg.devices) > 0
     default_device = torch.device(cfg.devices[0])

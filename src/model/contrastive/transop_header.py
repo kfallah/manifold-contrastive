@@ -24,15 +24,18 @@ class TransportOperatorHeader(nn.Module):
         self.transop_cfg = transop_cfg
         self.transop = TransOp_expm(M=self.transop_cfg.dictionary_size, N=backbone_feature_dim)
         self.failed_iters = 0
-        self.transop_ema = None
-        if enable_momentum:
-            self.transop_ema = copy.deepcopy(self.transop)
 
         self.coefficient_encoder = None
         if self.transop_cfg.enable_variational_inference:
             self.coefficient_encoder = VIEncoder(
                 self.transop_cfg, backbone_feature_dim, self.transop_cfg.dictionary_size
             )
+
+        self.transop_ema, self.enc_ema = None, None
+        if enable_momentum:
+            self.transop_ema = copy.deepcopy(self.transop)
+            if self.transop_cfg.enable_variational_inference:
+                self.enc_ema = copy.deepcopy(self.coefficient_encoder)
 
     def update_momentum_network(self, momentum_rate: float, model_out: ModelOutput) -> None:
         assert self.transop_ema is not None
@@ -46,8 +49,12 @@ class TransportOperatorHeader(nn.Module):
             new_loss = F.mse_loss(new_z1_hat, z1)
             if new_loss > old_loss:
                 self.transop.psi.data = self.transop_ema.psi.data
+                if self.transop_cfg.enable_variational_inference:
+                    self.coefficient_encoder = copy.deepcopy(self.enc_ema)
                 self.failed_iters += 1
             self.transop_ema = copy.deepcopy(self.transop)
+            if self.transop_cfg.enable_variational_inference:
+                self.enc_ema = copy.deepcopy(self.coefficient_encoder)
 
     def get_param_groups(self):
         param_list = [

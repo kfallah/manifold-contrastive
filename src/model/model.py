@@ -134,7 +134,7 @@ class Model(nn.Module):
 
     def update_momentum_network(self, model_out: ModelOutput) -> None:
         if self.model_cfg.enable_backbone_momentum:
-            update_momentum(self.backbone, self.momentum_backbone, self.model_cfg.momentum_network_update_rate)
+            update_momentum(self.backbone, self.momentum_backbone, self.model_cfg.backbone_momentum_update_rate)
         if self.model_cfg.enable_header_momentum:
             self.contrastive_header.update_momentum_network(self.model_cfg.header_momentum_update_rate, model_out)
 

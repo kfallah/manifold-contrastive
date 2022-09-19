@@ -119,6 +119,7 @@ class MetricLogger:
             coeff_nz = np.count_nonzero(c, axis=0)
             nz_tot = np.count_nonzero(coeff_nz)
             total_nz = np.count_nonzero(c, axis=1)
+            avg_feat_norm = np.linalg.norm(np.array(self.feature_cache), axis=-1).mean()
             transop_loss = F.mse_loss(model_output.prediction_0, model_output.prediction_1).item()
             failed_iters = self.model.contrastive_header.transop_header.failed_iters / self.cfg.transop_log_freq
             self.model.contrastive_header.transop_header.failed_iters = 0
@@ -129,6 +130,7 @@ class MetricLogger:
                 "total_transop_used": nz_tot,
                 "avg_transop_used": total_nz.mean(),
                 "avg_coeff_mag": np.abs(c[np.abs(c) > 0]).mean(),
+                "avg_feat_norm": avg_feat_norm,
                 "transop_loss": transop_loss,
             }
             if self.cfg.enable_console_logging:
@@ -137,6 +139,7 @@ class MetricLogger:
                     + f", average transop mag: {psi_mag.mean():.3E}"
                     + f", total # operators used: {nz_tot}/{len(psi)}"
                     + f", avg # operators used: {total_nz.mean()}/{len(psi)}"
+                    + f", avg feat norm: {avg_feat_norm:.2E}"
                     + f", avg coeff mag: {to_metrics['avg_coeff_mag']:.2f}"
                     + f", % failed iters: {100. * failed_iters:.2f}"
                 )

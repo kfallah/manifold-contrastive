@@ -30,9 +30,6 @@ class VIEncoder(nn.Module):
                     nn.Linear(2 * input_size, 4 * input_size),
                     nn.BatchNorm1d(4 * input_size),
                     nn.ReLU(),
-                    nn.Linear(4 * input_size, 4 * input_size),
-                    nn.BatchNorm1d(4 * input_size),
-                    nn.ReLU(),
                     nn.Linear(4 * input_size, self.feat_dim),
                 )
             elif self.enc_type == "lstm":
