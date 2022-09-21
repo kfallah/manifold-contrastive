@@ -10,25 +10,28 @@ model_cfg:
   enable_header_momentum: true
   backbone_cfg:
     hub_model_name: resnet18
+    load_backbone: simclr_mlp.pt
+    freeze_backbone: true
   loss_cfg:
-    kl_loss_active: true
-    kl_loss_weight: 0.01
-    transop_loss_active: false
-    transop_loss_weight: 1.0
+    ntxent_loss_active: false
     ntxent_temp: 0.1
+    kl_loss_active: true
+    kl_loss_weight: 0.0001
+    transop_loss_active: true
+    transop_loss_weight: 1.0
 
 trainer_cfg:
   optimizer_cfg:
-    optimizer: LARS
-    initial_lr: 0.3
+    optimizer: SGD
+    enable_nesterov: true
+    initial_lr: 0.0003
   scheduler_cfg:
     scheduler: LinearWarmupCosineAnnealingLR
-    warmup_epochs: 10
+    warmup_epochs: 5
   metric_logger_cfg:
     enable_transop_logging: true
-    transop_log_freq: 500
 train_dataloader_cfg:
-  batch_size: 256
+  batch_size: 128
 
 evaluator_cfg:
   knn_eval_cfg:

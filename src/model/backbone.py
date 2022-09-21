@@ -8,6 +8,7 @@ Backbone network whose feature space will be used for self-supervised learning.
 
 import torch
 import torch.nn as nn
+from lightly.models.utils import deactivate_requires_grad
 
 from model.config import BackboneConfig
 
@@ -28,4 +29,19 @@ class Backbone(nn.Module):
         )
         backbone_feature_dim = backbone_network.fc.in_features
         backbone_network.fc = nn.Identity()
-        return Backbone(backbone_cfg, backbone_network), backbone_feature_dim
+        network = Backbone(backbone_cfg, backbone_network)
+        if backbone_cfg.load_backbone:
+            backbone_weights = torch.load(f"../../model_zoo/{backbone_cfg.load_backbone}")["model_state"]
+            own_state = network.state_dict()
+            for name, param in backbone_weights.items():
+                name = name.replace("backbone.", "")
+                if name not in own_state:
+                    continue
+                if isinstance(param, nn.Parameter):
+                    # backwards compatibility for serialized parameters
+                    param = param.data
+                own_state[name].copy_(param)
+        if backbone_cfg.freeze_backbone:
+            deactivate_requires_grad(network)
+
+        return network, backbone_feature_dim

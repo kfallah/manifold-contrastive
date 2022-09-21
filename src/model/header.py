@@ -8,6 +8,7 @@ Wrapper for different contrastive headers.
 
 import torch.nn as nn
 
+from model.config import LossConfig
 from model.contrastive.config import ContrastiveHeaderConfig
 from model.contrastive.projection_header import ProjectionHeader
 from model.contrastive.transop_header import TransportOperatorHeader
@@ -18,6 +19,7 @@ class ContrastiveHeader(nn.Module):
     def __init__(
         self,
         header_cfg: ContrastiveHeaderConfig,
+        loss_cfg: LossConfig,
         backbone_feature_dim: int,
         enable_momentum: bool = False,
     ):
@@ -29,7 +31,7 @@ class ContrastiveHeader(nn.Module):
         if header_cfg.header_name == "SimCLR" or header_cfg.header_name == "MoCo":
             self.projection_header = ProjectionHeader(header_cfg, backbone_feature_dim, enable_momentum)
         elif header_cfg.header_name == "TransOp":
-            self.transop_header = TransportOperatorHeader(header_cfg, backbone_feature_dim, enable_momentum)
+            self.transop_header = TransportOperatorHeader(header_cfg, loss_cfg, backbone_feature_dim, enable_momentum)
         else:
             raise NotImplementedError
 
@@ -56,7 +58,8 @@ class ContrastiveHeader(nn.Module):
     @staticmethod
     def initialize_header(
         header_cfg: ContrastiveHeaderConfig,
+        loss_cfg: LossConfig,
         backbone_feature_dim: int,
         enable_momentum: bool = False,
     ) -> "ContrastiveHeader":
-        return ContrastiveHeader(header_cfg, backbone_feature_dim, enable_momentum)
+        return ContrastiveHeader(header_cfg, loss_cfg, backbone_feature_dim, enable_momentum)

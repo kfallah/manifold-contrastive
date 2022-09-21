@@ -12,7 +12,6 @@ from typing import Dict, List, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from lightly.loss import NTXentLoss
 from lightly.models.utils import (
     batch_shuffle,
     batch_unshuffle,
@@ -23,6 +22,7 @@ from lightly.models.utils import (
 from model.backbone import Backbone
 from model.config import ModelConfig
 from model.header import ContrastiveHeader
+from model.public.ntx_ent_loss import NTXentLoss
 from model.type import HeaderInput, HeaderOutput, ModelOutput
 
 
@@ -43,7 +43,10 @@ class Model(nn.Module):
         self.criterion = {}
         if self.loss_cfg.ntxent_loss_active:
             self.criterion["ntxent_loss"] = NTXentLoss(
-                memory_bank_size=self.loss_cfg.memory_bank_size, temperature=self.loss_cfg.ntxent_temp
+                memory_bank_size=self.loss_cfg.memory_bank_size,
+                temperature=self.loss_cfg.ntxent_temp,
+                normalize=self.loss_cfg.ntxent_normalize,
+                loss_type=self.loss_cfg.ntxent_logit,
             )
 
     def unshuffle_outputs(
@@ -146,6 +149,7 @@ class Model(nn.Module):
         backbone, backbone_feature_dim = Backbone.initialize_backbone(model_cfg.backbone_cfg)
         contrastive_header = ContrastiveHeader.initialize_header(
             model_cfg.header_cfg,
+            model_cfg.loss_cfg,
             backbone_feature_dim,
             model_cfg.enable_header_momentum,
         )

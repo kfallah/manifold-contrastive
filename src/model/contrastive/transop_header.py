@@ -10,16 +10,24 @@ import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from model.config import LossConfig
 from model.contrastive.config import TransportOperatorConfig
 from model.manifold.l1_inference import infer_coefficients
 from model.manifold.transop import TransOp_expm
 from model.manifold.vi_encoder import VIEncoder
+from model.public.ntx_ent_loss import NTXentLoss
 from model.type import DistributionData, HeaderInput, HeaderOutput, ModelOutput
 from torch.cuda.amp import autocast
 
 
 class TransportOperatorHeader(nn.Module):
-    def __init__(self, transop_cfg: TransportOperatorConfig, backbone_feature_dim: int, enable_momentum: bool):
+    def __init__(
+        self,
+        transop_cfg: TransportOperatorConfig,
+        loss_cfg: LossConfig,
+        backbone_feature_dim: int,
+        enable_momentum: bool,
+    ):
         super(TransportOperatorHeader, self).__init__()
         self.transop_cfg = transop_cfg
         self.transop = TransOp_expm(M=self.transop_cfg.dictionary_size, N=backbone_feature_dim)
@@ -36,6 +44,16 @@ class TransportOperatorHeader(nn.Module):
             self.transop_ema = copy.deepcopy(self.transop)
             if self.transop_cfg.enable_variational_inference:
                 self.enc_ema = copy.deepcopy(self.coefficient_encoder)
+
+        self.ntx_loss = None
+        if transop_cfg.use_ntxloss_sampling:
+            self.ntx_loss = NTXentLoss(
+                memory_bank_size=loss_cfg.memory_bank_size,
+                temperature=loss_cfg.ntxent_temp,
+                normalize=loss_cfg.ntxent_normalize,
+                loss_type=loss_cfg.ntxent_logit,
+                reduction="none",
+            )
 
     def update_momentum_network(self, momentum_rate: float, model_out: ModelOutput) -> None:
         assert self.transop_ema is not None
@@ -128,19 +146,31 @@ class TransportOperatorHeader(nn.Module):
                     # Estimate z1 with transport operators
                     with autocast(enabled=False):
                         z1_hat = (
-                            self.transop(z0.detach().float().unsqueeze(-1), c.detach()).squeeze(dim=-1).transpose(0, 1)
-                        )
+                            self.transop(z0.detach().float().unsqueeze(-1) / 45.0, c.detach())
+                            .squeeze(dim=-1)
+                            .transpose(0, 1)
+                        ) * 45.0
 
                     # Perform max ELBO sampling to find the highest likelihood coefficient for each entry in the batch
-                    transop_loss = (
-                        F.mse_loss(
-                            z1_hat,
-                            z1.repeat(len(z1_hat), *torch.ones(z1.dim(), dtype=int)).detach(),
-                            reduction="none",
+                    if self.transop_cfg.use_ntxloss_sampling:
+                        transop_loss = torch.stack(
+                            [
+                                self.ntx_loss(z1_hat[samp], z1)
+                                for samp in range(self.transop_cfg.iter_variational_samples)
+                            ]
+                        ).T
+                        # Account for duplicate from both views in ntxloss
+                        transop_loss = 0.5 * (transop_loss[: len(z1)] + transop_loss[len(z1) :])
+                    else:
+                        transop_loss = (
+                            F.mse_loss(
+                                z1_hat,
+                                z1.repeat(len(z1_hat), *torch.ones(z1.dim(), dtype=int)).detach(),
+                                reduction="none",
+                            )
+                            .mean(dim=-1)
+                            .transpose(0, 1)
                         )
-                        .mean(dim=-1)
-                        .transpose(0, 1)
-                    )
                     noise_list.append(u)
                     loss_list.append(transop_loss)
 
@@ -158,7 +188,7 @@ class TransportOperatorHeader(nn.Module):
 
         # Matrix exponential not supported with float16
         with autocast(enabled=False):
-            z1_hat = self.transop(z0.float().unsqueeze(-1), c).squeeze(dim=-1)
+            z1_hat = self.transop(z0.float().unsqueeze(-1) / 45.0, c).squeeze(dim=-1) * 45.0
 
         if self.transop_cfg.detach_prediction:
             z1_hat = z1_hat.detach()

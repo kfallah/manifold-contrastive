@@ -44,6 +44,7 @@ class TransportOperatorConfig(ContrastiveHeaderConfig):
     variational_encoder_weight_decay: float = 1e-6
     iter_variational_samples: int = 10
     total_variational_samples: int = 100
+    use_ntxloss_sampling: bool = False
     use_warmpup: bool = False
     variational_scale_prior: float = 0.1
     variational_encoder_type: str = "mlp"

@@ -7,6 +7,7 @@ Class that contains all config DataClasses for models.
 """
 
 from dataclasses import dataclass
+from typing import Optional
 
 from model.contrastive.config import ContrastiveHeaderConfig
 
@@ -15,6 +16,8 @@ from model.contrastive.config import ContrastiveHeaderConfig
 class LossConfig:
     ntxent_loss_active: bool = True
     ntxent_temp: float = 0.07
+    ntxent_normalize: bool = True
+    ntxent_logit: str = "cos"
     kl_loss_active: bool = False
     kl_loss_weight: float = 0.1
     transop_loss_active: bool = False
@@ -27,11 +30,14 @@ class BackboneConfig:
     # PyTorch hub model name https://pytorch.org/hub/research-models
     hub_model_name: str = "resnet18"
     pretrained: bool = False
+    load_backbone: Optional[str] = None
+    freeze_backbone: bool = False
 
 
 @dataclass
 class ModelConfig:
     backbone_cfg: BackboneConfig = BackboneConfig()
+    # Whether to load weights for the backbone
     header_cfg: ContrastiveHeaderConfig = ContrastiveHeaderConfig()
     loss_cfg: LossConfig = LossConfig()
     # Whether to concatenate different views of a batch of images and feed them into the model all at once

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from model.contrastive.config import TransportOperatorConfig
-from model.public.wide_resnet import resnet20
+from model.public.wide_resnet import resnet44
 from model.type import DistributionData
 from torch.distributions import gamma as gamma
 
@@ -12,7 +12,7 @@ class VIEncoder(nn.Module):
         super(VIEncoder, self).__init__()
 
         if transop_cfg.use_warmpup:
-            self.warmup = 0.1
+            self.warmup = 0.01
         else:
             self.warmup = 1.0
         self.transop_cfg = transop_cfg
@@ -37,8 +37,9 @@ class VIEncoder(nn.Module):
             else:
                 raise NotImplementedError
         else:
-            self.enc = resnet20()
-            self.enc_proj = nn.Linear(20, self.feat_dim)
+            self.enc = resnet44()
+            self.enc.linear = nn.Identity()
+            self.enc_proj = nn.Linear(128, self.feat_dim)
 
         self.scale = nn.Linear(self.feat_dim, dictionary_size)
         self.shift = nn.Linear(self.feat_dim, dictionary_size)
@@ -58,7 +59,7 @@ class VIEncoder(nn.Module):
 
         c = shift + eps * self.warmup
         if self.threshold:
-            c_thresh = self.soft_threshold(eps.detach() * self.warmup, self.lambda_)
+            c_thresh = self.soft_threshold(eps.detach() * self.warmup, self.lambda_ * self.warmup)
             non_zero = torch.nonzero(c_thresh, as_tuple=True)
             c_thresh[non_zero] = shift[non_zero] + c_thresh[non_zero]
             c = c + c_thresh - c.detach()
@@ -66,7 +67,7 @@ class VIEncoder(nn.Module):
         return c
 
     def forward(self, x0, x1):
-        self.warmup += 5e-4
+        self.warmup += 1e-3
         if self.warmup > 1.0:
             self.warmup = 1.0
 

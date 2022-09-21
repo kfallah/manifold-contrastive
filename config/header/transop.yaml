@@ -3,16 +3,16 @@ defaults:
   - _self_
 header_name: TransOp
 dictionary_size: 128
-lambda_prior: 0.24
+lambda_prior: 0.2
 transop_weight_decay: 0.005
-transop_lr: 0.001
+transop_lr: 0.0005
 detach_prediction: false
 detach_feature: false
 iter_variational_samples: 4
-total_variational_samples: 12
+total_variational_samples: 20
 
-use_warmpup: false
-variational_use_features: true
+use_warmpup: true
+variational_use_features: false
 variational_scale_prior: 0.1
 variational_feature_dim: 512
 variational_encoder_lr: 0.0003
