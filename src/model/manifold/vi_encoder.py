@@ -27,10 +27,17 @@ class VIEncoder(nn.Module):
         if transop_cfg.variational_use_features:
             if self.enc_type == "mlp":
                 self.enc = nn.Sequential(
-                    nn.Linear(2 * input_size, 4 * input_size),
+                    nn.Linear(input_size, 4 * input_size),
                     nn.BatchNorm1d(4 * input_size),
                     nn.ReLU(),
                     nn.Linear(4 * input_size, self.feat_dim),
+                )
+                self.aggregate_mlp = nn.Sequential(
+                    nn.LayerNorm(2 * self.feat_dim),
+                    nn.Linear(2 * self.feat_dim, 4 * self.feat_dim),
+                    nn.BatchNorm1d(4 * self.feat_dim),
+                    nn.ReLU(),
+                    nn.Linear(4 * self.feat_dim, self.feat_dim),
                 )
             elif self.enc_type == "lstm":
                 self.enc = nn.LSTM(input_size, self.feat_dim, num_layers=1)
@@ -75,7 +82,8 @@ class VIEncoder(nn.Module):
             if self.enc_type == "lstm":
                 z = self.enc(torch.stack((x0, x1), dim=1))[0][:, -1]
             else:
-                z = self.enc(torch.cat((x0, x1), dim=-1))
+                z0, z1 = self.enc(x0), self.enc(x1)
+                z = self.aggregate_mlp(torch.cat((z0, z1), dim=1))
         else:
             z0, z1 = self.enc(torch.cat((x0, x1), dim=0)[:, 0]).split(len(x0), dim=0)
             z = self.enc_proj(torch.cat((z0, z1), dim=-1))
