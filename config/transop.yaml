@@ -14,6 +14,8 @@ model_cfg:
     freeze_backbone: true
   loss_cfg:
     ntxent_loss_active: false
+    ntxent_normalize: false
+    ntxent_logit: mse
     ntxent_temp: 0.1
     kl_loss_active: true
     kl_loss_weight: 0.0001

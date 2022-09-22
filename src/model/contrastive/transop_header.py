@@ -107,15 +107,17 @@ class TransportOperatorHeader(nn.Module):
 
         # First infer coefficients for point pair
         if self.coefficient_encoder is None:
-            c, _ = infer_coefficients(
-                z0,
-                z1,
-                self.transop.get_psi(),
-                self.transop_cfg.lambda_prior,
-                max_iter=self.transop_cfg.fista_num_iterations,
-                num_trials=self.transop_cfg.iter_variational_samples,
-                device=z0.device,
-            )
+            with autocast(enabled=False):
+                _, c = infer_coefficients(
+                    z0.float(),
+                    z1.float(),
+                    self.transop.get_psi().float(),
+                    self.transop_cfg.lambda_prior,
+                    max_iter=self.transop_cfg.fista_num_iterations,
+                    num_trials=self.transop_cfg.iter_variational_samples,
+                    device=z0.device,
+                )
+            distribution_data = DistributionData(c, None, None, None, None)
         else:
             if self.transop_cfg.variational_use_features:
                 distribution_data = self.coefficient_encoder(z0, z1)

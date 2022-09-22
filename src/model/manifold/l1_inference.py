@@ -10,7 +10,7 @@ def soft_threshold(c, zeta):
 
 def compute_loss(c, x0, x1, psi):
     T = torch.einsum("tbm,mpk->tbpk", c, psi)
-    x1_hat = torch.matrix_exp(T) @ x0
+    x1_hat = (torch.matrix_exp(T) @ x0.unsqueeze(-1)).squeeze(-1)
     loss = F.mse_loss(x1_hat, x1, reduction="none")
     return loss
 
@@ -20,12 +20,12 @@ def get_lr(optimizer):
         return param_group["lr"]
 
 
-def infer_coefficients(x0, x1, psi, zeta, max_iter=800, tol=1e-6, num_trials=100, device="cpu", c_init=0.02):
+def infer_coefficients(x0, x1, psi, zeta, max_iter=300, tol=1e-5, num_trials=100, device="cpu", c_init=0.1):
     c = nn.Parameter(
         torch.mul(torch.randn((num_trials, len(x0), len(psi)), device=device), c_init), requires_grad=True
     )
-    c_opt = torch.optim.SGD([c], lr=1e-1, nesterov=False, momentum=0.9)
-    opt_scheduler = torch.optim.lr_scheduler.ExponentialLR(c_opt, gamma=0.995)
+    c_opt = torch.optim.SGD([c], lr=5e-2, nesterov=False, momentum=0.9)
+    opt_scheduler = torch.optim.lr_scheduler.ExponentialLR(c_opt, gamma=0.985)
     batch_size = len(x1)
     x1 = x1.repeat(num_trials, *torch.ones(x1.dim(), dtype=int))
     change = torch.ones((num_trials, len(x0)), device=device) * (1.0e99)
@@ -37,7 +37,7 @@ def infer_coefficients(x0, x1, psi, zeta, max_iter=800, tol=1e-6, num_trials=100
 
         c_opt.zero_grad()
         loss = compute_loss(c, x0, x1, psi)
-        (loss.mean(dim=(-1, -2)) * change_idx).sum().backward()
+        (loss.mean(dim=(-1)) * change_idx).sum().backward()
         c_opt.step()
         opt_scheduler.step()
 
@@ -48,7 +48,7 @@ def infer_coefficients(x0, x1, psi, zeta, max_iter=800, tol=1e-6, num_trials=100
         k += 1
 
     trial_idx = torch.argmin(
-        loss.detach().cpu().mean(dim=(-1, -2)) + zeta * torch.abs(c.detach().cpu()).sum(dim=-1), dim=0
+        loss.detach().cpu().mean(dim=(-1)) + zeta * torch.abs(c.detach().cpu()).sum(dim=-1), dim=0
     )
     c = c[trial_idx, torch.arange(batch_size)].data
     return (loss.detach().cpu(), get_lr(c_opt), k), c.data
