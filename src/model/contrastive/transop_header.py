@@ -10,6 +10,7 @@ import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from lightly.models.modules import NNMemoryBankModule
 from model.config import LossConfig
 from model.contrastive.config import TransportOperatorConfig
 from model.manifold.l1_inference import infer_coefficients
@@ -54,6 +55,10 @@ class TransportOperatorHeader(nn.Module):
                 loss_type=loss_cfg.ntxent_logit,
                 reduction="none",
             )
+
+        self.nn_memory_bank = None
+        if self.transop_cfg.enable_nn_point_pair:
+            self.nn_memory_bank = NNMemoryBankModule(size=self.transop_cfg.nn_memory_bank_size)
 
     def update_momentum_network(self, momentum_rate: float, model_out: ModelOutput) -> None:
         assert self.transop_ema is not None
@@ -101,9 +106,12 @@ class TransportOperatorHeader(nn.Module):
 
         # If no target point was provided, return the features as a prediction
         if z1 is None:
-            return HeaderOutput(z0, z1, distribution_data)
+            return HeaderOutput(z0, z1, z0, z1, distribution_data)
         if self.transop_cfg.detach_feature:
             z0, z1 = z0.detach(), z1.detach()
+
+        if self.transop_cfg.enable_nn_point_pair:
+            z1 = self.nn_memory_bank(z1, update=True)
 
         # First infer coefficients for point pair
         if self.coefficient_encoder is None:
@@ -148,10 +156,8 @@ class TransportOperatorHeader(nn.Module):
                     # Estimate z1 with transport operators
                     with autocast(enabled=False):
                         z1_hat = (
-                            self.transop(z0.detach().float().unsqueeze(-1) / 45.0, c.detach())
-                            .squeeze(dim=-1)
-                            .transpose(0, 1)
-                        ) * 45.0
+                            self.transop(z0.detach().float().unsqueeze(-1), c.detach()).squeeze(dim=-1).transpose(0, 1)
+                        )
 
                     # Perform max ELBO sampling to find the highest likelihood coefficient for each entry in the batch
                     if self.transop_cfg.use_ntxloss_sampling:
@@ -202,6 +208,8 @@ class TransportOperatorHeader(nn.Module):
             pred_1_detach = z1
 
         return HeaderOutput(
+            header_input.feature_0,
+            header_input.feature_1,
             z1_hat,
             z1,
             distribution_data=distribution_data,

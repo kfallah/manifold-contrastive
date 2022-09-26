@@ -13,12 +13,26 @@ from hydra.core.config_store import ConfigStore
 def register_configs() -> None:
     cs = ConfigStore.instance()
     cs.store(group="exp_cfg/model_cfg/header_cfg", name="simclr", node=ProjectionHeaderConfig)
-    cs.store(group="exp_cfg/model_cfg/header_cfg", name="transop", node=TransportOperatorConfig)
+    cs.store(group="exp_cfg/model_cfg/header_cfg", name="proj_pred", node=ProjectionPredictionHeaderConfig)
+    cs.store(group="exp_cfg/model_cfg/header_cfg", name="transop_header", node=TransportOperatorConfig)
 
 
 @dataclass
 class ContrastiveHeaderConfig:
     header_name: str = "DefaultHeader"
+
+
+@dataclass
+class ProjectionPredictionHeaderConfig(ContrastiveHeaderConfig):
+    # Whether to use a NN memory bank to store positive examples (used by NNCLR)
+    enable_nn_bank: bool = False
+    nn_memory_bank_size: int = 65536
+    prediction_type: str = "MLP"
+    proj_hidden_dim: int = 2048
+    proj_output_dim: int = 256
+    pred_hidden_dim: int = 2048
+    pred_output_dim: int = 128
+    direct_pred_num_dim: int = 64
 
 
 @dataclass
@@ -37,6 +51,10 @@ class TransportOperatorConfig(ContrastiveHeaderConfig):
     transop_weight_decay: float = 1e-6
     detach_prediction: bool = False
     detach_feature: bool = False
+
+    # Option to use NN to find point pairs
+    enable_nn_point_pair: bool = False
+    nn_memory_bank_size: int = 65536
 
     # Config for variational network
     enable_variational_inference: bool = True

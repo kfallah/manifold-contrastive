@@ -1,7 +1,11 @@
 """
 SimCLR header with different options for projection head.
 
-@Filename    simclr.py
+Example models:
+SimCLR
+MoCoV2
+
+@Filename    projection_header.py
 @Author      Kion
 @Created     09/02/22
 """
@@ -53,7 +57,7 @@ class ProjectionHeader(nn.Module):
             else:
                 raise NotImplementedError
         elif self.proj_cfg.projection_type == "Linear":
-            self.projector = nn.Linear(backbone_feature_dim, self.proj_cfg.output_dim)
+            self.projector = nn.Linear(backbone_feature_dim, self.proj_cfg.output_dim, bias=False)
         elif self.proj_cfg.projection_type == "RandomProjection":
             self.projector = RandomProjection(backbone_feature_dim, self.proj_cfg.output_dim)
         elif self.proj_cfg.projection_type == "None" or self.proj_cfg.projection_type == "Direct":
@@ -84,4 +88,4 @@ class ProjectionHeader(nn.Module):
             if pred_1 is not None:
                 pred_1 = pred_1[..., : self.proj_cfg.direct_proj_num_dim]
 
-        return HeaderOutput(pred_0, pred_1, distribution_data=None)
+        return HeaderOutput(header_input.feature_0, header_input.feature_1, pred_0, pred_1, distribution_data=None)

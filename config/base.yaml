@@ -24,10 +24,11 @@ trainer_cfg:
   use_amp: true
   optimizer_cfg:
     optimizer: LARS
-    initial_lr: 2.4
+    initial_lr: 0.3
     weight_decay: 1e-6
   scheduler_cfg:
-    scheduler: CosineAnnealingLR
+    scheduler: LinearWarmupCosineAnnealingLR
+    warmup_epochs: 10
   metric_logger_cfg:
     enable_wandb_logging: true
     enable_console_logging: true

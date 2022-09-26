@@ -18,6 +18,7 @@ class LossConfig:
     ntxent_temp: float = 0.07
     ntxent_normalize: bool = True
     ntxent_logit: str = "cos"
+    ntxent_symmetric: bool = False
     kl_loss_active: bool = False
     kl_loss_weight: float = 0.1
     transop_loss_active: bool = False
@@ -42,8 +43,6 @@ class ModelConfig:
     loss_cfg: LossConfig = LossConfig()
     # Whether to concatenate different views of a batch of images and feed them into the model all at once
     concat_different_views: bool = False
-    # Whether to shuffle input batches (to prevent overfitting to the ordering of the positive/negative pairs)
-    enable_batch_shuffle: bool = False
     # Whether to use momentum networks
     enable_backbone_momentum: bool = False
     backbone_momentum_update_rate: float = 0.99

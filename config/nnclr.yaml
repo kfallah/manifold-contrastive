@@ -1,0 +1,13 @@
+defaults:
+  - base
+  - header/proj_pred@model_cfg.header_cfg
+  - _self_
+
+exp_name: NNCLR
+model_cfg:
+  loss_cfg:
+    ntxent_symmetric: true
+  header_cfg:
+    header_name: NNCLR
+    enable_nn_bank: true
+    nn_memory_bank_size: 65536

@@ -78,7 +78,7 @@ class Model(nn.Module):
         """
         # Only a single view of an image is used
         if x.shape[1] == 1:
-            feature_0 = self.backbone(x[:, 0]).unsqueeze(1)
+            feature_0 = self.backbone(x[:, 0])
             header_input = HeaderInput(x, None, x_idx, feature_0, None)
         # Two views of an image are provided
         elif x.shape[1] == 2:
@@ -90,7 +90,7 @@ class Model(nn.Module):
                 feature_0 = self.backbone(x[:, 0])
                 x_1, shuffle_idx = batch_shuffle(x[:, 1])
                 feature_1 = self.momentum_backbone(x_1)
-            header_input = HeaderInput(x[:, 0].unsqueeze(1), x_1.unsqueeze(1), x_idx, feature_0, feature_1)
+            header_input = HeaderInput(x[:, 0], x_1, x_idx, feature_0, feature_1)
         # All other cases are not currently supported
         else:
             raise NotImplementedError
@@ -100,7 +100,7 @@ class Model(nn.Module):
         if self.model_cfg.enable_backbone_momentum and x.shape[1] == 2:
             header_input, header_out = self.unshuffle_outputs(shuffle_idx, header_input, header_out)
 
-        return ModelOutput(*header_input, *header_out)
+        return ModelOutput(*header_input[:3], *header_out)
 
     def compute_loss(self, model_output: ModelOutput) -> Tuple[Dict[str, float], float]:
         loss_meta = {}
@@ -108,7 +108,13 @@ class Model(nn.Module):
 
         if self.loss_cfg.ntxent_loss_active:
             assert model_output.prediction_1 is not None
-            ntxent_loss = self.criterion["ntxent_loss"](model_output.prediction_0, model_output.prediction_1)
+            if self.loss_cfg.ntxent_symmetric:
+                ntxent_loss = 0.5 * (
+                    self.criterion["ntxent_loss"](model_output.feature_0, model_output.prediction_1)
+                    + self.criterion["ntxent_loss"](model_output.feature_1, model_output.prediction_0)
+                )
+            else:
+                ntxent_loss = self.criterion["ntxent_loss"](model_output.prediction_0, model_output.prediction_1)
             total_loss += ntxent_loss
             loss_meta["ntxent_loss"] = ntxent_loss.item()
         if self.loss_cfg.kl_loss_active:
