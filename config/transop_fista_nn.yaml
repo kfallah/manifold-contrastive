@@ -1,0 +1,10 @@
+defaults:
+  - transop_fista
+  - _self_
+
+exp_name: TransOp-FISTA-NN
+
+model_cfg:
+  header_cfg:
+    enable_nn_point_pair: true
+    nn_memory_bank_size: 65536

@@ -1,6 +1,6 @@
 defaults:
   - base
-  - header/transop@model_cfg.header_cfg
+  - header/transop_header@model_cfg.header_cfg
   - _self_
 
 exp_name: TransOp
