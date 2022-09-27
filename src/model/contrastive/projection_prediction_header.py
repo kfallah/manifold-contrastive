@@ -46,9 +46,9 @@ class ProjectionPredictionHeader(nn.Module):
                 )
             else:
                 raise NotImplementedError
-        elif self.proj_cfg.projection_type == "Linear":
+        elif self.proj_cfg.prediction_type == "Linear":
             self.predictor = nn.Linear(self.proj_cfg.proj_output_dim, self.proj_cfg.pred_output_dim, bias=False)
-        elif self.proj_cfg.projection_type == "None":
+        elif self.proj_cfg.prediction_type == "None":
             self.predictor = nn.Identity()
         else:
             raise NotImplementedError

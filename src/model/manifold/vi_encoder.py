@@ -66,9 +66,11 @@ class VIEncoder(nn.Module):
 
         c = shift + eps * self.warmup
         if self.threshold:
+            # We do this weird detaching pattern because in certain cases we want gradient to flow through self.lambda_
+            # In the case where self.lambda_ is constant, this is the same as c_thresh.detach() in the final line.
             c_thresh = self.soft_threshold(eps.detach() * self.warmup, self.lambda_ * self.warmup)
             non_zero = torch.nonzero(c_thresh, as_tuple=True)
-            c_thresh[non_zero] = shift[non_zero] + c_thresh[non_zero]
+            c_thresh[non_zero] = shift[non_zero].detach() + c_thresh[non_zero]
             c = c + c_thresh - c.detach()
 
         return c

@@ -129,10 +129,7 @@ class Model(nn.Module):
             loss_meta["kl_loss"] = kl_loss.item()
         if self.loss_cfg.transop_loss_active:
             assert self.model_cfg.header_cfg.header_name == "TransOp"
-            if model_output.prediction_0_feat_detached is None or model_output.prediction_1_feat_detached is None:
-                z0, z1 = model_output.prediction_0, model_output.prediction_1
-            else:
-                z0, z1 = model_output.prediction_0_feat_detached, model_output.prediction_1_feat_detached
+            z0, z1 = model_output.prediction_0, model_output.prediction_1
 
             transop_loss = F.mse_loss(z0, z1)
             if self.loss_cfg.transop_loss_weight > 0:
