@@ -51,6 +51,8 @@ class TransportOperatorConfig(ContrastiveHeaderConfig):
     transop_weight_decay: float = 1e-6
     detach_prediction: bool = False
     detach_feature: bool = False
+    # Scale point pairs before inferring coefficients and applying transop
+    latent_scale: float = 1.0
 
     # Option to use NN to find point pairs
     enable_nn_point_pair: bool = False

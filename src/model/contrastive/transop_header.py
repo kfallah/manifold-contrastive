@@ -68,7 +68,7 @@ class TransportOperatorHeader(nn.Module):
             c = model_out.distribution_data.samples
             old_loss = F.mse_loss(model_out.prediction_0, model_out.prediction_1)
             with autocast(enabled=False):
-                new_z1_hat = self.transop(z0.detach().float().unsqueeze(-1), c.detach()).squeeze(dim=-1)
+                new_z1_hat = self.transop(z0.detach().float().unsqueeze(-1) / self.transop_cfg.latent_scale, c.detach()).squeeze(dim=-1) * self.transop_cfg.latent_scale
             new_loss = F.mse_loss(new_z1_hat, z1)
             if new_loss > old_loss:
                 self.transop.psi.data = self.transop_ema.psi.data
@@ -117,8 +117,8 @@ class TransportOperatorHeader(nn.Module):
         if self.coefficient_encoder is None:
             with autocast(enabled=False):
                 _, c = infer_coefficients(
-                    z0.float(),
-                    z1.float(),
+                    z0.float() / self.transop_cfg.latent_scale,
+                    z1.float() / self.transop_cfg.latent_scale,
                     self.transop.get_psi().float(),
                     self.transop_cfg.lambda_prior,
                     max_iter=self.transop_cfg.fista_num_iterations,
@@ -128,7 +128,7 @@ class TransportOperatorHeader(nn.Module):
             distribution_data = DistributionData(c, None, None, None, None)
         else:
             if self.transop_cfg.variational_use_features:
-                distribution_data = self.coefficient_encoder(z0, z1)
+                distribution_data = self.coefficient_encoder(z0 / self.transop_cfg.latent_scale, z1 / self.transop_cfg.latent_scale)
             else:
                 distribution_data = self.coefficient_encoder(x0, x1)
 
@@ -156,8 +156,8 @@ class TransportOperatorHeader(nn.Module):
                     # Estimate z1 with transport operators
                     with autocast(enabled=False):
                         z1_hat = (
-                            self.transop(z0.detach().float().unsqueeze(-1), c.detach()).squeeze(dim=-1).transpose(0, 1)
-                        )
+                            self.transop(z0.detach().float().unsqueeze(-1) / self.transop_cfg.latent_scale, c.detach()).squeeze(dim=-1).transpose(0, 1)
+                        ) *  self.transop_cfg.latent_scale
 
                     # Perform max ELBO sampling to find the highest likelihood coefficient for each entry in the batch
                     if self.transop_cfg.use_ntxloss_sampling:
@@ -196,23 +196,15 @@ class TransportOperatorHeader(nn.Module):
 
         # Matrix exponential not supported with float16
         with autocast(enabled=False):
-            z1_hat = self.transop(z0.float().unsqueeze(-1) / 45.0, c).squeeze(dim=-1) * 45.0
+            z1_hat = self.transop(z0.float().unsqueeze(-1) / self.transop_cfg.latent_scale, c).squeeze(dim=-1) *  self.transop_cfg.latent_scale
 
         if self.transop_cfg.detach_prediction:
             z1_hat = z1_hat.detach()
-
-        pred_0_detach, pred_1_detach = None, None
-        if self.transop_cfg.detach_feature:
-            with autocast(enabled=False):
-                pred_0_detach = self.transop(z0.float().unsqueeze(-1), c).squeeze(dim=-1)
-            pred_1_detach = z1
 
         return HeaderOutput(
             header_input.feature_0,
             header_input.feature_1,
             z1_hat,
             z1,
-            distribution_data=distribution_data,
-            prediction_0_feat_detached=pred_0_detach,
-            prediction_1_feat_detached=pred_1_detach,
+            distribution_data=distribution_data
         )

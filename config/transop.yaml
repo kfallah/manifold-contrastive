@@ -18,7 +18,7 @@ model_cfg:
     ntxent_logit: mse
     ntxent_temp: 0.1
     kl_loss_active: true
-    kl_loss_weight: 0.0001
+    kl_loss_weight: 0.001
     transop_loss_active: true
     transop_loss_weight: 1.0
 
@@ -33,7 +33,7 @@ trainer_cfg:
   metric_logger_cfg:
     enable_transop_logging: true
 train_dataloader_cfg:
-  batch_size: 128
+  batch_size: 256
 
 evaluator_cfg:
   knn_eval_cfg:
