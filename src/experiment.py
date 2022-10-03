@@ -17,7 +17,7 @@ import numpy as np
 import torch
 import wandb
 from hydra.core.config_store import ConfigStore
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 import model.contrastive.config as header_config
 from dataloader.config import DataLoaderConfig
@@ -113,12 +113,10 @@ def run_experiment(
         train_dataloader,
         cfg.train_dataloader_cfg,
         eval_dataloader,
-        rank,
         last_epoch=True,
     )
-    if rank == 0:
-        trainer.save_model(epoch, os.getcwd() + "/checkpoints/")
-        log.info("...Experiment complete!")
+    trainer.save_model(epoch, os.getcwd() + "/checkpoints/")
+    log.info("...Experiment complete!")
 
 
 @hydra.main(version_base=None, config_path="../config", config_name="simclr")
