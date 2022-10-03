@@ -11,6 +11,7 @@ def soft_threshold(c, zeta):
 def compute_loss(c, x0, x1, psi):
     T = torch.einsum("tbm,mpk->tbpk", c, psi)
     x1_hat = (torch.matrix_exp(T) @ x0.unsqueeze(-1)).squeeze(-1)
+    #x1_hat = (expm(T) @ x0.unsqueeze(-1)).squeeze(-1)
     loss = F.mse_loss(x1_hat, x1, reduction="none")
     return loss
 
@@ -20,11 +21,11 @@ def get_lr(optimizer):
         return param_group["lr"]
 
 
-def infer_coefficients(x0, x1, psi, zeta, max_iter=300, tol=1e-5, num_trials=100, device="cpu", c_init=0.1):
+def infer_coefficients(x0, x1, psi, zeta, max_iter=300, tol=1e-5, num_trials=100, device="cpu", c_init=0.02):
     c = nn.Parameter(
         torch.mul(torch.randn((num_trials, len(x0), len(psi)), device=device), c_init), requires_grad=True
     )
-    c_opt = torch.optim.SGD([c], lr=5e-2, nesterov=False, momentum=0.9)
+    c_opt = torch.optim.SGD([c], lr=1e-2, nesterov=False, momentum=0.9)
     opt_scheduler = torch.optim.lr_scheduler.ExponentialLR(c_opt, gamma=0.985)
     batch_size = len(x1)
     x1 = x1.repeat(num_trials, *torch.ones(x1.dim(), dtype=int))

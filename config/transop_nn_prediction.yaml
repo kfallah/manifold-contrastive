@@ -1,0 +1,22 @@
+defaults:
+  - transop_nn
+  - _self_
+
+exp_name: TransOp-VI-NN-Prediction
+
+model_cfg:
+  header_cfg:
+    projection_type: Linear
+    projection_out_dim: 128
+    lambda_prior: 0.3
+    iter_variational_samples: 1
+    total_variational_samples: 1
+    transop_weight_decay: 0.00001
+    transop_lr: 0.001
+  loss_cfg:
+    kl_loss_weight: 0.0001
+trainer_cfg:
+  scheduler_cfg:
+    scheduler: CosineAnnealingLR
+train_dataloader_cfg:
+  batch_size: 512

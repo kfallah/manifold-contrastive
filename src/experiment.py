@@ -113,14 +113,16 @@ def run_experiment(
         train_dataloader,
         cfg.train_dataloader_cfg,
         eval_dataloader,
+        rank,
         last_epoch=True,
     )
-    trainer.save_model(epoch, os.getcwd() + "/checkpoints/")
-    log.info("...Experiment complete!")
+    if rank == 0:
+        trainer.save_model(epoch, os.getcwd() + "/checkpoints/")
+        log.info("...Experiment complete!")
 
 
 @hydra.main(version_base=None, config_path="../config", config_name="simclr")
-def initialize_experiment(cfg: ExperimentConfig) -> None:
+def initialize_experiment(cfg: DictConfig) -> None:
     wandb.init(
         project="manifold-contrastive",
         entity="kfallah",

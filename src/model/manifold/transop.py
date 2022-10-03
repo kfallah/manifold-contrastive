@@ -3,9 +3,10 @@ import torch.nn as nn
 
 
 class TransOp_expm(nn.Module):
-    def __init__(self, M=6, N=3, var=2e-3):
+    def __init__(self, M=6, N=3, var=1e0):
         super(TransOp_expm, self).__init__()
-        self.psi = nn.Parameter(torch.mul(torch.randn((M, N, N)), var), requires_grad=True)
+        init_var = var / N
+        self.psi = nn.Parameter(torch.mul(torch.randn((M, N, N)), init_var), requires_grad=True)
         self.M = M
         self.N = N
 

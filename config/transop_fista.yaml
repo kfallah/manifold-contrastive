@@ -10,14 +10,21 @@ model_cfg:
     kl_loss_active: false
   header_cfg:
     enable_variational_inference: false
-    fista_num_iterations: 300
+    projection_type: Linear
+    projection_out_dim: 64
+    fista_num_iterations: 800
     iter_variational_samples: 1
-    lambda_prior: 0.15
+    lambda_prior: 0.05
+    transop_weight_decay: 0.0e-5
+    transop_lr: 0.001
 
 trainer_cfg:
   save_interval: 5
   metric_logger_cfg:
     loss_log_freq: 50
-    transop_log_freq: 200
+    transop_log_freq: 100
   scheduler_cfg:
     scheduler: CosineAnnealingLR
+  use_amp: false
+train_dataloader_cfg:
+  batch_size: 256

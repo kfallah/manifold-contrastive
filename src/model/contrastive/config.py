@@ -49,10 +49,16 @@ class TransportOperatorConfig(ContrastiveHeaderConfig):
     lambda_prior: float = 1e-1
     transop_lr: float = 1e-2
     transop_weight_decay: float = 1e-6
-    detach_prediction: bool = False
     detach_feature: bool = False
     # Scale point pairs before inferring coefficients and applying transop
     latent_scale: float = 1.0
+
+    # Settings for projection
+    projection_type: str = "None"
+    projection_hidden_dim: int = 2048
+    projection_out_dim: int = 128
+    projection_network_lr: float = 3e-4
+    projection_network_weight_decay: float = 1e-6
 
     # Option to use NN to find point pairs
     enable_nn_point_pair: bool = False
@@ -60,7 +66,7 @@ class TransportOperatorConfig(ContrastiveHeaderConfig):
 
     # Config for variational network
     enable_variational_inference: bool = True
-    variational_encoder_lr: float = 1e-2
+    variational_encoder_lr: float = 3e-4
     variational_encoder_weight_decay: float = 1e-6
     iter_variational_samples: int = 10
     total_variational_samples: int = 100

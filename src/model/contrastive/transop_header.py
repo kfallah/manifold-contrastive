@@ -10,7 +10,7 @@ import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from lightly.models.modules import NNMemoryBankModule
+from lightly.models.modules import NNCLRProjectionHead, NNMemoryBankModule
 from model.config import LossConfig
 from model.contrastive.config import TransportOperatorConfig
 from model.manifold.l1_inference import infer_coefficients
@@ -31,18 +31,32 @@ class TransportOperatorHeader(nn.Module):
     ):
         super(TransportOperatorHeader, self).__init__()
         self.transop_cfg = transop_cfg
-        self.transop = TransOp_expm(M=self.transop_cfg.dictionary_size, N=backbone_feature_dim)
         self.failed_iters = 0
+
+        if self.transop_cfg.projection_type == "None":
+            self.projector = nn.Identity()
+            feature_dim = backbone_feature_dim
+        elif self.transop_cfg.projection_type == "MLP":
+            self.projector = NNCLRProjectionHead(
+                backbone_feature_dim, self.transop_cfg.projection_hidden_dim, self.transop_cfg.projection_out_dim
+            )
+            feature_dim = self.transop_cfg.projection_out_dim
+        elif self.transop_cfg.projection_type == "Linear":
+            self.projector = nn.Linear(backbone_feature_dim, self.transop_cfg.projection_out_dim)
+            feature_dim = self.transop_cfg.projection_out_dim
+        else:
+            raise NotImplementedError
+
+        self.transop = TransOp_expm(M=self.transop_cfg.dictionary_size, N=feature_dim)
 
         self.coefficient_encoder = None
         if self.transop_cfg.enable_variational_inference:
-            self.coefficient_encoder = VIEncoder(
-                self.transop_cfg, backbone_feature_dim, self.transop_cfg.dictionary_size
-            )
+            self.coefficient_encoder = VIEncoder(self.transop_cfg, feature_dim, self.transop_cfg.dictionary_size)
 
         self.transop_ema, self.enc_ema = None, None
         if enable_momentum:
             self.transop_ema = copy.deepcopy(self.transop)
+            self.projector_ema = copy.deepcopy(self.projector)
             if self.transop_cfg.enable_variational_inference:
                 self.enc_ema = copy.deepcopy(self.coefficient_encoder)
 
@@ -64,18 +78,25 @@ class TransportOperatorHeader(nn.Module):
         assert self.transop_ema is not None
         assert model_out.distribution_data is not None and model_out.feature_1 is not None
         with torch.no_grad():
-            z0, z1 = model_out.feature_0, model_out.feature_1
+            z0, z1 = self.projector(model_out.feature_0), self.projector(model_out.feature_1)
             c = model_out.distribution_data.samples
             old_loss = F.mse_loss(model_out.prediction_0, model_out.prediction_1)
             with autocast(enabled=False):
-                new_z1_hat = self.transop(z0.detach().float().unsqueeze(-1) / self.transop_cfg.latent_scale, c.detach()).squeeze(dim=-1) * self.transop_cfg.latent_scale
+                new_z1_hat = (
+                    self.transop(
+                        z0.detach().float().unsqueeze(-1) / self.transop_cfg.latent_scale, c.detach()
+                    ).squeeze(dim=-1)
+                    * self.transop_cfg.latent_scale
+                )
             new_loss = F.mse_loss(new_z1_hat, z1)
             if new_loss > old_loss:
                 self.transop.psi.data = self.transop_ema.psi.data
+                self.projector = copy.deepcopy(self.projector_ema)
                 if self.transop_cfg.enable_variational_inference:
                     self.coefficient_encoder = copy.deepcopy(self.enc_ema)
                 self.failed_iters += 1
             self.transop_ema = copy.deepcopy(self.transop)
+            self.projector_ema = copy.deepcopy(self.projector)
             if self.transop_cfg.enable_variational_inference:
                 self.enc_ema = copy.deepcopy(self.coefficient_encoder)
 
@@ -86,6 +107,11 @@ class TransportOperatorHeader(nn.Module):
                 "lr": self.transop_cfg.transop_lr,
                 "weight_decay": self.transop_cfg.transop_weight_decay,
                 "disable_layer_adaptation": True,
+            },
+            {
+                "params": self.projector.parameters(),
+                "lr": self.transop_cfg.projection_network_lr,
+                "weight_decay": self.transop_cfg.projection_network_weight_decay,
             },
         ]
         if self.coefficient_encoder is not None:
@@ -101,24 +127,33 @@ class TransportOperatorHeader(nn.Module):
 
     def forward(self, header_input: HeaderInput) -> HeaderOutput:
         x0, x1 = header_input.x_0, header_input.x_1
-        z0, z1 = header_input.feature_0, header_input.feature_1
+        feat_0, feat_1 = header_input.feature_0, header_input.feature_1
         distribution_data = None
 
-        # If no target point was provided, return the features as a prediction
-        if z1 is None:
-            return HeaderOutput(z0, z1, z0, z1, distribution_data)
+        # In the case where only a single point pair is provided
+        if feat_1 is None:
+            return HeaderOutput(self.projector(feat_0), feat_1, self.projector(feat_0), feat_1, distribution_data)
+
+        # Detach the predictions in the case where we dont want gradient going to the backbone
         if self.transop_cfg.detach_feature:
-            z0, z1 = z0.detach(), z1.detach()
+            feat_0, feat_1 = feat_0.detach(), feat_1.detach()
 
+        # Project both features
+        z0, z1 = self.projector(feat_0), self.projector(feat_1)
+
+        # either use the nearnest neighbor bank or the projected feature to make the prediction
         if self.transop_cfg.enable_nn_point_pair:
-            z1 = self.nn_memory_bank(z1, update=True)
+            z1_use = self.nn_memory_bank(z1.detach(), update=True)
+        else:
+            z1_use = z1
 
-        # First infer coefficients for point pair
+        # Infer coefficients for point pair
         if self.coefficient_encoder is None:
+            # Use FISTA for exact inference
             with autocast(enabled=False):
                 _, c = infer_coefficients(
-                    z0.float() / self.transop_cfg.latent_scale,
-                    z1.float() / self.transop_cfg.latent_scale,
+                    z0.float().detach() / self.transop_cfg.latent_scale,
+                    z1_use.float().detach() / self.transop_cfg.latent_scale,
                     self.transop.get_psi().float(),
                     self.transop_cfg.lambda_prior,
                     max_iter=self.transop_cfg.fista_num_iterations,
@@ -127,9 +162,14 @@ class TransportOperatorHeader(nn.Module):
                 )
             distribution_data = DistributionData(c, None, None, None, None)
         else:
+            # Use a variational approach
             if self.transop_cfg.variational_use_features:
-                distribution_data = self.coefficient_encoder(z0 / self.transop_cfg.latent_scale, z1 / self.transop_cfg.latent_scale)
+                # Use the features to estimate coefficients
+                distribution_data = self.coefficient_encoder(
+                    z0 / self.transop_cfg.latent_scale, z1_use / self.transop_cfg.latent_scale
+                )
             else:
+                # Use the original images to estimate coefficients
                 distribution_data = self.coefficient_encoder(x0, x1)
 
             # If using best of many loss, use this trick to only differentiate through the coefficient with the lowest
@@ -143,7 +183,7 @@ class TransportOperatorHeader(nn.Module):
 
                     # Generate a new noise sample
                     u = self.coefficient_encoder.draw_noise_samples(
-                        len(z1), self.transop_cfg.iter_variational_samples, z1.device
+                        len(z1_use), self.transop_cfg.iter_variational_samples, z1_use.device
                     )
                     c = self.coefficient_encoder.reparameterize(
                         distribution_data.shift.unsqueeze(1).repeat(1, self.transop_cfg.iter_variational_samples, 1),
@@ -156,24 +196,26 @@ class TransportOperatorHeader(nn.Module):
                     # Estimate z1 with transport operators
                     with autocast(enabled=False):
                         z1_hat = (
-                            self.transop(z0.detach().float().unsqueeze(-1) / self.transop_cfg.latent_scale, c.detach()).squeeze(dim=-1).transpose(0, 1)
-                        ) *  self.transop_cfg.latent_scale
+                            self.transop(z0.detach().float().unsqueeze(-1) / self.transop_cfg.latent_scale, c.detach())
+                            .squeeze(dim=-1)
+                            .transpose(0, 1)
+                        ) * self.transop_cfg.latent_scale
 
                     # Perform max ELBO sampling to find the highest likelihood coefficient for each entry in the batch
                     if self.transop_cfg.use_ntxloss_sampling:
                         transop_loss = torch.stack(
                             [
-                                self.ntx_loss(z1_hat[samp], z1)
+                                self.ntx_loss(z1_hat[samp], z1_use)
                                 for samp in range(self.transop_cfg.iter_variational_samples)
                             ]
                         ).T
                         # Account for duplicate from both views in ntxloss
-                        transop_loss = 0.5 * (transop_loss[: len(z1)] + transop_loss[len(z1) :])
+                        transop_loss = 0.5 * (transop_loss[: len(z1_use)] + transop_loss[len(z1_use) :])
                     else:
                         transop_loss = (
                             F.mse_loss(
                                 z1_hat,
-                                z1.repeat(len(z1_hat), *torch.ones(z1.dim(), dtype=int)).detach(),
+                                z1_use.repeat(len(z1_hat), *torch.ones(z1_use.dim(), dtype=int)).detach(),
                                 reduction="none",
                             )
                             .mean(dim=-1)
@@ -196,15 +238,9 @@ class TransportOperatorHeader(nn.Module):
 
         # Matrix exponential not supported with float16
         with autocast(enabled=False):
-            z1_hat = self.transop(z0.float().unsqueeze(-1) / self.transop_cfg.latent_scale, c).squeeze(dim=-1) *  self.transop_cfg.latent_scale
+            z1_hat = (
+                self.transop(z0.float().unsqueeze(-1) / self.transop_cfg.latent_scale, c).squeeze(dim=-1)
+                * self.transop_cfg.latent_scale
+            )
 
-        if self.transop_cfg.detach_prediction:
-            z1_hat = z1_hat.detach()
-
-        return HeaderOutput(
-            header_input.feature_0,
-            header_input.feature_1,
-            z1_hat,
-            z1,
-            distribution_data=distribution_data
-        )
+        return HeaderOutput(z0, z1, z1_hat, z1_use, distribution_data=distribution_data)
