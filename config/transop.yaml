@@ -1,39 +1,37 @@
 defaults:
   - base
   - header/transop_header@model_cfg.header_cfg
+  - dataloader/cifar10_ultraweak@train_dataloader_cfg
   - _self_
 
 exp_name: TransOp
 
 model_cfg:
   concat_different_views: false
-  enable_header_momentum: true
+  enable_header_momentum: false
   backbone_cfg:
-    hub_model_name: resnet18
-    load_backbone: simclr_mlp.pt
+    pretrained: true
     freeze_backbone: true
   loss_cfg:
     ntxent_loss_active: false
     ntxent_normalize: false
-    ntxent_logit: mse
-    ntxent_temp: 0.1
+    ntxent_logit: cos
     kl_loss_active: true
-    kl_loss_weight: 0.001
+    kl_loss_weight: 0.005
     transop_loss_active: true
     transop_loss_weight: 1.0
 
 trainer_cfg:
   optimizer_cfg:
-    optimizer: SGD
-    enable_nesterov: true
+    optimizer: Adam
     initial_lr: 0.0003
   scheduler_cfg:
     scheduler: LinearWarmupCosineAnnealingLR
-    warmup_epochs: 5
+    warmup_epochs: 10
   metric_logger_cfg:
     enable_transop_logging: true
 train_dataloader_cfg:
-  batch_size: 256
+  batch_size: 128
 
 evaluator_cfg:
   knn_eval_cfg:
