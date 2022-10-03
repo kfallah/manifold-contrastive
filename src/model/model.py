@@ -11,7 +11,6 @@ from typing import Dict, List, Tuple
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from lightly.models.utils import (
     batch_shuffle,
     batch_unshuffle,

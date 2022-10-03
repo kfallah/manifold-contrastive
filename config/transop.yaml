@@ -17,7 +17,7 @@ model_cfg:
     ntxent_normalize: false
     ntxent_logit: cos
     kl_loss_active: true
-    kl_loss_weight: 0.005
+    kl_loss_weight: 5.0e-3
     transop_loss_active: true
     transop_loss_weight: 1.0
 
@@ -26,12 +26,14 @@ trainer_cfg:
     optimizer: Adam
     initial_lr: 0.0003
   scheduler_cfg:
-    scheduler: LinearWarmupCosineAnnealingLR
+    scheduler: CosineAnnealingLR
     warmup_epochs: 10
   metric_logger_cfg:
     enable_transop_logging: true
+  use_amp: false
 train_dataloader_cfg:
-  batch_size: 128
+  batch_size: 256
+devices: [0]
 
 evaluator_cfg:
   knn_eval_cfg:

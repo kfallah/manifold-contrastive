@@ -8,7 +8,6 @@ Wrapper that handles all computations related to computing loss functions.
 from typing import Dict, Tuple
 
 import torch
-import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -58,7 +57,7 @@ class Loss(nn.Module):
             total_loss += self.loss_cfg.kl_loss_weight * kl_loss
             loss_meta["kl_loss"] = kl_loss.item()
         if self.loss_cfg.transop_loss_active:
-            assert self.model_cfg.header_cfg.header_name == "TransOp"
+            assert model_output.prediction_0 is not None and model_output.prediction_1 is not None
             z1_hat, z1 = model_output.prediction_0, model_output.prediction_1
 
             transop_loss = F.mse_loss(z1_hat, z1)

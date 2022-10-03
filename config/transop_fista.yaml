@@ -14,9 +14,9 @@ model_cfg:
     projection_out_dim: 64
     fista_num_iterations: 800
     iter_variational_samples: 1
-    lambda_prior: 0.05
-    transop_weight_decay: 0.0e-5
-    transop_lr: 0.001
+    lambda_prior: 0.4
+    transop_weight_decay: 1.0e-5
+    transop_lr: 1.0e-3
 
 trainer_cfg:
   save_interval: 5
@@ -27,4 +27,4 @@ trainer_cfg:
     scheduler: CosineAnnealingLR
   use_amp: false
 train_dataloader_cfg:
-  batch_size: 256
+  batch_size: 128
