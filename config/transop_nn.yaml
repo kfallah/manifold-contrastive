@@ -1,5 +1,6 @@
 defaults:
   - transop
+  - dataloader/cifar10_ultraweak@train_dataloader_cfg
   - _self_
 
 exp_name: TransOp-VI-NN
@@ -8,3 +9,7 @@ model_cfg:
   header_cfg:
     enable_nn_point_pair: true
     nn_memory_bank_size: 98304
+train_dataloader_cfg:
+  batch_size: 128
+trainer_cfg:
+  save_interval: 5

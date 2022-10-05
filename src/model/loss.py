@@ -28,6 +28,7 @@ class Loss(nn.Module):
                 temperature=self.loss_cfg.ntxent_temp,
                 normalize=self.loss_cfg.ntxent_normalize,
                 loss_type=self.loss_cfg.ntxent_logit,
+                detach_off_logit=self.loss_cfg.ntxent_detach_off_logit,
             )
 
     def compute_loss(self, model_output: ModelOutput) -> Tuple[Dict[str, float], float]:
@@ -56,6 +57,9 @@ class Loss(nn.Module):
             kl_loss = kl_loss.sum(dim=-1).mean()
             total_loss += self.loss_cfg.kl_loss_weight * kl_loss
             loss_meta["kl_loss"] = kl_loss.item()
+            # shift_l2 = (torch.linalg.norm(distr.shift, dim=-1) ** 2).mean()
+            # total_loss += 1e0 * shift_l2
+            # loss_meta["shift_l2"] = shift_l2.item()
         if self.loss_cfg.transop_loss_active:
             assert model_output.prediction_0 is not None and model_output.prediction_1 is not None
             z1_hat, z1 = model_output.prediction_0, model_output.prediction_1

@@ -143,6 +143,15 @@ class MetricLogger:
                     + f", avg coeff mag: {to_metrics['avg_coeff_mag']:.2f}"
                     + f", % failed iters: {100. * failed_iters:.2f}"
                 )
+                if self.model.model_cfg.header_cfg.enable_variational_inference:
+                    scale = torch.exp(model_output.distribution_data.log_scale)
+                    shift = model_output.distribution_data.shift
+                    log.info(
+                        f"[Distribution data iter {curr_iter}]: mean scale: {scale.mean():.3E}"
+                        + f" min scale: {scale.min():.3E} max scale: {scale.max():.3E}"
+                        + f", mean shift {shift.mean():.3E} min shift {shift.min():.3E}"
+                        + f" max shift {shift.max():.3E}"
+                    )
 
             # Generate transport operator plots
             fig_dict = transop_plots(c, psi)
