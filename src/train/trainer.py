@@ -6,6 +6,7 @@ Main trainer wrapper that contains all training state variables and performs a s
 @Created     08/31/22
 """
 
+import logging
 import os
 import time
 from typing import Dict
@@ -18,6 +19,8 @@ from torch.cuda.amp import GradScaler, autocast
 
 from train.config import TrainerConfig
 from train.metric_logger import MetricLogger
+
+log = logging.getLogger(__name__)
 
 
 class Trainer(nn.Module):
@@ -62,6 +65,18 @@ class Trainer(nn.Module):
             # Backpropagate loss
             self.optimizer.zero_grad()
             self.scaler.scale(total_loss).backward()
+            if idx % 100 == 0:
+                vi_grad = (
+                    torch.cat(
+                        [
+                            p.grad.reshape(-1)
+                            for p in self.get_model().contrastive_header.transop_header.coefficient_encoder.parameters()
+                        ]
+                    )
+                    ** 2
+                ).mean()
+                psi_grad = (self.get_model().contrastive_header.transop_header.transop.psi.grad ** 2).mean()
+                log.info(f"[GRAD INFO COMING IN HOT!!!]: VI grad: {vi_grad:.3E}, PSI grad: {psi_grad:.3E}")
             self.scaler.step(self.optimizer)
             self.scaler.update()
             self.scheduler.step()

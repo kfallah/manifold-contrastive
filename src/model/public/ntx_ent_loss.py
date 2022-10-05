@@ -54,6 +54,7 @@ class NTXentLoss(MemoryBankModule):
         reduction: str = "mean",
         normalize: bool = True,
         loss_type: str = "cos",
+        detach_off_logit: bool = False,
     ):
         super(NTXentLoss, self).__init__(size=memory_bank_size)
         self.temperature = temperature
@@ -63,6 +64,7 @@ class NTXentLoss(MemoryBankModule):
         self.normalize = normalize
         self.loss_type = loss_type
         self.reduction = reduction
+        self.detach_off_logit = detach_off_logit
 
         if abs(self.temperature) < self.eps:
             raise ValueError("Illegal temperature: abs({}) < 1e-8".format(self.temperature))
@@ -156,6 +158,10 @@ class NTXentLoss(MemoryBankModule):
             logits_01 = self.compute_loss(out0, out1_large) / self.temperature
             logits_10 = self.compute_loss(out1, out0_large) / self.temperature
             logits_11 = self.compute_loss(out1, out1_large) / self.temperature
+
+            if self.detach_off_logit:
+                logits_01 = logits_01.detach()
+                logits_10 = logits_10.detach()
 
             # remove simliarities between same views of the same image
             logits_00 = logits_00[~diag_mask].view(batch_size, -1)

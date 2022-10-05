@@ -1,5 +1,6 @@
 defaults:
   - transop_fista
+  - dataloader/cifar10_ultraweak@train_dataloader_cfg
   - _self_
 
 exp_name: TransOp-FISTA-NN

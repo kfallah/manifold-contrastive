@@ -1,7 +1,6 @@
 defaults:
   - base
   - header/transop_header@model_cfg.header_cfg
-  - dataloader/cifar10_ultraweak@train_dataloader_cfg
   - _self_
 
 exp_name: TransOp
@@ -15,9 +14,10 @@ model_cfg:
   loss_cfg:
     ntxent_loss_active: false
     ntxent_normalize: false
-    ntxent_logit: cos
+    ntxent_logit: mse
+    ntxent_detach_off_logit: false
     kl_loss_active: true
-    kl_loss_weight: 5.0e-3
+    kl_loss_weight: 2.0e0
     transop_loss_active: true
     transop_loss_weight: 1.0
 
@@ -27,13 +27,13 @@ trainer_cfg:
     initial_lr: 0.0003
   scheduler_cfg:
     scheduler: CosineAnnealingLR
-    warmup_epochs: 10
+    warmup_epochs: 5
   metric_logger_cfg:
     enable_transop_logging: true
-  use_amp: false
+  use_amp: true
 train_dataloader_cfg:
   batch_size: 256
-devices: [0]
+devices: [0, 1]
 
 evaluator_cfg:
   knn_eval_cfg:

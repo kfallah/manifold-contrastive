@@ -18,6 +18,7 @@ class LossConfig:
     ntxent_temp: float = 0.07
     ntxent_normalize: bool = True
     ntxent_logit: str = "cos"
+    ntxent_detach_off_logit: bool = False
     ntxent_symmetric: bool = False
     kl_loss_active: bool = False
     kl_loss_weight: float = 0.1
