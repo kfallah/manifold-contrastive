@@ -65,7 +65,7 @@ class Trainer(nn.Module):
             # Backpropagate loss
             self.optimizer.zero_grad()
             self.scaler.scale(total_loss).backward()
-            if idx % 100 == 0:
+            if False and idx % 100 == 0:
                 vi_grad = (
                     torch.cat(
                         [

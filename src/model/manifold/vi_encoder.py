@@ -8,7 +8,12 @@ from torch.distributions import gamma as gamma
 
 
 class VIEncoder(nn.Module):
-    def __init__(self, transop_cfg: TransportOperatorConfig, input_size: int, dictionary_size: int):
+    def __init__(
+        self,
+        transop_cfg: TransportOperatorConfig,
+        input_size: int,
+        dictionary_size: int,
+    ):
         super(VIEncoder, self).__init__()
 
         if transop_cfg.use_warmpup:
@@ -64,17 +69,26 @@ class VIEncoder(nn.Module):
         return F.relu(torch.abs(z) - lambda_) * torch.sign(z)
 
     def draw_noise_samples(self, batch_size, num_samples, device):
-        return torch.rand((batch_size, num_samples, self.dictionary_size), device=device) - 0.5
+        return (
+            torch.rand((batch_size, num_samples, self.dictionary_size), device=device)
+            - 0.5
+        )
 
     def reparameterize(self, shift, logscale, u):
         scale = torch.exp(logscale)
-        eps = -scale * torch.sign(u) * torch.log((1.0 - 2.0 * torch.abs(u)).clamp(min=1e-6, max=1e6))
+        eps = (
+            -scale
+            * torch.sign(u)
+            * torch.log((1.0 - 2.0 * torch.abs(u)).clamp(min=1e-6, max=1e6))
+        )
 
         c = shift + eps
         if self.threshold:
             # We do this weird detaching pattern because in certain cases we want gradient to flow through self.lambda_
             # In the case where self.lambda_ is constant, this is the same as c_thresh.detach() in the final line.
-            c_thresh = self.soft_threshold(eps * self.warmup, self.lambda_ * self.warmup)
+            c_thresh = self.soft_threshold(
+                eps * self.warmup, self.lambda_ * self.warmup
+            )
             non_zero = torch.nonzero(c_thresh, as_tuple=True)
             c_thresh[non_zero] = (self.warmup * shift[non_zero]) + c_thresh[non_zero]
             c = c + (c_thresh - c).detach()

@@ -12,9 +12,19 @@ from hydra.core.config_store import ConfigStore
 
 def register_configs() -> None:
     cs = ConfigStore.instance()
-    cs.store(group="exp_cfg/model_cfg/header_cfg", name="simclr", node=ProjectionHeaderConfig)
-    cs.store(group="exp_cfg/model_cfg/header_cfg", name="proj_pred", node=ProjectionPredictionHeaderConfig)
-    cs.store(group="exp_cfg/model_cfg/header_cfg", name="transop_header", node=TransportOperatorConfig)
+    cs.store(
+        group="exp_cfg/model_cfg/header_cfg", name="simclr", node=ProjectionHeaderConfig
+    )
+    cs.store(
+        group="exp_cfg/model_cfg/header_cfg",
+        name="proj_pred",
+        node=ProjectionPredictionHeaderConfig,
+    )
+    cs.store(
+        group="exp_cfg/model_cfg/header_cfg",
+        name="transop_header",
+        node=TransportOperatorConfig,
+    )
 
 
 @dataclass
@@ -66,6 +76,8 @@ class TransportOperatorConfig(ContrastiveHeaderConfig):
 
     # Config for variational network
     enable_variational_inference: bool = True
+    variational_distribution: str = "Laplacian"
+    variational_prior_type: str = "Fixed"
     variational_encoder_lr: float = 3e-4
     variational_encoder_weight_decay: float = 1e-6
     iter_variational_samples: int = 10

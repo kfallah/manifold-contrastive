@@ -26,7 +26,7 @@ def infer_coefficients(x0, x1, psi, zeta, max_iter=300, tol=1e-5, num_trials=100
         torch.mul(torch.randn((num_trials, len(x0), len(psi)), device=device), c_init), requires_grad=True
     )
     c_opt = torch.optim.SGD([c], lr=1e-2, nesterov=False, momentum=0.9)
-    opt_scheduler = torch.optim.lr_scheduler.ExponentialLR(c_opt, gamma=0.985)
+    opt_scheduler = torch.optim.lr_scheduler.ExponentialLR(c_opt, gamma=0.99)
     batch_size = len(x1)
     x1 = x1.repeat(num_trials, *torch.ones(x1.dim(), dtype=int))
     change = torch.ones((num_trials, len(x0)), device=device) * (1.0e99)
