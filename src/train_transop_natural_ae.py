@@ -26,10 +26,14 @@ parser.add_argument("-r", "--run_label", required=True, type=str, help="Label fo
 parser.add_argument("-z", "--zeta", default=0.04, type=float, help="L1 penalty")
 parser.add_argument("-g", "--gamma", default=1e-5, type=float, help="WD penalty")
 parser.add_argument("-w", "--kl_weight", default=1e-1, type=float, help="KL weight")
-parser.add_argument("-pl", "--psi_lr", default=1e-4, type=float, help="Psi LR")
+parser.add_argument("-pl", "--psi_lr", default=1e-3, type=float, help="Psi LR")
 parser.add_argument("-nl", "--net_lr", default=3e-4, type=float, help="VI LR")
 parser.add_argument("-s", "--n_samples", default=100, type=int, help="VI samples")
 parser.add_argument("-t", "--temp", default=1, type=float, help="Sampling temp")
+parser.add_argument("-b1", "--beta1", default=0.9, type=float, help="Beta1")
+parser.add_argument("-b2", "--beta2", default=0.999, type=float, help="Beta2")
+
+parser.add_argument("-T", "--final_temp", default=1, type=float, help="Final temp")
 parser.add_argument(
     "--image_input", action="store_true", default=False, help="VI use images"
 )
@@ -54,7 +58,11 @@ default_device = torch.device("cuda:0")
 total_num_samples = args.n_samples
 use_features = True
 temp = args.temp
-
+temp_warmup = args.temp_warmup
+final_temp = args.final_temp
+l2_sq_reg = args.l2_sq_reg
+beta1 = args.beta1
+beta2 = args.beta2
 total_epoch = 1000
 
 logging.basicConfig(
@@ -127,7 +135,9 @@ decoder = ConvDecoder(128, 3, 32).to(default_device)
 transop = TransOp_expm(dict_size, 128, var=1).to(default_device)
 
 if os.path.exists("results/pretrained/cifar10_resnet18_ae.pth"):
-    ae_weights = torch.load("results/pretrained/cifar10_resnet18_ae.pth")
+    ae_weights = torch.load(
+        "results/pretrained/cifar10_resnet18_ae.pth", map_location=default_device
+    )
     backbone.load_state_dict(ae_weights["encoder"])
     decoder.load_state_dict(ae_weights["decoder"])
     backbone.eval()
@@ -142,13 +152,13 @@ if use_vi:
         variational_feature_dim=256,
     )
     vi = VIEncoder(cfg, 128, dict_size).to(default_device)
-    to_opt = torch.optim.AdamW(
+    to_opt = torch.optim.SGD(
         [
             {"params": transop.parameters()},
             {"params": vi.parameters(), "weight_decay": 1e-6, "lr": net_lr},
         ],
-        lr=psi_lr,
-        weight_decay=gamma,
+        lr=psi_lr, nesterov=True, momentum=0.9, #betas=(beta1, beta2),
+        weight_decay=0.0 if l2_sq_reg else gamma,
     )
 else:
     to_opt = torch.optim.AdamW(transop.parameters(), lr=psi_lr, weight_decay=gamma)
@@ -166,7 +176,6 @@ kl_loss_list = []
 # Training #
 for epoch in range(total_epoch):
     for idx, batch in enumerate(train_dataloader):
-        torch.autograd.set_detect_anomaly(True)
         pre_time = time.time()
         x0, x1, y = batch
         x0, x1 = x0.to(default_device), x1.to(default_device)
@@ -176,6 +185,11 @@ for epoch in range(total_epoch):
         recon_loss = 0.5 * (F.mse_loss(x1_hat, x1) + F.mse_loss(x0_hat, x0))
 
         z0, z1 = z0.detach(), z1.detach()
+
+        if temp_warmup:
+            temp = temp * 0.9995
+            if temp < final_temp:
+                temp = final_temp
 
         if use_vi:
             if use_features:
@@ -261,6 +275,12 @@ for epoch in range(total_epoch):
         to_opt.step()
         to_scheduler.step()
 
+        if l2_sq_reg:
+            with torch.no_grad():
+                transop.psi.data -= (
+                    (transop.psi.data**2) * gamma * to_opt.param_groups[0]["lr"]
+                )
+
         to_loss_list.append(to_loss.item())
         recon_loss_list.append(recon_loss.item())
         kl_loss_list.append(kl_loss.item())
@@ -294,6 +314,7 @@ for epoch in range(total_epoch):
             )
             logging.info(
                 f"Avg operator F-norms: {psi_norm:.3E}"
+                + f", temp: {temp:.3E}"
                 + f", avg sample entropy: {iwae_distr.entropy().mean():.3E}"
             )
 
@@ -309,6 +330,8 @@ for epoch in range(total_epoch):
                         "avg_feat_norm": avg_feat_norm,
                         "avg_transop_fnorm": psi_norm,
                         "avg_num_transop_used": total_nz.mean(),
+                        "avg_entropy": iwae_distr.entropy().mean(),
+                        "temp": temp,
                     },
                     step=(idx + (epoch * len(train_dataloader))),
                 )
@@ -337,7 +360,6 @@ for epoch in range(total_epoch):
                     "z1": z1.detach().cpu(),
                     "to_loss": to_loss_list,
                     "recon_loss": recon_loss_list,
-                    "avg_entropy": iwae_distr.entropy().mean(),
                 },
                 f"results/transop_vi_mae_{run_label}.pt",
             )

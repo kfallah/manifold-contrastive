@@ -37,7 +37,7 @@ def plot_log_spectra(features: np.array) -> Figure:
 
 
 def sweep_psi_path_plot(psi: torch.tensor, z0: np.array, c_mag: int) -> Figure:
-    z = torch.tensor(z0)
+    z = torch.tensor(z0).float()
 
     # z = model.backbone(x_gpu[0])[0]
     # z = torch.tensor(z0[0][0]).to(default_device)
@@ -104,8 +104,8 @@ def transop_plots(
     plt.yticks(fontsize=16)
     plt.title("Transport Operator Index", fontsize=20)
 
-    psi_sweep_1c_fig = sweep_psi_path_plot(psi, z0, 1)
-    psi_sweep_5c_fig = sweep_psi_path_plot(psi, z0, 5)
+    psi_sweep_1c_fig = sweep_psi_path_plot(psi.detach().cpu(), z0, 1)
+    psi_sweep_5c_fig = sweep_psi_path_plot(psi.detach().cpu(), z0, 5)
 
     figure_dict = {
         "psi_mag_iter": psi_mag_fig,
