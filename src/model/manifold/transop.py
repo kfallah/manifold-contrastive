@@ -3,12 +3,22 @@ import torch.nn as nn
 
 
 class TransOp_expm(nn.Module):
-    def __init__(self, M=6, N=3, var=1e0):
+    def __init__(self, M=6, N=3, var=1e0, stable_init=False):
         super(TransOp_expm, self).__init__()
         init_var = var / N
-        self.psi = nn.Parameter(
-            torch.mul(torch.randn((M, N, N)), init_var), requires_grad=True
-        )
+        if stable_init:
+            self.psi = nn.Parameter(torch.zeros((M, N, N)), requires_grad=True)
+            for i in range(0, self.psi.shape[1], 2):
+                real = torch.rand(len(self.psi)) * -0.5
+                imag = (torch.rand(len(self.psi)) - 0.5) * 6
+                self.psi.data[:, i, i] = real
+                self.psi.data[:, i + 1, i] = imag
+                self.psi.data[:, i, i + 1] = -imag
+                self.psi.data[:, i + 1, i + 1] = real
+        else:
+            self.psi = nn.Parameter(
+                torch.mul(torch.randn((M, N, N)), init_var), requires_grad=True
+            )
         self.M = M
         self.N = N
 
