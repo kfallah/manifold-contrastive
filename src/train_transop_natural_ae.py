@@ -26,6 +26,7 @@ parser.add_argument("-r", "--run_label", required=True, type=str, help="Label fo
 parser.add_argument("-z", "--zeta", default=0.04, type=float, help="L1 penalty")
 parser.add_argument("-g", "--gamma", default=1e-5, type=float, help="WD penalty")
 parser.add_argument("-w", "--kl_weight", default=1e-1, type=float, help="KL weight")
+parser.add_argument("-EW", "--eig_weight", default=1e-4, type=float, help="Eig weight")
 parser.add_argument("-pl", "--psi_lr", default=1e-3, type=float, help="Psi LR")
 parser.add_argument("-nl", "--net_lr", default=3e-4, type=float, help="VI LR")
 parser.add_argument("-s", "--n_samples", default=100, type=int, help="VI samples")
@@ -47,6 +48,7 @@ parser.add_argument("--l2_sq_reg", action="store_true", default=False, help="Use
 parser.add_argument(
     "--stable_init", action="store_true", default=False, help="Stable init"
 )
+parser.add_argument("--eig_reg", action="store_true", default=False, help="Eig reg")
 args = parser.parse_args()
 
 # Config #
@@ -58,10 +60,10 @@ kl_weight = args.kl_weight
 psi_lr = args.psi_lr
 net_lr = args.net_lr
 save_freq = 1000
-log_freq = 1000
+log_freq = 100
 latent_scale = 14.1
 use_vi = True
-default_device = torch.device("cuda:1")
+default_device = torch.device("cuda:0")
 total_num_samples = args.n_samples
 use_features = True
 temp = args.temp
@@ -71,7 +73,8 @@ l2_sq_reg = args.l2_sq_reg
 beta1 = args.beta1
 beta2 = args.beta2
 stable_init = args.stable_init
-
+eig_reg = args.eig_reg
+eig_weight = args.eig_weight
 total_epoch = 1000
 
 logging.basicConfig(
@@ -163,7 +166,7 @@ if use_vi:
         variational_feature_dim=256,
     )
     vi = VIEncoder(cfg, 128, dict_size).to(default_device)
-    to_opt = torch.optim.Adam(
+    to_opt = torch.optim.AdamW(
         [
             {"params": transop.parameters()},
             {"params": vi.parameters(), "weight_decay": 1e-6, "lr": net_lr},
@@ -281,9 +284,13 @@ for epoch in range(total_epoch):
             )
         z1_hat = transop(z0.unsqueeze(-1), c).squeeze(-1)
 
+        real_eig = 0.0
+        if eig_reg:
+            real_eig = (torch.real(torch.linalg.eigvals(transop.psi)) ** 2).sum()
+
         to_loss = F.mse_loss(z1_hat, z1)
         to_opt.zero_grad()
-        (to_loss + kl_weight * kl_loss).backward()
+        (to_loss + kl_weight * kl_loss + eig_weight * real_eig).backward()
         psi_grad = transop.psi.grad.clone()
         to_opt.step()
         to_scheduler.step()
@@ -334,6 +341,7 @@ for epoch in range(total_epoch):
                 f"Avg operator F-norms: {psi_norm.mean().item():.3E}"
                 + f", temp: {temp:.3E}"
                 + f", avg sample entropy: {iwae_distr.entropy().mean():.3E}"
+                + f", real_eig: {real_eig:.3E}"
             )
 
             if not args.disable_wandb:
@@ -350,6 +358,7 @@ for epoch in range(total_epoch):
                         "avg_num_transop_used": total_nz.mean(),
                         "avg_entropy": iwae_distr.entropy().mean(),
                         "temp": temp,
+                        "real_eig": real_eig,
                     },
                     step=(idx + (epoch * len(train_dataloader))),
                 )
