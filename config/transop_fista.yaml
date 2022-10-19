@@ -13,7 +13,6 @@ model_cfg:
     projection_type: Linear
     projection_out_dim: 64
     fista_num_iterations: 800
-    iter_variational_samples: 1
     lambda_prior: 0.4
     transop_weight_decay: 1.0e-5
     transop_lr: 1.0e-3

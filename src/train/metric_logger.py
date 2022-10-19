@@ -184,8 +184,10 @@ class MetricLogger:
                     + f", % failed iters: {100. * failed_iters:.2f}"
                 )
                 if self.model.model_cfg.header_cfg.enable_variational_inference:
-                    scale = torch.exp(model_output.distribution_data.log_scale)
-                    shift = model_output.distribution_data.shift
+                    scale = torch.exp(
+                        model_output.distribution_data.encoder_params["logscale"]
+                    )
+                    shift = model_output.distribution_data.encoder_params["shift"]
                     log.info(
                         f"[Distribution data iter {curr_iter}]: mean scale: {scale.mean():.3E}"
                         + f" min scale: {scale.min():.3E} max scale: {scale.max():.3E}"

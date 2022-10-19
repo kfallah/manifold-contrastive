@@ -37,7 +37,7 @@ def plot_log_spectra(features: np.array) -> Figure:
 
 
 def sweep_psi_path_plot(psi: torch.tensor, z0: np.array, c_mag: int) -> Figure:
-    z = torch.tensor(z0).float()
+    z = torch.tensor(z0).float().to(psi.device)
 
     # z = model.backbone(x_gpu[0])[0]
     # z = torch.tensor(z0[0][0]).to(default_device)
@@ -54,13 +54,13 @@ def sweep_psi_path_plot(psi: torch.tensor, z0: np.array, c_mag: int) -> Figure:
         column = int(i % 3)
         curr_psi = psi_idx[-(i + 1)]
 
-        coeff = torch.linspace(-c_mag, c_mag, 100)
+        coeff = torch.linspace(-c_mag, c_mag, 30, device=psi.device)
         T = torch.matrix_exp(coeff[:, None, None] * psi[None, curr_psi])
         z1_hat = (T @ z).squeeze(dim=-1)
 
         for z_dim in range(latent_dim):
             ax[row, column].plot(
-                np.linspace(-c_mag, c_mag, 100),
+                np.linspace(-c_mag, c_mag, 30),
                 z1_hat[:, z_dim].detach().cpu().numpy(),
             )
         ax[row, column].title.set_text(
@@ -104,13 +104,24 @@ def transop_plots(
     plt.yticks(fontsize=16)
     plt.title("Transport Operator Index", fontsize=20)
 
-    psi_sweep_1c_fig = sweep_psi_path_plot(psi.detach().cpu(), z0, 1)
-    psi_sweep_5c_fig = sweep_psi_path_plot(psi.detach().cpu(), z0, 5)
+    psi_eig_plt = plt.figure(figsize=(8, 8))
+    L = torch.linalg.eigvals(psi.detach())
+    plt.scatter(
+        torch.real(L).detach().cpu().numpy(), torch.imag(L).detach().cpu().numpy()
+    )
+    plt.xlabel("Real Components of Eigenvalues", fontsize=18)
+    plt.ylabel("Imag Components of Eigenvalues", fontsize=18)
+
+    psi_sweep_sub1c_fig = sweep_psi_path_plot(psi.detach(), z0, 0.1)
+    psi_sweep_1c_fig = sweep_psi_path_plot(psi.detach(), z0, 1)
+    psi_sweep_5c_fig = sweep_psi_path_plot(psi.detach(), z0, 5)
 
     figure_dict = {
         "psi_mag_iter": psi_mag_fig,
         "coeff_use_iter": coeff_use_fig,
         "psi_use_iter": psi_use_fig,
+        "psi_eig_plt": psi_eig_plt,
+        "psi_sweep_sub1c_fig": psi_sweep_sub1c_fig,
         "psi_sweep_1c": psi_sweep_1c_fig,
         "psi_sweep_5c": psi_sweep_5c_fig,
     }

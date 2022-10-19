@@ -11,15 +11,17 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from model.config import LossConfig
+from model.config import LossConfig, ModelConfig
+from model.manifold.reparameterize import compute_kl
 from model.public.ntx_ent_loss import NTXentLoss
 from model.type import ModelOutput
 
 
 class Loss(nn.Module):
-    def __init__(self, loss_cfg: LossConfig):
+    def __init__(self, model_cfg: ModelConfig):
         super(Loss, self).__init__()
-        self.loss_cfg = loss_cfg
+        self.model_cfg = model_cfg
+        self.loss_cfg = model_cfg.loss_cfg
 
         self.criterion = {}
         if self.loss_cfg.ntxent_loss_active:
@@ -40,28 +42,33 @@ class Loss(nn.Module):
 
             if self.loss_cfg.ntxent_symmetric:
                 ntxent_loss = 0.5 * (
-                    self.criterion["ntxent_loss"](model_output.feature_0, model_output.prediction_1)
-                    + self.criterion["ntxent_loss"](model_output.feature_1, model_output.prediction_0)
+                    self.criterion["ntxent_loss"](
+                        model_output.feature_0, model_output.prediction_1
+                    )
+                    + self.criterion["ntxent_loss"](
+                        model_output.feature_1, model_output.prediction_0
+                    )
                 )
             else:
-                ntxent_loss = self.criterion["ntxent_loss"](model_output.prediction_0, model_output.prediction_1)
+                ntxent_loss = self.criterion["ntxent_loss"](
+                    model_output.prediction_0, model_output.prediction_1
+                )
             total_loss += ntxent_loss
             loss_meta["ntxent_loss"] = ntxent_loss.item()
         if self.loss_cfg.kl_loss_active:
             assert model_output.distribution_data is not None
-            distr = model_output.distribution_data
-            scale = torch.exp(distr.log_scale)
-            logscale_prior = torch.log(distr.scale_prior)
-            kl_loss = (distr.shift.abs() / distr.scale_prior) + logscale_prior - distr.log_scale - 1
-            kl_loss += (scale / distr.scale_prior) * (-(distr.shift.abs() / scale)).exp()
-            kl_loss = kl_loss.sum(dim=-1).mean()
+            kl_loss = compute_kl(
+                self.model_cfg.header_cfg.variational_inference_config.distribution,
+                model_output.distribution_data.encoder_params,
+                model_output.distribution_data.prior_params,
+            )
             total_loss += self.loss_cfg.kl_loss_weight * kl_loss
             loss_meta["kl_loss"] = kl_loss.item()
-            # shift_l2 = (torch.linalg.norm(distr.shift, dim=-1) ** 2).mean()
-            # total_loss += 1e0 * shift_l2
-            # loss_meta["shift_l2"] = shift_l2.item()
         if self.loss_cfg.transop_loss_active:
-            assert model_output.prediction_0 is not None and model_output.prediction_1 is not None
+            assert (
+                model_output.prediction_0 is not None
+                and model_output.prediction_1 is not None
+            )
             z1_hat, z1 = model_output.prediction_0, model_output.prediction_1
 
             transop_loss = F.mse_loss(z1_hat, z1)
