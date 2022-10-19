@@ -26,7 +26,7 @@ def initialize_optimizer(
             nesterov=config.enable_nesterov,
         )
     elif config.optimizer == "Adam":
-        return torch.optim.Adam(
+        return torch.optim.AdamW(
             model_params, lr=config.initial_lr, weight_decay=config.weight_decay
         )
     elif config.optimizer == "LARS":

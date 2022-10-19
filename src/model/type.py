@@ -6,22 +6,18 @@ Contains all typing information relevant to models.
 @Created     09/07/22
 """
 
-from typing import NamedTuple, Optional
+from typing import Callable, Dict, NamedTuple, Optional
 
 import torch
 
 
 class DistributionData(NamedTuple):
+    # Dictionary containing params for encoder
+    encoder_params: Dict[str, torch.Tensor]
+    # Dictionary containing params for prior (can be fixed if not learned)
+    prior_params: Dict[str, torch.Tensor]
     # Samples from variational distribution
-    samples: torch.Tensor
-    # Distribution parameter associated with scale from encoder
-    log_scale: torch.Tensor
-    # Distribution parameter associated with shift from encoder
-    shift: torch.Tensor
-    # Prior scale
-    scale_prior: torch.Tensor
-    # Prior shift
-    shift_prior: torch.Tensor
+    samples: Optional[torch.Tensor] = None
 
 
 class ModelOutput(NamedTuple):

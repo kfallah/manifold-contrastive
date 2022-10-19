@@ -26,8 +26,7 @@ class TransOp_expm(nn.Module):
         if len(c.shape) == 2:
             T = torch.einsum("bm,mpk->bpk", c, self.psi)
         else:
-            T = torch.einsum("bsm,mpk->bspk", c, self.psi)
-            x = x.unsqueeze(1)
+            T = torch.einsum("sbm,mpk->sbpk", c, self.psi)
         out = torch.matrix_exp(T) @ x
         return out
 

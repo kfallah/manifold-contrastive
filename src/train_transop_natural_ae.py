@@ -14,8 +14,9 @@ from matplotlib import pyplot as plt
 from torchvision.models import resnet18
 
 from model.autoencoder import ConvDecoder
-from model.contrastive.config import TransportOperatorConfig
+from model.contrastive.config import VariationalEncoderConfig
 from model.manifold.l1_inference import infer_coefficients
+from model.manifold.reparameterize import compute_kl
 from model.manifold.transop import TransOp_expm
 from model.manifold.vi_encoder import VIEncoder
 from train.metric_utils import transop_plots
@@ -158,14 +159,15 @@ if os.path.exists("results/pretrained/cifar10_resnet18_ae.pth"):
     decoder.eval()
 
 if use_vi:
-    cfg = TransportOperatorConfig(
-        dictionary_size=dict_size,
-        lambda_prior=zeta,
-        variational_use_features=use_features,
-        variational_scale_prior=0.02,
-        variational_feature_dim=256,
+    cfg = VariationalEncoderConfig(
+        distribution="Laplacian",
+        prior_type="Fixed",
+        scale_prior=0.02,
+        feature_dim=256,
+        per_iter_samples=10,
+        total_samples=total_num_samples,
     )
-    vi = VIEncoder(cfg, 128, dict_size).to(default_device)
+    vi = VIEncoder(cfg, 128, 200, lambda_prior=zeta).to(default_device)
     to_opt = torch.optim.AdamW(
         [
             {"params": transop.parameters()},
@@ -206,71 +208,19 @@ for epoch in range(total_epoch):
             if temp < final_temp:
                 temp = final_temp
 
+        kl_loss = 0.0
         if use_vi:
             if use_features:
-                distribution_data = vi(z0, z1)
+                distribution_data = vi(z0, z1, transop)
             else:
-                distribution_data = vi(x0, x1)
-            if total_num_samples > 1:
-                with torch.no_grad():
-                    loss_list = []
-                    noise_list = []
-                    for _ in range(total_num_samples // 10):
-                        # Generate a new noise sample
-                        u = vi.draw_noise_samples(len(z1), 10, z1.device)
-                        c_temp = vi.reparameterize(
-                            distribution_data.shift.unsqueeze(1).repeat(1, 10, 1),
-                            distribution_data.log_scale.unsqueeze(1).repeat(1, 10, 1),
-                            u,
-                        )
-                        z1_temp = (
-                            transop(z0.unsqueeze(-1).detach(), c_temp.detach())
-                            .squeeze(dim=-1)
-                            .transpose(0, 1)
-                        )
-                        transop_loss = (
-                            F.mse_loss(
-                                z1_temp,
-                                z1.repeat(
-                                    len(z1_temp), *torch.ones(z1.dim(), dtype=int)
-                                ).detach(),
-                                reduction="none",
-                            )
-                            .mean(dim=-1)
-                            .transpose(0, 1)
-                        )
-                        noise_list.append(u)
-                        loss_list.append(transop_loss)
+                distribution_data = vi(x0, x1, transop)
+            c = distribution_data.samples
 
-                    # Pick the best sample
-                    noise_list = torch.cat(noise_list, dim=1)
-                    loss_list = torch.cat(loss_list, dim=1)
-                    # max_elbo = torch.argmin(loss_list, dim=1)
-                    iwae_distr = torch.distributions.categorical.Categorical(
-                        logits=-1 * loss_list / temp
-                    )
-                    iwae_samp = iwae_distr.sample()
-                    u = noise_list[torch.arange(len(z0)), iwae_samp]
-            else:
-                u = vi.draw_noise_samples(len(z1), 1, z1.device)[:, 0]
-            c = vi.reparameterize(
-                distribution_data.shift,
-                distribution_data.log_scale,
-                u,
+            kl_loss = compute_kl(
+                "Laplacian",
+                distribution_data.encoder_params,
+                distribution_data.prior_params,
             )
-
-            scale = torch.exp(distribution_data.log_scale)
-            logscale_prior = torch.log(distribution_data.scale_prior)
-            kl_loss = (
-                (distribution_data.shift.abs() / distribution_data.scale_prior)
-                + logscale_prior
-                - distribution_data.log_scale
-                - 1
-            )
-            kl_loss += (scale / distribution_data.scale_prior) * (
-                -(distribution_data.shift.abs() / scale)
-            ).exp()
-            kl_loss = kl_loss.sum(dim=-1).mean()
         else:
             _, c = infer_coefficients(
                 z0.detach(),
@@ -340,7 +290,6 @@ for epoch in range(total_epoch):
             logging.info(
                 f"Avg operator F-norms: {psi_norm.mean().item():.3E}"
                 + f", temp: {temp:.3E}"
-                + f", avg sample entropy: {iwae_distr.entropy().mean():.3E}"
                 + f", real_eig: {real_eig:.3E}"
             )
 
@@ -356,7 +305,6 @@ for epoch in range(total_epoch):
                         "avg_feat_norm": avg_feat_norm,
                         "avg_transop_fnorm": psi_norm.mean().item(),
                         "avg_num_transop_used": total_nz.mean(),
-                        "avg_entropy": iwae_distr.entropy().mean(),
                         "temp": temp,
                         "real_eig": real_eig,
                     },
@@ -365,7 +313,7 @@ for epoch in range(total_epoch):
 
                 fig_dict = transop_plots(
                     coeff_np,
-                    transop.psi.detach().cpu(),
+                    transop.psi.detach(),
                     z0.detach().cpu().numpy()[0],
                 )
                 for fig_name in fig_dict.keys():

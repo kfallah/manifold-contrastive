@@ -6,18 +6,18 @@ dictionary_size: 200
 lambda_prior: 0.04
 transop_weight_decay: 1.0e-5
 transop_lr: 1.0e-3
+stable_operator_initialization: true
 detach_feature: false
-iter_variational_samples: 1
-total_variational_samples: 1
 
 enable_variational_inference: true
-use_warmpup: false
-variational_use_features: true
-use_ntxloss_sampling: false
-variational_scale_prior: 0.02
-variational_feature_dim: 256
-variational_encoder_type: mlp
-variational_encoder_lr: 3.0e-4
-variational_encoder_weight_decay: 1.0e-6
-projection_network_lr: 1.0e-4
-projection_network_weight_decay: 1.0e-6
+variational_inference_config:
+  per_iter_samples: 10
+  total_samples: 100
+  use_warmpup: false
+  encode_features: true
+  ntxloss_sampling: false
+  scale_prior: 0.02
+  feature_dim: 256
+  encoder_type: MLP
+  variational_encoder_lr: 3.0e-4
+  variational_encoder_weight_decay: 1.0e-6
