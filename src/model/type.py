@@ -16,6 +16,8 @@ class DistributionData(NamedTuple):
     encoder_params: Dict[str, torch.Tensor]
     # Dictionary containing params for prior (can be fixed if not learned)
     prior_params: Dict[str, torch.Tensor]
+    # Dictionary containing hyperprior params, useful for learned prior
+    hyperprior_params: Dict[str, torch.Tensor]
     # Samples from variational distribution
     samples: Optional[torch.Tensor] = None
 
