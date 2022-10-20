@@ -27,7 +27,17 @@ parser.add_argument("-r", "--run_label", required=True, type=str, help="Label fo
 parser.add_argument("-z", "--zeta", default=0.04, type=float, help="L1 penalty")
 parser.add_argument("-g", "--gamma", default=1e-5, type=float, help="WD penalty")
 parser.add_argument("-w", "--kl_weight", default=1e-1, type=float, help="KL weight")
-parser.add_argument("-EW", "--eig_weight", default=1e-4, type=float, help="Eig weight")
+parser.add_argument(
+    "-W",
+    "--hyperprior_kl_weight",
+    default=1e-3,
+    type=float,
+    help="Hyper-prior KL weight",
+)
+parser.add_argument("-EW", "--eig_weight", default=1e-5, type=float, help="Eig weight")
+parser.add_argument(
+    "-cw", "--c_norm_mag", default=1e-1, type=float, help="Norm weight for c"
+)
 parser.add_argument("-pl", "--psi_lr", default=1e-3, type=float, help="Psi LR")
 parser.add_argument("-nl", "--net_lr", default=3e-4, type=float, help="VI LR")
 parser.add_argument("-s", "--n_samples", default=100, type=int, help="VI samples")
@@ -50,6 +60,17 @@ parser.add_argument(
     "--stable_init", action="store_true", default=False, help="Stable init"
 )
 parser.add_argument("--eig_reg", action="store_true", default=False, help="Eig reg")
+parser.add_argument("--gamma_prior", action="store_true", default=False, help="Eig reg")
+parser.add_argument(
+    "--learn_prior", action="store_true", default=False, help="Learn prior"
+)
+parser.add_argument(
+    "--hyperprior_kl", action="store_true", default=False, help="KL for learned prior"
+)
+parser.add_argument(
+    "--normalize_c", action="store_true", default=False, help="Normalize c"
+)
+
 args = parser.parse_args()
 
 # Config #
@@ -58,6 +79,7 @@ run_label = args.run_label
 zeta = args.zeta
 gamma = args.gamma
 kl_weight = args.kl_weight
+hyperprior_kl_weight = args.hyperprior_kl_weight
 psi_lr = args.psi_lr
 net_lr = args.net_lr
 save_freq = 1000
@@ -76,6 +98,11 @@ beta2 = args.beta2
 stable_init = args.stable_init
 eig_reg = args.eig_reg
 eig_weight = args.eig_weight
+gamma_prior = args.gamma_prior
+learn_prior = args.learn_prior
+hyperprior_kl = args.hyperprior_kl
+normalize_c = args.normalize_c
+c_norm_mag = args.c_norm_mag
 total_epoch = 1000
 
 logging.basicConfig(
@@ -160,12 +187,14 @@ if os.path.exists("results/pretrained/cifar10_resnet18_ae.pth"):
 
 if use_vi:
     cfg = VariationalEncoderConfig(
-        distribution="Laplacian",
-        prior_type="Fixed",
+        distribution="Laplacian+Gamma" if gamma_prior else "Laplacian",
+        prior_type="Learned" if learn_prior else "Fixed",
         scale_prior=0.02,
         feature_dim=256,
         per_iter_samples=10,
         total_samples=total_num_samples,
+        normalize_coefficients=normalize_c
+        normalize_mag=c_norm_mag
     )
     vi = VIEncoder(cfg, 128, 200, lambda_prior=zeta).to(default_device)
     to_opt = torch.optim.AdamW(
@@ -189,6 +218,7 @@ to_loss_list = []
 recon_loss_list = []
 pair_dist_list = []
 kl_loss_list = []
+hp_kl_loss_list = []
 
 # Training #
 for epoch in range(total_epoch):
@@ -208,7 +238,8 @@ for epoch in range(total_epoch):
             if temp < final_temp:
                 temp = final_temp
 
-        kl_loss = 0.0
+        kl_loss = torch.tensor(0.0)
+        hyperprior_kl_loss = torch.tensor(0.0)
         if use_vi:
             if use_features:
                 distribution_data = vi(z0, z1, transop)
@@ -217,10 +248,17 @@ for epoch in range(total_epoch):
             c = distribution_data.samples
 
             kl_loss = compute_kl(
-                "Laplacian",
+                cfg.distribution,
                 distribution_data.encoder_params,
                 distribution_data.prior_params,
             )
+
+            if hyperprior_kl:
+                hyperprior_kl_loss = compute_kl(
+                    cfg.distribution,
+                    distribution_data.prior_params,
+                    distribution_data.hyperprior_params,
+                )
         else:
             _, c = infer_coefficients(
                 z0.detach(),
@@ -240,7 +278,12 @@ for epoch in range(total_epoch):
 
         to_loss = F.mse_loss(z1_hat, z1)
         to_opt.zero_grad()
-        (to_loss + kl_weight * kl_loss + eig_weight * real_eig).backward()
+        (
+            to_loss
+            + kl_weight * kl_loss
+            + eig_weight * real_eig
+            + hyperprior_kl_weight * hyperprior_kl_loss
+        ).backward()
         psi_grad = transop.psi.grad.clone()
         to_opt.step()
         to_scheduler.step()
@@ -254,6 +297,7 @@ for epoch in range(total_epoch):
         to_loss_list.append(to_loss.item())
         recon_loss_list.append(recon_loss.item())
         kl_loss_list.append(kl_loss.item())
+        hp_kl_loss_list.append(hyperprior_kl_loss.item())
         pair_dist_list.append(F.mse_loss(z0, z1).item())
         c_list.append(c.detach().cpu())
 
@@ -262,7 +306,7 @@ for epoch in range(total_epoch):
             logging.info(
                 f"[Epoch {epoch} Iter {idx + len(train_dataloader)*(epoch)}] [Distance bw Pairs: {np.array(pair_dist_list)[-log_freq:].mean():.6E}]"
                 + f" [TransOp Loss {np.array(to_loss_list)[-log_freq:].mean():.6E}]  [Recon Loss {np.array(recon_loss_list)[-log_freq:].mean():.6E}]"
-                + f" [KL Loss {np.array(kl_loss_list)[-log_freq:].mean():.6E}]"
+                + f" [KL Loss {np.array(kl_loss_list)[-log_freq:].mean():.6E}] [HP KL Loss {np.array(hp_kl_loss_list)[-log_freq:].mean():.6E}]"
                 + f" [Time {time.time() - pre_time:.2f} sec]"
             )
             psi_norm = (transop.psi.detach() ** 2).sum(dim=(-1, -2))
@@ -292,6 +336,34 @@ for epoch in range(total_epoch):
                 + f", temp: {temp:.3E}"
                 + f", real_eig: {real_eig:.3E}"
             )
+            lambda_enc_ev = 0.0
+            lambda_prior_ev = 0.0
+            if gamma_prior:
+                lambda_enc_ev = (
+                    distribution_data.encoder_params["gamma_a"]
+                    / distribution_data.encoder_params["gamma_b"]
+                ).mean()
+                logging.info(
+                    "[Encoder Params]: "
+                    + f"Mean scale: {distribution_data.encoder_params['logscale'].exp().mean():.3E}"
+                    + f", mean shift: {distribution_data.encoder_params['shift'].mean():.3E}"
+                    + f", mean gamma_a: {distribution_data.encoder_params['gamma_a'].mean():.3E}"
+                    + f", mean gamma_b: {distribution_data.encoder_params['gamma_b'].mean():.3E}"
+                    + f", EV lambda: {lambda_enc_ev:.3E}"
+                )
+                if learn_prior:
+                    lambda_prior_ev = (
+                        distribution_data.prior_params["gamma_a"]
+                        / distribution_data.prior_params["gamma_b"]
+                    ).mean()
+                    logging.info(
+                        "[Prior Params]: "
+                        + f"Mean scale: {distribution_data.prior_params['logscale'].exp().mean():.3E}"
+                        + f", mean shift: {distribution_data.prior_params['shift'].mean():.3E}"
+                        + f", mean gamma_a: {distribution_data.prior_params['gamma_a'].mean():.3E}"
+                        + f", mean gamma_b: {distribution_data.prior_params['gamma_b'].mean():.3E}"
+                        + f", EV lambda: {lambda_prior_ev:.3E}"
+                    )
 
             if not args.disable_wandb:
                 wandb.log(
@@ -300,6 +372,7 @@ for epoch in range(total_epoch):
                         "transop_loss": np.array(to_loss_list)[-log_freq:].mean(),
                         "recon_loss": np.array(recon_loss_list)[-log_freq:].mean(),
                         "kl_loss": np.array(kl_loss_list)[-log_freq:].mean(),
+                        "hp_kl_loss": np.array(hp_kl_loss_list)[-log_freq:].mean(),
                         "iter_time": time.time() - pre_time,
                         "avg_coeff_mag": np.abs(coeff_np[np.abs(coeff_np) > 0]).mean(),
                         "avg_feat_norm": avg_feat_norm,
@@ -307,6 +380,8 @@ for epoch in range(total_epoch):
                         "avg_num_transop_used": total_nz.mean(),
                         "temp": temp,
                         "real_eig": real_eig,
+                        "lambda_enc_ev": lambda_enc_ev,
+                        "lambda_prior_ev": lambda_prior_ev,
                     },
                     step=(idx + (epoch * len(train_dataloader))),
                 )

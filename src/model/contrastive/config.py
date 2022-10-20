@@ -66,6 +66,8 @@ class VariationalEncoderConfig:
     encode_features: bool = True
 
     use_warmpup: bool = False
+    normalize_coefficients: bool = False
+    normalize_mag: float = 1.0
     per_iter_samples: int = 10
     total_samples: int = 100
     ntxloss_sampling: bool = False

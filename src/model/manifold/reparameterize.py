@@ -20,6 +20,8 @@ def reparameterize(
     noise: torch.Tensor,
     lambda_prior: float,
     warmup: float = 1.0,
+    normalize_coefficients: bool = False,
+    normalize_mag: float = 1.0,
 ):
     if distribution == "Laplacian" or distribution == "Laplacian+Gamma":
         assert (
@@ -27,7 +29,7 @@ def reparameterize(
             and "shift" in distribution_params.keys()
         )
         logscale, shift = distribution_params["logscale"], distribution_params["shift"]
-        if len(noise.shape) == 3:
+        if len(noise.shape) >= 3:
             logscale = logscale.view(1, *logscale.shape).expand(len(noise), -1, -1)
             shift = shift.view(1, *shift.shape).expand(len(noise), -1, -1)
         scale = torch.exp(logscale)
@@ -48,7 +50,10 @@ def reparameterize(
             distribution_params["gamma_b"],
         )
         gamma_distr = gamma.Gamma(gamma_a, gamma_b)
-        lambda_ = gamma_distr.rsample([noise.shape[1]]).transpose(1, 0)
+        if len(noise.shape) >= 3:
+            lambda_ = gamma_distr.rsample([len(noise)])
+        else:
+            lambda_ = gamma_distr.rsample()
     else:
         lambda_ = torch.ones_like(eps) * lambda_prior
 
@@ -58,7 +63,8 @@ def reparameterize(
     non_zero = torch.nonzero(c_thresh, as_tuple=True)
     c_thresh[non_zero] = (warmup * shift[non_zero].detach()) + c_thresh[non_zero]
     c = c + c_thresh - c.detach()
-
+    if normalize_coefficients:
+        c = torch.nn.functional.normalize(c, dim=-1) * normalize_mag
     return c
 
 
@@ -66,7 +72,6 @@ def compute_kl(
     distribution: str,
     encoder_params: Dict[str, torch.Tensor],
     prior_params: Dict[str, torch.Tensor],
-    anchor_prior: bool = False,
 ):
     kl_loss = 0.0
     if distribution == "Laplacian" or distribution == "Laplacian+Gamma":

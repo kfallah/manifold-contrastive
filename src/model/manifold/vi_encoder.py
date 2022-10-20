@@ -75,7 +75,26 @@ class VIEncoder(nn.Module):
             self.prior_params["gamma_b"] = 2.0 / self.lambda_prior
 
         if self.vi_cfg.prior_type == "Learned":
-            raise NotImplementedError()
+            self.prior_feat_extract = nn.Sequential(
+                nn.Linear(input_size, 2 * input_size),
+                nn.BatchNorm1d(2 * input_size),
+                nn.ReLU(),
+                nn.Linear(2 * input_size, feat_dim),
+                nn.BatchNorm1d(feat_dim),
+                nn.ReLU(),
+                nn.Linear(feat_dim, feat_dim),
+            )
+
+            if (
+                self.vi_cfg.distribution == "Laplacian"
+                or self.vi_cfg.distribution == "Laplacian+Gamma"
+            ):
+                self.prior_scale = nn.Linear(feat_dim, dict_size)
+                self.prior_shift = nn.Linear(feat_dim, dict_size)
+
+            if self.vi_cfg.distribution == "Laplacian+Gamma":
+                self.prior_gamma_a = nn.Linear(feat_dim, dict_size)
+                self.prior_gamma_b = nn.Linear(feat_dim, dict_size)
 
     def get_distribution_params(
         self, x0, x1
@@ -95,10 +114,8 @@ class VIEncoder(nn.Module):
             encoder_params["shift"] = self.enc_shift(z_enc)
 
         if self.vi_cfg.distribution == "Laplacian+Gamma":
-            gamma_a = self.enc_gamma_a(z_enc)
-            gamma_b = self.enc_gamma_b(z_enc)
-            gamma_a.detach().clamp_(min=1e-4, max=1e4)
-            gamma_b.detach().clamp_(min=1e-4, max=1e4)
+            gamma_a = self.enc_gamma_a(z_enc).exp().clamp(min=1e-6, max=1e6)
+            gamma_b = self.enc_gamma_b(z_enc).exp().clamp(min=1e-6, max=1e6)
             encoder_params["gamma_a"] = gamma_a
             encoder_params["gamma_b"] = gamma_b
 
@@ -108,23 +125,41 @@ class VIEncoder(nn.Module):
             self.vi_cfg.distribution == "Laplacian"
             or self.vi_cfg.distribution == "Laplacian+Gamma"
         ):
-            prior_params["logscale"] = (
+            hyperprior_params["logscale"] = (
                 torch.ones_like(encoder_params["logscale"])
                 * self.prior_params["logscale"]
             )
-            prior_params["shift"] = torch.zeros_like(encoder_params["shift"])
+            hyperprior_params["shift"] = torch.zeros_like(encoder_params["shift"])
         if self.vi_cfg.distribution == "Laplacian+Gamma":
-            prior_params["gamma_a"] = (
+            hyperprior_params["gamma_a"] = (
                 torch.ones_like(encoder_params["gamma_a"])
                 * self.prior_params["gamma_a"]
             )
-            prior_params["gamma_b"] = (
+            hyperprior_params["gamma_b"] = (
                 torch.ones_like(encoder_params["gamma_b"])
                 * self.prior_params["gamma_b"]
             )
 
         if self.vi_cfg.prior_type == "Learned":
-            raise NotImplementedError()
+            z_prior = self.prior_feat_extract(x0)
+            if (
+                self.vi_cfg.distribution == "Laplacian"
+                or self.vi_cfg.distribution == "Laplacian+Gamma"
+            ):
+                prior_params["logscale"] = self.prior_scale(z_prior)
+                prior_params["shift"] = self.prior_shift(z_prior)
+
+            if self.vi_cfg.distribution == "Laplacian+Gamma":
+                prior_gamma_a = (
+                    self.prior_gamma_a(z_prior).exp().clamp(min=1e-6, max=1e6)
+                )
+                prior_gamma_b = (
+                    self.prior_gamma_b(z_prior).exp().clamp(min=1e-6, max=1e6)
+                )
+                prior_params["gamma_a"] = prior_gamma_a
+                prior_params["gamma_b"] = prior_gamma_b
+        else:
+            prior_params = hyperprior_params.copy()
 
         return encoder_params, prior_params, hyperprior_params
 
@@ -154,6 +189,8 @@ class VIEncoder(nn.Module):
                         u,
                         self.lambda_prior,
                         self.warmup,
+                        self.vi_cfg.normalize_coefficients,
+                        self.vi_cfg.normalize_mag,
                     )
 
                     # Estimate z1 with transport operators
@@ -185,6 +222,8 @@ class VIEncoder(nn.Module):
             noise,
             self.lambda_prior,
             self.warmup,
+            self.vi_cfg.normalize_coefficients,
+            self.vi_cfg.normalize_mag,
         )
         return c
 
@@ -198,4 +237,6 @@ class VIEncoder(nn.Module):
         )
         samples = self.draw_samples(x0, x1, encoder_params, transop)
 
-        return DistributionData(encoder_params, prior_params, samples)
+        return DistributionData(
+            encoder_params, prior_params, hyperprior_params, samples
+        )
