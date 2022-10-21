@@ -19,6 +19,7 @@ from model.manifold.l1_inference import infer_coefficients
 from model.manifold.reparameterize import compute_kl
 from model.manifold.transop import TransOp_expm
 from model.manifold.vi_encoder import VIEncoder
+from model.public.linear_warmup_cos_anneal import LinearWarmupCosineAnnealingLR
 from train.metric_utils import transop_plots
 
 # Argparse
@@ -208,9 +209,7 @@ if use_vi:
     )
 else:
     to_opt = torch.optim.AdamW(transop.parameters(), lr=psi_lr, weight_decay=gamma)
-to_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-    to_opt, total_epoch * len(train_dataloader)
-)
+to_scheduler = LinearWarmupCosineAnnealingLR(to_opt, 5000, len(train_dataloader))
 
 psi_list = []
 c_list = []
