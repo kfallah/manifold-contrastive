@@ -101,8 +101,8 @@ def compute_kl(
         assert "gamma_a" in prior_params.keys() and "gamma_b" in prior_params.keys()
         enc_gamma_a, enc_gamma_b = encoder_params["gamma_a"], encoder_params["gamma_b"]
         prior_gamma_a, prior_gamma_b = prior_params["gamma_a"], prior_params["gamma_b"]
-        gamma_enc = gamma.Gamma(enc_gamma_a, enc_gamma_b)
-        gamma_prior = gamma.Gamma(prior_gamma_a, prior_gamma_b)
+        gamma_enc = gamma.Gamma(enc_gamma_a, enc_gamma_a / enc_gamma_b)
+        gamma_prior = gamma.Gamma(prior_gamma_a, prior_gamma_a / prior_gamma_b)
         gamma_kl = torch.distributions.kl.kl_divergence(gamma_enc, gamma_prior).mean()
         kl_loss += 10 * gamma_kl
 
