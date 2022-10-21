@@ -104,6 +104,6 @@ def compute_kl(
         gamma_enc = gamma.Gamma(enc_gamma_a, enc_gamma_b)
         gamma_prior = gamma.Gamma(prior_gamma_a, prior_gamma_b)
         gamma_kl = torch.distributions.kl.kl_divergence(gamma_enc, gamma_prior).mean()
-        kl_loss += gamma_kl
+        kl_loss += 10 * gamma_kl
 
     return kl_loss
