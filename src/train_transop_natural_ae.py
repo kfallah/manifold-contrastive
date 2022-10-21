@@ -194,8 +194,8 @@ if use_vi:
         feature_dim=256,
         per_iter_samples=10,
         total_samples=total_num_samples,
-        normalize_coefficients=normalize_c
-        normalize_mag=c_norm_mag
+        normalize_coefficients=normalize_c,
+        normalize_mag=c_norm_mag,
     )
     vi = VIEncoder(cfg, 128, 200, lambda_prior=zeta).to(default_device)
     to_opt = torch.optim.AdamW(

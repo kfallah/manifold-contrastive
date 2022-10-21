@@ -72,7 +72,7 @@ class VIEncoder(nn.Module):
             self.prior_params["shift"] = 0.0
         if self.vi_cfg.distribution == "Laplacian+Gamma":
             self.prior_params["gamma_a"] = 2.0
-            self.prior_params["gamma_b"] = 2.0 / self.lambda_prior
+            self.prior_params["gamma_b"] = self.lambda_prior
 
         if self.vi_cfg.prior_type == "Learned":
             self.prior_feat_extract = nn.Sequential(
