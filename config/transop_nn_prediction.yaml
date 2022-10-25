@@ -9,9 +9,6 @@ model_cfg:
     projection_type: Linear
     projection_out_dim: 64
     lambda_prior: 0.04
-    variational_inference_config:
-      iter_variational_samples: 1
-      total_variational_samples: 1
 trainer_cfg:
   scheduler_cfg:
     scheduler: CosineAnnealingLR

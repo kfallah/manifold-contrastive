@@ -15,6 +15,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import wandb
+from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 from model.model import Model, ModelOutput
 
@@ -197,14 +198,14 @@ class MetricLogger:
 
             # Generate transport operator plots
             fig_dict = transop_plots(c, psi, np.array(self.feature_cache)[-1])
-            if self.cfg.enable_wandb_logging:
-                for fig_name in fig_dict.keys():
+            for fig_name in fig_dict.keys():
+                if self.cfg.enable_wandb_logging:
                     wandb.log(
                         {fig_name: wandb.Image(fig_dict[fig_name])}, step=curr_iter
                     )
-            if self.cfg.enable_local_figure_saving:
-                for fig_name in fig_dict.keys():
+                if self.cfg.enable_local_figure_saving:
                     self.save_figure(f"{fig_name}{curr_iter}", fig_dict[fig_name])
+                plt.close(fig_dict[fig_name])
 
             metrics.update(to_metrics)
 
