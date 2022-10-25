@@ -37,7 +37,7 @@ def plot_log_spectra(features: np.array) -> Figure:
 
 
 def sweep_psi_path_plot(psi: torch.tensor, z0: np.array, c_mag: int) -> Figure:
-    z = torch.tensor(z0).float().to(psi.device)
+    z = z0[0].float().to(psi.device)
 
     # z = model.backbone(x_gpu[0])[0]
     # z = torch.tensor(z0[0][0]).to(default_device)

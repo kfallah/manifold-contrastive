@@ -10,8 +10,9 @@ from typing import Dict, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.cuda.amp import autocast
 
-from model.config import LossConfig, ModelConfig
+from model.config import ModelConfig
 from model.manifold.reparameterize import compute_kl
 from model.public.ntx_ent_loss import NTXentLoss
 from model.type import ModelOutput
@@ -33,7 +34,9 @@ class Loss(nn.Module):
                 detach_off_logit=self.loss_cfg.ntxent_detach_off_logit,
             )
 
-    def compute_loss(self, model_output: ModelOutput) -> Tuple[Dict[str, float], float]:
+    def compute_loss(
+        self, model_output: ModelOutput, args_dict
+    ) -> Tuple[Dict[str, float], float]:
         loss_meta = {}
         total_loss = 0.0
 
@@ -84,5 +87,26 @@ class Loss(nn.Module):
             if self.loss_cfg.transop_loss_weight > 0:
                 total_loss += self.loss_cfg.transop_loss_weight * transop_loss
             loss_meta["transop_loss"] = transop_loss.item()
+        if self.loss_cfg.real_eig_reg_active:
+            assert "psi" in args_dict.keys()
+            psi = args_dict["psi"]
+            eig_loss = (torch.real(torch.linalg.eigvals(psi)) ** 2).sum()
+            loss_meta["real_eig_loss"] = eig_loss.item()
+            total_loss += self.loss_cfg.real_eig_reg_weight * eig_loss
+        if self.loss_cfg.cyclic_reg_active:
+            assert (
+                model_output.projection_0 is not None
+                and model_output.distribution_data is not None
+                and "psi" in args_dict.keys()
+            )
+            z0 = model_output.projection_0
+            c = model_output.distribution_data.samples
+            psi = args_dict["psi"]
+            with autocast(enabled=False):
+                T = torch.matrix_exp(torch.einsum("bm,mpk->bpk", c * 5, psi))
+            z0_extended = (T @ z0.unsqueeze(dim=-1)).squeeze(dim=-1)
+            cyclic_loss = F.mse_loss(z0, z0_extended)
+            loss_meta["cyclic_loss"] = cyclic_loss.item()
+            total_loss += self.loss_cfg.cyclic_reg_weight * cyclic_loss
 
         return loss_meta, total_loss

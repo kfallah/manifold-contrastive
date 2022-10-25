@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from model.contrastive.config import VariationalEncoderConfig
-from model.manifold.reparameterize import compute_kl, draw_noise_samples, reparameterize
+from model.manifold.reparameterize import draw_noise_samples, reparameterize
 from model.type import DistributionData
 from torch.cuda.amp import autocast
 
@@ -52,11 +52,16 @@ class VIEncoder(nn.Module):
         if (
             self.vi_cfg.distribution == "Laplacian"
             or self.vi_cfg.distribution == "Laplacian+Gamma"
+            or self.vi_cfg.distribution == "Gaussian"
+            or self.vi_cfg.distribution == "Gaussian+Gamma"
         ):
             self.enc_scale = nn.Linear(feat_dim, dict_size)
             self.enc_shift = nn.Linear(feat_dim, dict_size)
 
-        if self.vi_cfg.distribution == "Laplacian+Gamma":
+        if (
+            self.vi_cfg.distribution == "Laplacian+Gamma"
+            or self.vi_cfg.distribution == "Gaussian+Gamma"
+        ):
             self.enc_gamma_a = nn.Linear(feat_dim, dict_size)
             self.enc_gamma_b = nn.Linear(feat_dim, dict_size)
 
@@ -65,12 +70,17 @@ class VIEncoder(nn.Module):
         if (
             self.vi_cfg.distribution == "Laplacian"
             or self.vi_cfg.distribution == "Laplacian+Gamma"
+            or self.vi_cfg.distribution == "Gaussian"
+            or self.vi_cfg.distribution == "Gaussian+Gamma"
         ):
             self.prior_params["logscale"] = torch.log(
                 torch.tensor(self.vi_cfg.scale_prior)
             )
             self.prior_params["shift"] = 0.0
-        if self.vi_cfg.distribution == "Laplacian+Gamma":
+        if (
+            self.vi_cfg.distribution == "Laplacian+Gamma"
+            or self.vi_cfg.distribution == "Gaussian+Gamma"
+        ):
             self.prior_params["gamma_a"] = 2.0
             self.prior_params["gamma_b"] = self.lambda_prior
 
@@ -88,11 +98,16 @@ class VIEncoder(nn.Module):
             if (
                 self.vi_cfg.distribution == "Laplacian"
                 or self.vi_cfg.distribution == "Laplacian+Gamma"
+                or self.vi_cfg.distribution == "Gaussian"
+                or self.vi_cfg.distribution == "Gaussian+Gamma"
             ):
                 self.prior_scale = nn.Linear(feat_dim, dict_size)
                 self.prior_shift = nn.Linear(feat_dim, dict_size)
 
-            if self.vi_cfg.distribution == "Laplacian+Gamma":
+            if (
+                self.vi_cfg.distribution == "Laplacian+Gamma"
+                or self.vi_cfg.distribution == "Gaussian+Gamma"
+            ):
                 self.prior_gamma_a = nn.Linear(feat_dim, dict_size)
                 self.prior_gamma_b = nn.Linear(feat_dim, dict_size)
 
@@ -109,11 +124,16 @@ class VIEncoder(nn.Module):
         if (
             self.vi_cfg.distribution == "Laplacian"
             or self.vi_cfg.distribution == "Laplacian+Gamma"
+            or self.vi_cfg.distribution == "Gaussian"
+            or self.vi_cfg.distribution == "Gaussian+Gamma"
         ):
             encoder_params["logscale"] = self.enc_scale(z_enc)
             encoder_params["shift"] = self.enc_shift(z_enc)
 
-        if self.vi_cfg.distribution == "Laplacian+Gamma":
+        if (
+            self.vi_cfg.distribution == "Laplacian+Gamma"
+            or self.vi_cfg.distribution == "Gaussian+Gamma"
+        ):
             gamma_a = self.enc_gamma_a(z_enc).exp().clamp(min=1e-6, max=1e6)
             gamma_b = self.enc_gamma_b(z_enc).exp().clamp(min=1e-6, max=1e6)
             encoder_params["gamma_a"] = gamma_a
@@ -124,13 +144,18 @@ class VIEncoder(nn.Module):
         if (
             self.vi_cfg.distribution == "Laplacian"
             or self.vi_cfg.distribution == "Laplacian+Gamma"
+            or self.vi_cfg.distribution == "Gaussian"
+            or self.vi_cfg.distribution == "Gaussian+Gamma"
         ):
             hyperprior_params["logscale"] = (
                 torch.ones_like(encoder_params["logscale"])
                 * self.prior_params["logscale"]
             )
             hyperprior_params["shift"] = torch.zeros_like(encoder_params["shift"])
-        if self.vi_cfg.distribution == "Laplacian+Gamma":
+        if (
+            self.vi_cfg.distribution == "Laplacian+Gamma"
+            or self.vi_cfg.distribution == "Gaussian+Gamma"
+        ):
             hyperprior_params["gamma_a"] = (
                 torch.ones_like(encoder_params["gamma_a"])
                 * self.prior_params["gamma_a"]
@@ -145,16 +170,21 @@ class VIEncoder(nn.Module):
             if (
                 self.vi_cfg.distribution == "Laplacian"
                 or self.vi_cfg.distribution == "Laplacian+Gamma"
+                or self.vi_cfg.distribution == "Gaussian"
+                or self.vi_cfg.distribution == "Gaussian+Gamma"
             ):
                 prior_params["logscale"] = self.prior_scale(z_prior)
                 prior_params["shift"] = self.prior_shift(z_prior)
 
-            if self.vi_cfg.distribution == "Laplacian+Gamma":
+            if (
+                self.vi_cfg.distribution == "Laplacian+Gamma"
+                or self.vi_cfg.distribution == "Gaussian+Gamma"
+            ):
                 prior_gamma_a = (
-                    self.prior_gamma_a(z_prior).exp().clamp(min=1e-6, max=1e6)
+                    self.prior_gamma_a(z_prior).exp().clamp(min=1e-4, max=1e4)
                 )
                 prior_gamma_b = (
-                    self.prior_gamma_b(z_prior).exp().clamp(min=1e-6, max=1e6)
+                    self.prior_gamma_b(z_prior).exp().clamp(min=1e-4, max=1e4)
                 )
                 prior_params["gamma_a"] = prior_gamma_a
                 prior_params["gamma_b"] = prior_gamma_b
@@ -228,9 +258,10 @@ class VIEncoder(nn.Module):
         return c
 
     def forward(self, x0: torch.Tensor, x1: torch.Tensor, transop: nn.Module):
-        self.warmup += 1e-3
-        if self.warmup > 1.0:
-            self.warmup = 1.0
+        if self.training:
+            self.warmup += 2e-4
+            if self.warmup > 1.0:
+                self.warmup = 1.0
 
         encoder_params, prior_params, hyperprior_params = self.get_distribution_params(
             x0, x1

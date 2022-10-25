@@ -19,16 +19,16 @@ class MetricLoggerConfig:
     enable_loss_logging: bool = True
     loss_log_freq: int = 100
     enable_optimizer_logging: bool = False
-    optimizer_log_freq: int = 100
+    optimizer_log_freq: int = 500
     enable_collapse_logging: bool = False
-    collapse_log_freq: int = 100
+    collapse_log_freq: int = 500
     enable_transop_logging: bool = False
-    transop_log_freq: int = 500
+    transop_log_freq: int = 1000
 
     enable_tsne_plot: bool = False
-    tsne_plot_freq: int = 2000
+    tsne_plot_freq: int = 5000
     enable_log_spectra_plot: bool = False
-    log_spectra_plot_freq: int = 2000
+    log_spectra_plot_freq: int = 5000
 
 
 @dataclass
