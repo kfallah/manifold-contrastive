@@ -190,14 +190,50 @@ class MetricLogger:
                     )
                     shift = model_output.distribution_data.encoder_params["shift"]
                     log.info(
-                        f"[Distribution data iter {curr_iter}]: mean scale: {scale.mean():.3E}"
-                        + f" min scale: {scale.min():.3E} max scale: {scale.max():.3E}"
-                        + f", mean shift {shift.mean():.3E} min shift {shift.min():.3E}"
-                        + f" max shift {shift.max():.3E}"
+                        f"[Encoder params]: mean scale: {scale.mean():.3E}"
+                        + f", mean shift {shift.mean():.3E}"
                     )
+                    if (
+                        "Gamma"
+                        in self.model.model_cfg.header_cfg.variational_inference_config.distribution
+                    ):
+                        enc_gamma_a = model_output.distribution_data.encoder_params[
+                            "gamma_a"
+                        ]
+                        enc_gamma_b = model_output.distribution_data.encoder_params[
+                            "gamma_b"
+                        ]
+                        log.info(
+                            "[Encoder Gamma]: "
+                            + f"mean gamma_a: {enc_gamma_a.mean():.3E}"
+                            + f", mean gamma_b: {enc_gamma_b.mean():.3E}"
+                        )
+                        if (
+                            self.model.model_cfg.header_cfg.variational_inference_config.prior_type
+                            == "Learned"
+                        ):
+                            prior_scale = torch.exp(
+                                model_output.distribution_data.prior_params["logscale"]
+                            )
+                            prior_shift = model_output.distribution_data.prior_params[
+                                "shift"
+                            ]
+                            prior_gamma_a = model_output.distribution_data.prior_params[
+                                "gamma_a"
+                            ]
+                            prior_gamma_b = model_output.distribution_data.prior_params[
+                                "gamma_b"
+                            ]
+                            log.info(
+                                "[Prior params]: "
+                                + f"mean scale: {prior_scale.mean():.3E}"
+                                + f", mean shift: {prior_shift.mean():.3E}"
+                                + f", mean gamma_a: {prior_gamma_a.mean():.3E}"
+                                + f", mean gamma_b: {prior_gamma_b.mean():.3E}"
+                            )
 
             # Generate transport operator plots
-            fig_dict = transop_plots(c, psi, np.array(self.feature_cache)[-1])
+            fig_dict = transop_plots(c, psi, model_output.projection_0)
             for fig_name in fig_dict.keys():
                 if self.cfg.enable_wandb_logging:
                     wandb.log(

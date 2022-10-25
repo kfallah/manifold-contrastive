@@ -26,7 +26,7 @@ trainer_cfg:
     optimizer: Adam
     initial_lr: 0.0003
   scheduler_cfg:
-    scheduler: LinearWarmupCosineAnnealingLR
+    scheduler: CosineAnnealingLR
     warmup_epochs: 5
   metric_logger_cfg:
     enable_transop_logging: true

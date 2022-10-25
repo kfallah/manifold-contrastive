@@ -4,7 +4,7 @@ defaults:
 header_name: TransOp
 dictionary_size: 200
 lambda_prior: 0.04
-transop_weight_decay: 1.0e-5
+transop_weight_decay: 1.0e-4
 transop_lr: 1.0e-3
 stable_operator_initialization: true
 detach_feature: false
@@ -17,7 +17,7 @@ variational_inference_config:
   encode_features: true
   ntxloss_sampling: false
   scale_prior: 0.02
-  feature_dim: 256
+  feature_dim: 512
   encoder_type: MLP
   variational_encoder_lr: 3.0e-4
   variational_encoder_weight_decay: 1.0e-6

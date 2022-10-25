@@ -6,10 +6,13 @@ defaults:
 exp_name: TransOp-VI-NN
 
 model_cfg:
+  loss_cfg:
+    kl_loss_weight: 1.0e-1
   header_cfg:
+    lambda_prior: 0.06
     enable_nn_point_pair: true
     nn_memory_bank_size: 98304
 train_dataloader_cfg:
   batch_size: 256
 trainer_cfg:
-  save_interval: 5
+  save_interval: 20
