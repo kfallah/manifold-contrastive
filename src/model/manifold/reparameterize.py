@@ -49,7 +49,7 @@ def reparameterize(
             distribution_params["gamma_a"],
             distribution_params["gamma_b"],
         )
-        gamma_distr = gamma.Gamma(gamma_a, gamma_b)
+        gamma_distr = gamma.Gamma(gamma_a, gamma_a / gamma_b)
         if len(noise.shape) >= 3:
             lambda_ = gamma_distr.rsample([len(noise)])
         else:

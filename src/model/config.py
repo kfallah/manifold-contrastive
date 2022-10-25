@@ -22,6 +22,8 @@ class LossConfig:
     ntxent_symmetric: bool = False
     kl_loss_active: bool = False
     kl_loss_weight: float = 0.1
+    hyperkl_loss_active: bool = False
+    hyperkl_loss_weight: float = 0.1
     transop_loss_active: bool = False
     transop_loss_weight: float = 1.0
     memory_bank_size: int = 0

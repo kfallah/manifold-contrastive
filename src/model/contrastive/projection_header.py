@@ -28,9 +28,9 @@ class RandomProjection(nn.Module):
         self.out_dim = out_dim
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        random_proj = torch.randn((len(x), self.out_dim, self.in_dim), device=x.device, dtype=x.dtype) * (
-            1 / math.sqrt(self.out_dim)
-        )
+        random_proj = torch.randn(
+            (len(x), self.out_dim, self.in_dim), device=x.device, dtype=x.dtype
+        ) * (1 / math.sqrt(self.out_dim))
         return (random_proj @ x.unsqueeze(-1)).squeeze(-1)
 
 
@@ -48,19 +48,30 @@ class ProjectionHeader(nn.Module):
         if self.proj_cfg.projection_type == "MLP":
             if self.proj_cfg.header_name == "SimCLR":
                 self.projector = SimCLRProjectionHead(
-                    backbone_feature_dim, self.proj_cfg.hidden_dim, self.proj_cfg.output_dim
+                    backbone_feature_dim,
+                    self.proj_cfg.hidden_dim,
+                    self.proj_cfg.output_dim,
                 )
             elif self.proj_cfg.header_name == "MoCo":
                 self.projector = MoCoProjectionHead(
-                    backbone_feature_dim, self.proj_cfg.hidden_dim, self.proj_cfg.output_dim
+                    backbone_feature_dim,
+                    self.proj_cfg.hidden_dim,
+                    self.proj_cfg.output_dim,
                 )
             else:
                 raise NotImplementedError
         elif self.proj_cfg.projection_type == "Linear":
-            self.projector = nn.Linear(backbone_feature_dim, self.proj_cfg.output_dim, bias=False)
+            self.projector = nn.Linear(
+                backbone_feature_dim, self.proj_cfg.output_dim, bias=False
+            )
         elif self.proj_cfg.projection_type == "RandomProjection":
-            self.projector = RandomProjection(backbone_feature_dim, self.proj_cfg.output_dim)
-        elif self.proj_cfg.projection_type == "None" or self.proj_cfg.projection_type == "Direct":
+            self.projector = RandomProjection(
+                backbone_feature_dim, self.proj_cfg.output_dim
+            )
+        elif (
+            self.proj_cfg.projection_type == "None"
+            or self.proj_cfg.projection_type == "Direct"
+        ):
             self.projector = nn.Identity()
         else:
             raise NotImplementedError

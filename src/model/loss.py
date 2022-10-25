@@ -64,6 +64,15 @@ class Loss(nn.Module):
             )
             total_loss += self.loss_cfg.kl_loss_weight * kl_loss
             loss_meta["kl_loss"] = kl_loss.item()
+        if self.loss_cfg.hyperkl_loss_active:
+            assert model_output.distribution_data is not None
+            hyperkl_loss = compute_kl(
+                self.model_cfg.header_cfg.variational_inference_config.distribution,
+                model_output.distribution_data.prior_params,
+                model_output.distribution_data.hyperprior_params,
+            )
+            total_loss += self.loss_cfg.hyperkl_loss_weight * hyperkl_loss
+            loss_meta["hyperkl_loss"] = hyperkl_loss.item()
         if self.loss_cfg.transop_loss_active:
             assert (
                 model_output.prediction_0 is not None

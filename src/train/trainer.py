@@ -24,16 +24,27 @@ log = logging.getLogger(__name__)
 
 
 class Trainer(nn.Module):
-    def __init__(self, trainer_cfg: TrainerConfig, model: Model, num_train_iters: int, device: torch.device):
+    def __init__(
+        self,
+        trainer_cfg: TrainerConfig,
+        model: Model,
+        num_train_iters: int,
+        device: torch.device,
+    ):
         super(Trainer, self).__init__()
         self.trainer_cfg = trainer_cfg
         self.model = model
         self.device = device
 
         # Initialize optimizer and scheduler
-        self.optimizer = initialize_optimizer(self.trainer_cfg.optimizer_cfg, self.get_model().get_param_groups())
+        self.optimizer = initialize_optimizer(
+            self.trainer_cfg.optimizer_cfg, self.get_model().get_param_groups()
+        )
         self.scheduler = initialize_scheduler(
-            self.trainer_cfg.scheduler_cfg, self.trainer_cfg.num_epochs, num_train_iters, self.optimizer
+            self.trainer_cfg.scheduler_cfg,
+            self.trainer_cfg.num_epochs,
+            num_train_iters,
+            self.optimizer,
         )
         self.scaler = GradScaler(enabled=self.trainer_cfg.use_amp)
 
@@ -48,7 +59,9 @@ class Trainer(nn.Module):
         else:
             return self.model
 
-    def train_epoch(self, epoch: int, train_dataloader: torch.utils.data.DataLoader) -> Dict[str, float]:
+    def train_epoch(
+        self, epoch: int, train_dataloader: torch.utils.data.DataLoader
+    ) -> Dict[str, float]:
         self.model.train()
         for idx, batch in enumerate(train_dataloader):
             pre_time = time.time()
@@ -65,18 +78,6 @@ class Trainer(nn.Module):
             # Backpropagate loss
             self.optimizer.zero_grad()
             self.scaler.scale(total_loss).backward()
-            if False and idx % 100 == 0:
-                vi_grad = (
-                    torch.cat(
-                        [
-                            p.grad.reshape(-1)
-                            for p in self.get_model().contrastive_header.transop_header.coefficient_encoder.parameters()
-                        ]
-                    )
-                    ** 2
-                ).mean()
-                psi_grad = (self.get_model().contrastive_header.transop_header.transop.psi.grad ** 2).mean()
-                log.info(f"[GRAD INFO COMING IN HOT!!!]: VI grad: {vi_grad:.3E}, PSI grad: {psi_grad:.3E}")
             self.scaler.step(self.optimizer)
             self.scaler.update()
             self.scheduler.step()
@@ -86,9 +87,12 @@ class Trainer(nn.Module):
 
             loss_metadata["iter_time"] = time.time() - pre_time
             self.metric_logger.log_metrics(
-                idx + (epoch * len(train_dataloader)), epoch, model_output, batch[1], loss_metadata
+                idx + (epoch * len(train_dataloader)),
+                epoch,
+                model_output,
+                batch[1],
+                loss_metadata,
             )
-
         return loss_metadata
 
     def save_model(self, curr_epoch: int, save_path: str, save_best=False) -> None:
@@ -110,17 +114,26 @@ class Trainer(nn.Module):
 
     @staticmethod
     def initialize_trainer(
-        trainer_cfg: TrainerConfig, model: Model, num_train_iters: int, device: torch.device
+        trainer_cfg: TrainerConfig,
+        model: Model,
+        num_train_iters: int,
+        device: torch.device,
     ) -> "Trainer":
         return Trainer(trainer_cfg, model, num_train_iters, device)
 
     @staticmethod
     def load_trainer(
-        load_path: str, trainer_cfg: TrainerConfig, model: Model, num_train_iters: int, device: torch.device
+        load_path: str,
+        trainer_cfg: TrainerConfig,
+        model: Model,
+        num_train_iters: int,
+        device: torch.device,
     ) -> "Trainer":
         model_dict = torch.load(load_path)
 
-        trainer = Trainer.initialize_trainer(trainer_cfg, model, num_train_iters, device)
+        trainer = Trainer.initialize_trainer(
+            trainer_cfg, model, num_train_iters, device
+        )
         trainer.optimizer.load_state_dict(model_dict["optimizer"])
         trainer.scheduler.load_state_dict(model_dict["scheduler"])
         trainer.get_model().load_state_dict(model_dict["model_state"])

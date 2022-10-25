@@ -13,7 +13,6 @@ import wandb
 from matplotlib import pyplot as plt
 from torchvision.models import resnet18
 
-from model.autoencoder import ConvDecoder
 from model.contrastive.config import VariationalEncoderConfig
 from model.manifold.l1_inference import infer_coefficients
 from model.manifold.reparameterize import compute_kl
@@ -84,7 +83,7 @@ hyperprior_kl_weight = args.hyperprior_kl_weight
 psi_lr = args.psi_lr
 net_lr = args.net_lr
 save_freq = 1000
-log_freq = 100
+log_freq = 200
 latent_scale = 14.1
 use_vi = True
 default_device = torch.device("cuda:0")
@@ -210,6 +209,9 @@ if use_vi:
 else:
     to_opt = torch.optim.AdamW(transop.parameters(), lr=psi_lr, weight_decay=gamma)
 to_scheduler = LinearWarmupCosineAnnealingLR(to_opt, 5000, len(train_dataloader))
+# to_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+#    to_opt, len(train_dataloader) * total_epoch, eta_min=0, last_epoch=-1
+# )
 
 psi_list = []
 c_list = []
@@ -226,9 +228,9 @@ for epoch in range(total_epoch):
         x0, x1, y = batch
         x0, x1 = x0.to(default_device), x1.to(default_device)
 
-        z0, z1 = backbone(x0) / latent_scale, backbone(x1) / latent_scale
-        x0_hat, x1_hat = decoder(latent_scale * z0), decoder(latent_scale * z1)
-        recon_loss = 0.5 * (F.mse_loss(x1_hat, x1) + F.mse_loss(x0_hat, x0))
+        with torch.no_grad():
+            z0, z1 = backbone(x0) / latent_scale, backbone(x1) / latent_scale
+        recon_loss = 0.0
 
         z0, z1 = z0.detach(), z1.detach()
 
@@ -403,7 +405,6 @@ for epoch in range(total_epoch):
                 {
                     "psi": psi_list,
                     "encoder": backbone.state_dict(),
-                    "decoder": decoder.state_dict(),
                     "vi": vi.state_dict() if use_vi else None,
                     "z0": z0.detach().cpu(),
                     "z1": z1.detach().cpu(),

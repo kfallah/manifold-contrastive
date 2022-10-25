@@ -33,7 +33,9 @@ class ProjectionPredictionHeader(nn.Module):
         self.projector = None
         if self.proj_cfg.header_name == "NNCLR":
             self.projector = NNCLRProjectionHead(
-                backbone_feature_dim, self.proj_cfg.proj_hidden_dim, self.proj_cfg.proj_output_dim
+                backbone_feature_dim,
+                self.proj_cfg.proj_hidden_dim,
+                self.proj_cfg.proj_output_dim,
             )
         else:
             raise NotImplementedError
@@ -42,12 +44,16 @@ class ProjectionPredictionHeader(nn.Module):
         if self.proj_cfg.prediction_type == "MLP":
             if self.proj_cfg.header_name == "NNCLR":
                 self.predictor = NNCLRPredictionHead(
-                    self.proj_cfg.proj_output_dim, self.proj_cfg.pred_hidden_dim, self.proj_cfg.pred_output_dim
+                    self.proj_cfg.proj_output_dim,
+                    self.proj_cfg.pred_hidden_dim,
+                    self.proj_cfg.pred_output_dim,
                 )
             else:
                 raise NotImplementedError
         elif self.proj_cfg.prediction_type == "Linear":
-            self.predictor = nn.Linear(self.proj_cfg.proj_output_dim, self.proj_cfg.pred_output_dim, bias=False)
+            self.predictor = nn.Linear(
+                self.proj_cfg.proj_output_dim, self.proj_cfg.pred_output_dim, bias=False
+            )
         elif self.proj_cfg.prediction_type == "None":
             self.predictor = nn.Identity()
         else:
