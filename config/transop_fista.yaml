@@ -10,8 +10,8 @@ model_cfg:
     kl_loss_active: false
   header_cfg:
     enable_variational_inference: false
-    projection_type: Linear
-    projection_out_dim: 64
+    projection_type: Splicer
+    projection_out_dim: 32
     fista_num_iterations: 800
     lambda_prior: 0.4
     transop_weight_decay: 1.0e-5

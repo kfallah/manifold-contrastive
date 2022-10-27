@@ -36,13 +36,13 @@ class VIEncoder(nn.Module):
         if self.vi_cfg.encoder_type == "MLP":
             self.enc_feat_extract = nn.Sequential(
                 nn.Linear(input_size, 2 * input_size),
-                nn.BatchNorm1d(2 * input_size),
+                # nn.BatchNorm1d(2 * input_size),
                 nn.ReLU(),
                 nn.Linear(2 * input_size, feat_dim // 2),
             )
             self.enc_aggregate = nn.Sequential(
                 nn.Linear(feat_dim, 2 * feat_dim),
-                nn.BatchNorm1d(2 * feat_dim),
+                # nn.BatchNorm1d(2 * feat_dim),
                 nn.ReLU(),
                 nn.Linear(2 * feat_dim, feat_dim),
             )
@@ -77,6 +77,7 @@ class VIEncoder(nn.Module):
                 torch.tensor(self.vi_cfg.scale_prior)
             )
             self.prior_params["shift"] = 0.0
+
         if (
             self.vi_cfg.distribution == "Laplacian+Gamma"
             or self.vi_cfg.distribution == "Gaussian+Gamma"
@@ -87,10 +88,10 @@ class VIEncoder(nn.Module):
         if self.vi_cfg.prior_type == "Learned":
             self.prior_feat_extract = nn.Sequential(
                 nn.Linear(input_size, 2 * input_size),
-                nn.BatchNorm1d(2 * input_size),
+                # nn.BatchNorm1d(2 * input_size),
                 nn.ReLU(),
                 nn.Linear(2 * input_size, feat_dim),
-                nn.BatchNorm1d(feat_dim),
+                # nn.BatchNorm1d(feat_dim),
                 nn.ReLU(),
                 nn.Linear(feat_dim, feat_dim),
             )
@@ -259,7 +260,7 @@ class VIEncoder(nn.Module):
 
     def forward(self, x0: torch.Tensor, x1: torch.Tensor, transop: nn.Module):
         if self.training:
-            self.warmup += 2e-4
+            self.warmup += 5e-4
             if self.warmup > 1.0:
                 self.warmup = 1.0
 
