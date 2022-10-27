@@ -23,14 +23,15 @@ model_cfg:
 
 trainer_cfg:
   optimizer_cfg:
-    optimizer: Adam
+    optimizer: SGD
     initial_lr: 0.0003
+    enable_nesterov: true
   scheduler_cfg:
-    scheduler: CosineAnnealingLR
+    scheduler: LinearWarmupCosineAnnealingLR
     warmup_epochs: 10
   metric_logger_cfg:
     enable_transop_logging: true
-  use_amp: true
+  use_amp: false
 train_dataloader_cfg:
   batch_size: 256
 devices: [0, 1]

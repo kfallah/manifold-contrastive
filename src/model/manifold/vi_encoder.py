@@ -135,8 +135,8 @@ class VIEncoder(nn.Module):
             self.vi_cfg.distribution == "Laplacian+Gamma"
             or self.vi_cfg.distribution == "Gaussian+Gamma"
         ):
-            gamma_a = self.enc_gamma_a(z_enc).exp().clamp(min=1e-6, max=1e6)
-            gamma_b = self.enc_gamma_b(z_enc).exp().clamp(min=1e-6, max=1e6)
+            gamma_a = self.enc_gamma_a(z_enc).exp()
+            gamma_b = self.enc_gamma_b(z_enc).exp()
             encoder_params["gamma_a"] = gamma_a
             encoder_params["gamma_b"] = gamma_b
 
@@ -181,12 +181,8 @@ class VIEncoder(nn.Module):
                 self.vi_cfg.distribution == "Laplacian+Gamma"
                 or self.vi_cfg.distribution == "Gaussian+Gamma"
             ):
-                prior_gamma_a = (
-                    self.prior_gamma_a(z_prior).exp().clamp(min=1e-4, max=1e4)
-                )
-                prior_gamma_b = (
-                    self.prior_gamma_b(z_prior).exp().clamp(min=1e-4, max=1e4)
-                )
+                prior_gamma_a = self.prior_gamma_a(z_prior).exp()
+                prior_gamma_b = self.prior_gamma_b(z_prior).exp()
                 prior_params["gamma_a"] = prior_gamma_a
                 prior_params["gamma_b"] = prior_gamma_b
         else:
