@@ -190,8 +190,13 @@ class MetricLogger:
                     )
                     shift = model_output.distribution_data.encoder_params["shift"]
                     log.info(
-                        f"[Encoder params]: mean scale: {scale.mean():.3E}"
-                        + f", mean shift {shift.mean():.3E}"
+                        f"[Encoder params]: "
+                        + f"min scale: {scale.abs().min():.3E}"
+                        + f", max scale: {scale.abs().max():.3E}"
+                        + f", mean scale: {scale.mean():.3E}"
+                        + f", min shift: {shift.abs().min():.3E}"
+                        + f", max shift: {shift.abs().max():.3E}"
+                        + f", mean shift: {shift.mean():.3E}"
                     )
                     if (
                         "Gamma"
@@ -205,7 +210,11 @@ class MetricLogger:
                         ]
                         log.info(
                             "[Encoder Gamma]: "
-                            + f"mean gamma_a: {enc_gamma_a.mean():.3E}"
+                            + f"min gamma_a: {enc_gamma_a.abs().min():.3E}"
+                            + f", max gamma_a: {enc_gamma_a.abs().max():.3E}"
+                            + f", mean gamma_a: {enc_gamma_a.mean():.3E}"
+                            + f", min gamma_b: {enc_gamma_b.abs().min():.3E}"
+                            + f", max gamma_b: {enc_gamma_b.abs().max():.3E}"
                             + f", mean gamma_b: {enc_gamma_b.mean():.3E}"
                         )
                         if (
@@ -225,10 +234,21 @@ class MetricLogger:
                                 "gamma_b"
                             ]
                             log.info(
-                                "[Prior params]: "
-                                + f"mean scale: {prior_scale.mean():.3E}"
+                                f"[Prior params]: "
+                                + f"min scale: {prior_scale.abs().min():.3E}"
+                                + f", max scale: {prior_scale.abs().max():.3E}"
+                                + f", mean scale: {prior_scale.mean():.3E}"
+                                + f", min shift: {prior_shift.abs().min():.3E}"
+                                + f", max shift: {prior_shift.abs().max():.3E}"
                                 + f", mean shift: {prior_shift.mean():.3E}"
+                            )
+                            log.info(
+                                "[Prior Gamma]: "
+                                + f"min gamma_a: {prior_gamma_a.abs().min():.3E}"
+                                + f", max gamma_a: {prior_gamma_a.abs().max():.3E}"
                                 + f", mean gamma_a: {prior_gamma_a.mean():.3E}"
+                                + f", min gamma_b: {prior_gamma_b.abs().min():.3E}"
+                                + f", max gamma_b: {prior_gamma_b.abs().max():.3E}"
                                 + f", mean gamma_b: {prior_gamma_b.mean():.3E}"
                             )
 

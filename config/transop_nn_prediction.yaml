@@ -18,8 +18,3 @@ model_cfg:
       use_warmpup: false
       normalize_coefficients: false
       normalize_mag: 1.0
-trainer_cfg:
-  scheduler_cfg:
-    scheduler: LinearWarmupCosineAnnealingLR
-train_dataloader_cfg:
-  batch_size: 256

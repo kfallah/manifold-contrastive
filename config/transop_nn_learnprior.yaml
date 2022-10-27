@@ -7,7 +7,7 @@ exp_name: TransOp-VI-NN-GammaLearn
 model_cfg:
   loss_cfg:
     hyperkl_loss_active: true
-    hyperkl_loss_weight: 1.0e0
+    hyperkl_loss_weight: 1.0e-3
   header_cfg:
     lambda_prior: 0.2
     variational_inference_config:
