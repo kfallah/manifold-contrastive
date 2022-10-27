@@ -27,7 +27,7 @@ trainer_cfg:
     initial_lr: 0.0003
   scheduler_cfg:
     scheduler: CosineAnnealingLR
-    warmup_epochs: 5
+    warmup_epochs: 10
   metric_logger_cfg:
     enable_transop_logging: true
   use_amp: true

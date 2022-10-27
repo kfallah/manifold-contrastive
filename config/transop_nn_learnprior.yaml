@@ -1,5 +1,5 @@
 defaults:
-  - transop_nn
+  - transop_nn_prediction
   - _self_
 
 exp_name: TransOp-VI-NN-GammaLearn
@@ -7,15 +7,9 @@ exp_name: TransOp-VI-NN-GammaLearn
 model_cfg:
   loss_cfg:
     hyperkl_loss_active: true
-    hyperkl_loss_weight: 1.0e-3
-    cyclic_reg_active: true
-    cyclic_reg_weight: 1.0e-2
+    hyperkl_loss_weight: 1.0e0
   header_cfg:
+    lambda_prior: 0.2
     variational_inference_config:
       distribution: Gaussian+Gamma
       prior_type: Learned
-      per_iter_samples: 1
-      total_samples: 1
-      use_warmpup: true
-      normalize_coefficients: false
-      normalize_mag: 0.1

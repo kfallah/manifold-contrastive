@@ -5,12 +5,21 @@ defaults:
 exp_name: TransOp-VI-NN-Prediction
 
 model_cfg:
+  loss_cfg:
+    kl_loss_weight: 1.0e-1
+    real_eig_reg_active: false
   header_cfg:
-    projection_type: Linear
-    projection_out_dim: 64
+    projection_type: Splicer
+    projection_out_dim: 32
     lambda_prior: 0.04
+    variational_inference_config:
+      per_iter_samples: 1
+      total_samples: 1
+      use_warmpup: false
+      normalize_coefficients: false
+      normalize_mag: 1.0
 trainer_cfg:
   scheduler_cfg:
-    scheduler: CosineAnnealingLR
+    scheduler: LinearWarmupCosineAnnealingLR
 train_dataloader_cfg:
   batch_size: 256

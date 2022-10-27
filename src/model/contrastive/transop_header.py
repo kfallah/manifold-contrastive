@@ -21,6 +21,22 @@ from model.type import DistributionData, HeaderInput, HeaderOutput, ModelOutput
 from torch.cuda.amp import autocast
 
 
+class Splicer(nn.Module):
+    def __init__(
+        self,
+        backbone_dim: int,
+        splice_dim: int,
+    ):
+        super(Splicer, self).__init__()
+        self.backbone_dim = backbone_dim
+        self.splice_dim = splice_dim
+
+    def forward(self, x):
+        return torch.stack(torch.split(x, self.splice_dim, dim=-1)).reshape(
+            -1, self.splice_dim
+        )
+
+
 class TransportOperatorHeader(nn.Module):
     def __init__(
         self,
@@ -45,6 +61,11 @@ class TransportOperatorHeader(nn.Module):
             feature_dim = self.transop_cfg.projection_out_dim
         elif self.transop_cfg.projection_type == "Linear":
             self.projector = nn.Linear(
+                backbone_feature_dim, self.transop_cfg.projection_out_dim
+            )
+            feature_dim = self.transop_cfg.projection_out_dim
+        elif self.transop_cfg.projection_type == "Splicer":
+            self.projector = Splicer(
                 backbone_feature_dim, self.transop_cfg.projection_out_dim
             )
             feature_dim = self.transop_cfg.projection_out_dim
@@ -159,9 +180,9 @@ class TransportOperatorHeader(nn.Module):
         # In the case where only a single point pair is provided
         if feat_1 is None:
             return HeaderOutput(
-                self.projector(feat_0),
+                feat_0,
                 feat_1,
-                self.projector(feat_0),
+                feat_0,
                 feat_1,
                 distribution_data,
             )
@@ -189,10 +210,10 @@ class TransportOperatorHeader(nn.Module):
                     self.transop.get_psi().float(),
                     self.transop_cfg.lambda_prior,
                     max_iter=self.transop_cfg.fista_num_iterations,
-                    num_trials=self.transop_cfg.iter_variational_samples,
+                    num_trials=1,
                     device=z0.device,
                 )
-            distribution_data = DistributionData(c, None, None, None, None)
+            distribution_data = DistributionData(None, None, None, c)
         else:
             # Use a variational approach
             if self.transop_cfg.variational_inference_config.encode_features:
