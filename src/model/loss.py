@@ -61,7 +61,7 @@ class Loss(nn.Module):
         if self.loss_cfg.kl_loss_active:
             assert model_output.distribution_data is not None
             kl_loss = compute_kl(
-                self.model_cfg.header_cfg.variational_inference_config.distribution,
+                self.model_cfg.header_cfg.vi_cfg.distribution,
                 model_output.distribution_data.encoder_params,
                 model_output.distribution_data.prior_params,
             )
@@ -70,7 +70,7 @@ class Loss(nn.Module):
         if self.loss_cfg.hyperkl_loss_active:
             assert model_output.distribution_data is not None
             hyperkl_loss = compute_kl(
-                self.model_cfg.header_cfg.variational_inference_config.distribution,
+                self.model_cfg.header_cfg.vi_cfg.distribution,
                 model_output.distribution_data.prior_params,
                 model_output.distribution_data.hyperprior_params,
             )

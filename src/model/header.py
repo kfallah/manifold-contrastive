@@ -42,8 +42,6 @@ class ContrastiveHeader(nn.Module):
     def update_momentum_network(self, momentum_rate: float, model_out: ModelOutput) -> None:
         if self.projection_header is not None:
             self.projection_header.update_momentum_network(momentum_rate)
-        if self.transop_header is not None:
-            self.transop_header.update_momentum_network(momentum_rate, model_out)
 
     def forward(self, header_input: HeaderInput) -> HeaderOutput:
         prediction_out = None

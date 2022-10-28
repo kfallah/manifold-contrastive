@@ -1,5 +1,5 @@
 defaults:
-  - transop_nn_prediction
+  - transop_nn
   - _self_
 
 exp_name: TransOp-VI-NN-GammaLearn
@@ -10,6 +10,6 @@ model_cfg:
     hyperkl_loss_weight: 1.0e-3
   header_cfg:
     lambda_prior: 0.2
-    variational_inference_config:
+    vi_cfg:
       distribution: Gaussian+Gamma
       prior_type: Learned
