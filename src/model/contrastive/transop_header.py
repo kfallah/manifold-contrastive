@@ -32,8 +32,10 @@ class Splicer(nn.Module):
         self.splice_dim = splice_dim
 
     def forward(self, x):
-        return torch.stack(torch.split(x, self.splice_dim, dim=-1)).reshape(
-            -1, self.splice_dim
+        return (
+            torch.stack(torch.split(x, self.splice_dim, dim=-1))
+            .transpose(0, 1)
+            .reshape(-1, self.splice_dim)
         )
 
 
@@ -64,13 +66,11 @@ class TransportOperatorHeader(nn.Module):
                 backbone_feature_dim, self.transop_cfg.projection_out_dim
             )
             feature_dim = self.transop_cfg.projection_out_dim
-        elif self.transop_cfg.projection_type == "Splicer":
-            self.projector = Splicer(
-                backbone_feature_dim, self.transop_cfg.projection_out_dim
-            )
-            feature_dim = self.transop_cfg.projection_out_dim
         else:
             raise NotImplementedError
+
+        if self.transop_cfg.enable_splicing:
+            feature_dim = self.transop_cfg.splice_dim
 
         self.transop = TransOp_expm(
             M=self.transop_cfg.dictionary_size,
@@ -81,18 +81,11 @@ class TransportOperatorHeader(nn.Module):
         self.coefficient_encoder = None
         if self.transop_cfg.enable_variational_inference:
             self.coefficient_encoder = VIEncoder(
-                self.transop_cfg.variational_inference_config,
+                self.transop_cfg.vi_cfg,
                 feature_dim,
                 self.transop_cfg.dictionary_size,
                 self.transop_cfg.lambda_prior,
             )
-
-        self.transop_ema, self.enc_ema = None, None
-        if enable_momentum:
-            self.transop_ema = copy.deepcopy(self.transop)
-            self.projector_ema = copy.deepcopy(self.projector)
-            if self.transop_cfg.enable_variational_inference:
-                self.enc_ema = copy.deepcopy(self.coefficient_encoder)
 
         """
         TODO: Add support back for ntx_loss sampling
@@ -113,40 +106,6 @@ class TransportOperatorHeader(nn.Module):
                 size=self.transop_cfg.nn_memory_bank_size
             )
 
-    def update_momentum_network(
-        self, momentum_rate: float, model_out: ModelOutput
-    ) -> None:
-        assert self.transop_ema is not None
-        assert (
-            model_out.distribution_data is not None and model_out.feature_1 is not None
-        )
-        with torch.no_grad():
-            z0, z1 = self.projector(model_out.feature_0), self.projector(
-                model_out.feature_1
-            )
-            c = model_out.distribution_data.samples
-            old_loss = F.mse_loss(model_out.prediction_0, model_out.prediction_1)
-            with autocast(enabled=False):
-                new_z1_hat = (
-                    self.transop(
-                        z0.detach().float().unsqueeze(-1)
-                        / self.transop_cfg.latent_scale,
-                        c.detach(),
-                    ).squeeze(dim=-1)
-                    * self.transop_cfg.latent_scale
-                )
-            new_loss = F.mse_loss(new_z1_hat, z1)
-            if new_loss > old_loss:
-                self.transop.psi.data = self.transop_ema.psi.data
-                self.projector = copy.deepcopy(self.projector_ema)
-                if self.transop_cfg.enable_variational_inference:
-                    self.coefficient_encoder = copy.deepcopy(self.enc_ema)
-                self.failed_iters += 1
-            self.transop_ema = copy.deepcopy(self.transop)
-            self.projector_ema = copy.deepcopy(self.projector)
-            if self.transop_cfg.enable_variational_inference:
-                self.enc_ema = copy.deepcopy(self.coefficient_encoder)
-
     def get_param_groups(self):
         param_list = [
             {
@@ -165,8 +124,8 @@ class TransportOperatorHeader(nn.Module):
             param_list.append(
                 {
                     "params": self.coefficient_encoder.parameters(),
-                    "lr": self.transop_cfg.variational_inference_config.variational_encoder_lr,
-                    "weight_decay": self.transop_cfg.variational_inference_config.variational_encoder_weight_decay,
+                    "lr": self.transop_cfg.vi_cfg.variational_encoder_lr,
+                    "weight_decay": self.transop_cfg.vi_cfg.variational_encoder_weight_decay,
                     "disable_layer_adaptation": True,
                 }
             )
@@ -200,6 +159,19 @@ class TransportOperatorHeader(nn.Module):
         else:
             z1_use = z1
 
+        # Splice input into sequence if enabled
+        if self.transop_cfg.enable_splicing:
+            z0 = (
+                torch.stack(torch.split(z0, self.transop_cfg.splice_dim, dim=-1))
+                .transpose(0, 1)
+                .reshape(-1, self.transop_cfg.splice_dim)
+            )
+            z1_use = (
+                torch.stack(torch.split(z1_use, self.transop_cfg.splice_dim, dim=-1))
+                .transpose(0, 1)
+                .reshape(-1, self.transop_cfg.splice_dim)
+            )
+
         # Infer coefficients for point pair
         if self.coefficient_encoder is None:
             # Use FISTA for exact inference
@@ -216,7 +188,7 @@ class TransportOperatorHeader(nn.Module):
             distribution_data = DistributionData(None, None, None, c)
         else:
             # Use a variational approach
-            if self.transop_cfg.variational_inference_config.encode_features:
+            if self.transop_cfg.vi_cfg.encode_features:
                 # Use the features to estimate coefficients
                 distribution_data = self.coefficient_encoder(
                     z0 / self.transop_cfg.latent_scale,

@@ -10,7 +10,7 @@ stable_operator_initialization: true
 detach_feature: false
 
 enable_variational_inference: true
-variational_inference_config:
+vi_cfg:
   per_iter_samples: 10
   total_samples: 100
   use_warmpup: false

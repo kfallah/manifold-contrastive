@@ -91,12 +91,16 @@ class TransportOperatorConfig(ContrastiveHeaderConfig):
     projection_network_lr: float = 3e-4
     projection_network_weight_decay: float = 1e-6
 
+    # Option to splice input to create BDM constraint on transop
+    enable_splicing: bool = False
+    splice_dim: int = 32
+
     # Option to use NN to find point pairs
     enable_nn_point_pair: bool = False
     nn_memory_bank_size: int = 65536
 
     # Config for variational network
     enable_variational_inference: bool = True
-    variational_inference_config: VariationalEncoderConfig = VariationalEncoderConfig()
+    vi_cfg: VariationalEncoderConfig = VariationalEncoderConfig()
     # Config for exact inference
     fista_num_iterations: int = 800

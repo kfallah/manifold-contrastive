@@ -198,10 +198,7 @@ class MetricLogger:
                         + f", max shift: {shift.abs().max():.3E}"
                         + f", mean shift: {shift.mean():.3E}"
                     )
-                    if (
-                        "Gamma"
-                        in self.model.model_cfg.header_cfg.variational_inference_config.distribution
-                    ):
+                    if "Gamma" in self.model.model_cfg.header_cfg.vi_cfg.distribution:
                         enc_gamma_a = model_output.distribution_data.encoder_params[
                             "gamma_a"
                         ]
@@ -218,7 +215,7 @@ class MetricLogger:
                             + f", mean gamma_b: {enc_gamma_b.mean():.3E}"
                         )
                         if (
-                            self.model.model_cfg.header_cfg.variational_inference_config.prior_type
+                            self.model.model_cfg.header_cfg.vi_cfg.prior_type
                             == "Learned"
                         ):
                             prior_scale = torch.exp(
