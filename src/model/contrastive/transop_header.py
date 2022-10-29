@@ -5,8 +5,6 @@ Transport operator header that estimates the manifold path between a pair of poi
 @Author      Kion
 @Created     09/07/22
 """
-import copy
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -16,8 +14,7 @@ from model.contrastive.config import TransportOperatorConfig
 from model.manifold.l1_inference import infer_coefficients
 from model.manifold.transop import TransOp_expm
 from model.manifold.vi_encoder import VIEncoder
-from model.public.ntx_ent_loss import NTXentLoss
-from model.type import DistributionData, HeaderInput, HeaderOutput, ModelOutput
+from model.type import DistributionData, HeaderInput, HeaderOutput
 from torch.cuda.amp import autocast
 
 
@@ -161,6 +158,7 @@ class TransportOperatorHeader(nn.Module):
 
         # Splice input into sequence if enabled
         if self.transop_cfg.enable_splicing:
+            feat_dim = z0.shape[-1]
             z0 = (
                 torch.stack(torch.split(z0, self.transop_cfg.splice_dim, dim=-1))
                 .transpose(0, 1)
@@ -208,5 +206,12 @@ class TransportOperatorHeader(nn.Module):
                 ).squeeze(dim=-1)
                 * self.transop_cfg.latent_scale
             )
+
+        # Put all the outputs back together again if spliced
+        if self.transop_cfg.enable_splicing:
+            z0 = z0.reshape(-1, feat_dim)
+            z1 = z1.reshape(-1, feat_dim)
+            z1_hat = z1_hat.reshape(-1, feat_dim)
+            z1_use = z1_use.reshape(-1, feat_dim)
 
         return HeaderOutput(z0, z1, z1_hat, z1_use, distribution_data=distribution_data)
