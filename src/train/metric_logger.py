@@ -160,7 +160,7 @@ class MetricLogger:
                 model_output.prediction_0, model_output.prediction_1
             ).item()
             dist_bw_point_pairs = F.mse_loss(
-                model_output.prediction_0, model_output.prediction_1
+                model_output.projection_0, model_output.prediction_1
             ).item()
             failed_iters = (
                 self.model.contrastive_header.transop_header.failed_iters
