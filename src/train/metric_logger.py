@@ -159,6 +159,9 @@ class MetricLogger:
             transop_loss = F.mse_loss(
                 model_output.prediction_0, model_output.prediction_1
             ).item()
+            dist_bw_point_pairs = F.mse_loss(
+                model_output.prediction_0, model_output.prediction_1
+            ).item()
             failed_iters = (
                 self.model.contrastive_header.transop_header.failed_iters
                 / self.cfg.transop_log_freq
@@ -173,10 +176,12 @@ class MetricLogger:
                 "avg_coeff_mag": np.abs(c[np.abs(c) > 0]).mean(),
                 "avg_feat_norm": avg_feat_norm,
                 "transop_loss": transop_loss,
+                "dist_bw_point_pairs": dist_bw_point_pairs,
             }
             if self.cfg.enable_console_logging:
                 log.info(
                     f"[Transport Operator iter {curr_iter}]: transop loss: {transop_loss:.3E}"
+                    + f", dist bw point pairs: {dist_bw_point_pairs:.3E}"
                     + f", average transop mag: {psi_mag.mean():.3E}"
                     + f", total # operators used: {nz_tot}/{len(psi)}"
                     + f", avg # operators used: {total_nz.mean()}/{len(psi)}"

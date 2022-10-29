@@ -5,7 +5,7 @@ header_name: TransOp
 dictionary_size: 200
 lambda_prior: 0.04
 transop_weight_decay: 1.0e-4
-transop_lr: 1.0e-3
+transop_lr: 1.0e-2
 stable_operator_initialization: true
 detach_feature: false
 
