@@ -10,10 +10,12 @@ model_cfg:
     kl_loss_active: false
   header_cfg:
     enable_variational_inference: false
-    projection_type: Splicer
-    projection_out_dim: 32
+    projection_type: None
+    projection_out_dim: 64
+    enable_splicing: true
+    splice_dim: 64
     fista_num_iterations: 800
-    lambda_prior: 0.4
+    lambda_prior: 0.1
     transop_weight_decay: 1.0e-5
     transop_lr: 1.0e-3
 
@@ -26,4 +28,4 @@ trainer_cfg:
     scheduler: CosineAnnealingLR
   use_amp: false
 train_dataloader_cfg:
-  batch_size: 128
+  batch_size: 64

@@ -13,7 +13,7 @@ model_cfg:
     enable_nn_point_pair: true
     nn_memory_bank_size: 98304
     enable_splicing: true
-    splice_dim: 32
+    splice_dim: 64
     vi_cfg:
       per_iter_samples: 1
       total_samples: 1

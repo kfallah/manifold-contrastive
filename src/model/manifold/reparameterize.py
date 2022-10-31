@@ -73,7 +73,7 @@ def reparameterize(
 
     # We do this weird detaching pattern because in certain cases we want gradient to flow through lambda_
     # In the case where lambda_ is constant, this is the same as c_thresh.detach() in the final line.
-    c_thresh = soft_threshold(eps.detach() * warmup, lambda_ * warmup)
+    c_thresh = soft_threshold(eps.detach() * warmup, lambda_)
     non_zero = torch.nonzero(c_thresh, as_tuple=True)
     c_thresh[non_zero] = (warmup * shift[non_zero].detach()) + c_thresh[non_zero]
     c = c + c_thresh - c.detach()
@@ -133,6 +133,6 @@ def compute_kl(
         gamma_enc = gamma.Gamma(enc_gamma_a, enc_gamma_a / (enc_gamma_b + 1e-6))
         gamma_prior = gamma.Gamma(prior_gamma_a, prior_gamma_a / (prior_gamma_b + 1e-6))
         gamma_kl = torch.distributions.kl.kl_divergence(gamma_enc, gamma_prior).mean()
-        kl_loss += 0.1 * gamma_kl
+        kl_loss += gamma_kl
 
     return kl_loss
