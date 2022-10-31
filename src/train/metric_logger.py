@@ -210,6 +210,7 @@ class MetricLogger:
                         enc_gamma_b = model_output.distribution_data.encoder_params[
                             "gamma_b"
                         ]
+                        enc_lambda_ev = enc_gamma_a / enc_gamma_b
                         log.info(
                             "[Encoder Gamma]: "
                             + f"min gamma_a: {enc_gamma_a.abs().min():.3E}"
@@ -218,6 +219,7 @@ class MetricLogger:
                             + f", min gamma_b: {enc_gamma_b.abs().min():.3E}"
                             + f", max gamma_b: {enc_gamma_b.abs().max():.3E}"
                             + f", mean gamma_b: {enc_gamma_b.mean():.3E}"
+                            + f", mean lambda ev: {enc_lambda_ev.mean():.3E}"
                         )
                         if (
                             self.model.model_cfg.header_cfg.vi_cfg.prior_type
@@ -235,6 +237,7 @@ class MetricLogger:
                             prior_gamma_b = model_output.distribution_data.prior_params[
                                 "gamma_b"
                             ]
+                            prior_lambda_ev = prior_gamma_a / prior_gamma_b
                             log.info(
                                 f"[Prior params]: "
                                 + f"min scale: {prior_scale.abs().min():.3E}"
@@ -252,6 +255,7 @@ class MetricLogger:
                                 + f", min gamma_b: {prior_gamma_b.abs().min():.3E}"
                                 + f", max gamma_b: {prior_gamma_b.abs().max():.3E}"
                                 + f", mean gamma_b: {prior_gamma_b.mean():.3E}"
+                                + f", mean lambda ev: {prior_lambda_ev.mean():.3E}"
                             )
 
             # Generate transport operator plots

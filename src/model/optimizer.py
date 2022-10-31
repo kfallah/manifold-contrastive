@@ -30,7 +30,7 @@ def initialize_optimizer(
             model_params,
             lr=config.initial_lr,
             weight_decay=config.weight_decay,
-            betas=(0.8, 0.75),
+            # betas=(0.8, 0.999),
         )
     elif config.optimizer == "LARS":
         return LARS(

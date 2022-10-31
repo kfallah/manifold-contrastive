@@ -35,14 +35,11 @@ class VIEncoder(nn.Module):
     def initialize_encoder_params(self, input_size, feat_dim, dict_size):
         if self.vi_cfg.encoder_type == "MLP":
             self.enc_feat_extract = nn.Sequential(
-                nn.Linear(input_size, 2 * input_size),
+                nn.Linear(2 * input_size, 4 * feat_dim),
                 # nn.BatchNorm1d(2 * input_size),
                 nn.ReLU(),
-                nn.Linear(2 * input_size, feat_dim // 2),
-            )
-            self.enc_aggregate = nn.Sequential(
-                nn.Linear(feat_dim, 2 * feat_dim),
-                # nn.BatchNorm1d(2 * feat_dim),
+                nn.Linear(4 * feat_dim, 2 * feat_dim),
+                # nn.BatchNorm1d(2 * input_size),
                 nn.ReLU(),
                 nn.Linear(2 * feat_dim, feat_dim),
             )
@@ -62,7 +59,7 @@ class VIEncoder(nn.Module):
             self.vi_cfg.distribution == "Laplacian+Gamma"
             or self.vi_cfg.distribution == "Gaussian+Gamma"
         ):
-            self.enc_gamma_a = nn.Linear(feat_dim, dict_size)
+            # self.enc_gamma_a = nn.Linear(feat_dim, dict_size)
             self.enc_gamma_b = nn.Linear(feat_dim, dict_size)
 
     def initialize_prior_params(self, input_size, feat_dim, dict_size):
@@ -82,18 +79,18 @@ class VIEncoder(nn.Module):
             self.vi_cfg.distribution == "Laplacian+Gamma"
             or self.vi_cfg.distribution == "Gaussian+Gamma"
         ):
-            self.prior_params["gamma_a"] = 2.0
+            self.prior_params["gamma_a"] = 1.5
             self.prior_params["gamma_b"] = self.lambda_prior
 
         if self.vi_cfg.prior_type == "Learned":
             self.prior_feat_extract = nn.Sequential(
-                nn.Linear(input_size, 2 * input_size),
+                nn.Linear(input_size, 4 * feat_dim),
                 # nn.BatchNorm1d(2 * input_size),
                 nn.ReLU(),
-                nn.Linear(2 * input_size, feat_dim),
-                # nn.BatchNorm1d(feat_dim),
+                nn.Linear(4 * feat_dim, 2 * feat_dim),
+                # nn.BatchNorm1d(2 * input_size),
                 nn.ReLU(),
-                nn.Linear(feat_dim, feat_dim),
+                nn.Linear(2 * feat_dim, feat_dim),
             )
 
             if (
@@ -109,7 +106,7 @@ class VIEncoder(nn.Module):
                 self.vi_cfg.distribution == "Laplacian+Gamma"
                 or self.vi_cfg.distribution == "Gaussian+Gamma"
             ):
-                self.prior_gamma_a = nn.Linear(feat_dim, dict_size)
+                # self.prior_gamma_a = nn.Linear(feat_dim, dict_size)
                 self.prior_gamma_b = nn.Linear(feat_dim, dict_size)
 
     def get_distribution_params(
@@ -117,8 +114,7 @@ class VIEncoder(nn.Module):
     ) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
         encoder_params = {}
         if self.vi_cfg.encoder_type == "MLP":
-            z0, z1 = self.enc_feat_extract(x0), self.enc_feat_extract(x1)
-            z_enc = self.enc_aggregate(torch.cat((z0, z1), dim=1))
+            z_enc = self.enc_feat_extract(torch.cat((x0, x1), dim=1))
         else:
             raise NotImplementedError()
 
@@ -135,8 +131,9 @@ class VIEncoder(nn.Module):
             self.vi_cfg.distribution == "Laplacian+Gamma"
             or self.vi_cfg.distribution == "Gaussian+Gamma"
         ):
-            gamma_a = self.enc_gamma_a(z_enc).exp()
+            # gamma_a = self.enc_gamma_a(z_enc).exp()
             gamma_b = self.enc_gamma_b(z_enc).exp()
+            gamma_a = gamma_b * self.lambda_prior
             encoder_params["gamma_a"] = gamma_a
             encoder_params["gamma_b"] = gamma_b
 
@@ -181,8 +178,9 @@ class VIEncoder(nn.Module):
                 self.vi_cfg.distribution == "Laplacian+Gamma"
                 or self.vi_cfg.distribution == "Gaussian+Gamma"
             ):
-                prior_gamma_a = self.prior_gamma_a(z_prior).exp()
+                # prior_gamma_a = self.prior_gamma_a(z_prior).exp()
                 prior_gamma_b = self.prior_gamma_b(z_prior).exp()
+                prior_gamma_a = prior_gamma_b * self.lambda_prior
                 prior_params["gamma_a"] = prior_gamma_a
                 prior_params["gamma_b"] = prior_gamma_b
         else:
@@ -256,7 +254,7 @@ class VIEncoder(nn.Module):
 
     def forward(self, x0: torch.Tensor, x1: torch.Tensor, transop: nn.Module):
         if self.training:
-            self.warmup += 5e-4
+            self.warmup += 2e-4
             if self.warmup > 1.0:
                 self.warmup = 1.0
 
