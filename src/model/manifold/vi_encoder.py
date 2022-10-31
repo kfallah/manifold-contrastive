@@ -132,7 +132,7 @@ class VIEncoder(nn.Module):
             or self.vi_cfg.distribution == "Gaussian+Gamma"
         ):
             # gamma_a = self.enc_gamma_a(z_enc).exp()
-            gamma_b = self.enc_gamma_b(z_enc).exp()
+            gamma_b = self.enc_gamma_b(z_enc).exp().clamp(1e-4, 1e4)
             gamma_a = gamma_b * self.lambda_prior
             encoder_params["gamma_a"] = gamma_a
             encoder_params["gamma_b"] = gamma_b
