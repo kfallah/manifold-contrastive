@@ -23,6 +23,7 @@ class Loss(nn.Module):
         super(Loss, self).__init__()
         self.model_cfg = model_cfg
         self.loss_cfg = model_cfg.loss_cfg
+        self.kl_warmup = 0
 
         self.criterion = {}
         if self.loss_cfg.ntxent_loss_active:
@@ -34,8 +35,19 @@ class Loss(nn.Module):
                 detach_off_logit=self.loss_cfg.ntxent_detach_off_logit,
             )
 
+    def get_kl_weight(self, curr_iter: int):
+        if self.loss_cfg.kl_weight_warmup == "None":
+            return self.loss_cfg.kl_loss_weight
+        elif self.loss_cfg.kl_weight_warmup == "Linear":
+            self.kl_warmup += 1e-5
+            if self.kl_warmup > 1.0:
+                self.kl_warmup = 1.0
+            return self.loss_cfg.kl_loss_weight * self.kl_warmup
+        else:
+            raise NotImplementedError()
+
     def compute_loss(
-        self, model_output: ModelOutput, args_dict
+        self, curr_iter: int, model_output: ModelOutput, args_dict
     ) -> Tuple[Dict[str, float], float]:
         loss_meta = {}
         total_loss = 0.0
@@ -65,7 +77,8 @@ class Loss(nn.Module):
                 model_output.distribution_data.encoder_params,
                 model_output.distribution_data.prior_params,
             )
-            total_loss += self.loss_cfg.kl_loss_weight * kl_loss
+            kl_weight = self.get_kl_weight(curr_iter)
+            total_loss += kl_weight * kl_loss
             loss_meta["kl_loss"] = kl_loss.item()
         if self.loss_cfg.hyperkl_loss_active:
             assert model_output.distribution_data is not None

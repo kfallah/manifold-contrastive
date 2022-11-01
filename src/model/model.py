@@ -97,14 +97,16 @@ class Model(nn.Module):
 
         return ModelOutput(*header_input, *header_out)
 
-    def compute_loss(self, model_output: ModelOutput) -> Tuple[Dict[str, float], float]:
+    def compute_loss(
+        self, curr_idx: int, model_output: ModelOutput
+    ) -> Tuple[Dict[str, float], float]:
         args_dict = {}
         if (
             self.model_cfg.loss_cfg.real_eig_reg_active
             or self.model_cfg.loss_cfg.cyclic_reg_active
         ):
             args_dict["psi"] = self.contrastive_header.transop_header.transop.psi
-        return self.loss.compute_loss(model_output, args_dict)
+        return self.loss.compute_loss(curr_idx, model_output, args_dict)
 
     def update_momentum_network(self, model_out: ModelOutput) -> None:
         if self.model_cfg.enable_backbone_momentum:
