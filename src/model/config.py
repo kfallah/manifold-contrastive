@@ -22,6 +22,7 @@ class LossConfig:
     ntxent_symmetric: bool = False
     kl_loss_active: bool = False
     kl_loss_weight: float = 0.1
+    kl_weight_warmup: str = "None"
     hyperkl_loss_active: bool = False
     hyperkl_loss_weight: float = 0.1
     real_eig_reg_active: bool = False

@@ -20,6 +20,7 @@ model_cfg:
     ntxent_detach_off_logit: false
     kl_loss_active: true
     kl_loss_weight: 1.0e-3
+    kl_weight_warmup: None
     transop_loss_active: true
     transop_loss_weight: 1.0
 

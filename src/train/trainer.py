@@ -73,7 +73,9 @@ class Trainer(nn.Module):
             with autocast(enabled=self.trainer_cfg.use_amp):
                 # Send inputs through model
                 model_output = self.model(x_gpu, x_idx)
-                loss_metadata, total_loss = self.get_model().compute_loss(model_output)
+                loss_metadata, total_loss = self.get_model().compute_loss(
+                    idx + (epoch * len(train_dataloader)), model_output
+                )
 
             # Backpropagate loss
             self.optimizer.zero_grad()

@@ -63,7 +63,7 @@ def reparameterize(
             distribution_params["gamma_a"],
             distribution_params["gamma_b"],
         )
-        gamma_distr = gamma.Gamma(gamma_a, gamma_a / (gamma_b + 1e-6))
+        gamma_distr = gamma.Gamma(gamma_a, gamma_b)
         if len(noise.shape) >= 3:
             lambda_ = gamma_distr.rsample([len(noise)])
         else:
@@ -130,9 +130,9 @@ def compute_kl(
         assert "gamma_a" in prior_params.keys() and "gamma_b" in prior_params.keys()
         enc_gamma_a, enc_gamma_b = encoder_params["gamma_a"], encoder_params["gamma_b"]
         prior_gamma_a, prior_gamma_b = prior_params["gamma_a"], prior_params["gamma_b"]
-        gamma_enc = gamma.Gamma(enc_gamma_a, enc_gamma_a / (enc_gamma_b + 1e-6))
-        gamma_prior = gamma.Gamma(prior_gamma_a, prior_gamma_a / (prior_gamma_b + 1e-6))
+        gamma_enc = gamma.Gamma(enc_gamma_a, enc_gamma_b)
+        gamma_prior = gamma.Gamma(prior_gamma_a, prior_gamma_b)
         gamma_kl = torch.distributions.kl.kl_divergence(gamma_enc, gamma_prior).mean()
-        kl_loss += gamma_kl
+        kl_loss += 0.1 * gamma_kl
 
     return kl_loss

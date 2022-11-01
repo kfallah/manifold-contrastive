@@ -79,8 +79,8 @@ class VIEncoder(nn.Module):
             self.vi_cfg.distribution == "Laplacian+Gamma"
             or self.vi_cfg.distribution == "Gaussian+Gamma"
         ):
-            self.prior_params["gamma_a"] = 1.5
-            self.prior_params["gamma_b"] = self.lambda_prior
+            self.prior_params["gamma_a"] = 2.0
+            self.prior_params["gamma_b"] = 2.0 / self.lambda_prior
 
         if self.vi_cfg.prior_type == "Learned":
             self.prior_feat_extract = nn.Sequential(
@@ -124,7 +124,7 @@ class VIEncoder(nn.Module):
             or self.vi_cfg.distribution == "Gaussian"
             or self.vi_cfg.distribution == "Gaussian+Gamma"
         ):
-            encoder_params["logscale"] = self.enc_scale(z_enc)
+            encoder_params["logscale"] = self.enc_scale(z_enc).clamp(max=1e4)
             encoder_params["shift"] = self.enc_shift(z_enc)
 
         if (
@@ -132,8 +132,8 @@ class VIEncoder(nn.Module):
             or self.vi_cfg.distribution == "Gaussian+Gamma"
         ):
             # gamma_a = self.enc_gamma_a(z_enc).exp()
-            gamma_b = self.enc_gamma_b(z_enc).exp().clamp(1e-4, 1e4)
-            gamma_a = gamma_b * self.lambda_prior
+            gamma_b = self.enc_gamma_b(z_enc).exp().clamp(max=1e4)
+            gamma_a = 2 * torch.ones_like(gamma_b)
             encoder_params["gamma_a"] = gamma_a
             encoder_params["gamma_b"] = gamma_b
 
@@ -180,7 +180,7 @@ class VIEncoder(nn.Module):
             ):
                 # prior_gamma_a = self.prior_gamma_a(z_prior).exp()
                 prior_gamma_b = self.prior_gamma_b(z_prior).exp()
-                prior_gamma_a = prior_gamma_b * self.lambda_prior
+                prior_gamma_a = torch.ones_like(prior_gamma_b) * 2.0
                 prior_params["gamma_a"] = prior_gamma_a
                 prior_params["gamma_b"] = prior_gamma_b
         else:
