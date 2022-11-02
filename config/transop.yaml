@@ -12,17 +12,17 @@ model_cfg:
   backbone_cfg:
     pretrained: false
     load_backbone: nnclr_mlp.pt
-    freeze_backbone: true
+    freeze_backbone: false
   loss_cfg:
-    ntxent_loss_active: false
-    ntxent_normalize: false
-    ntxent_logit: mse
+    ntxent_loss_active: true
+    ntxent_normalize: true
+    ntxent_logit: cos
     ntxent_detach_off_logit: false
     kl_loss_active: true
     kl_loss_weight: 1.0e-3
     kl_weight_warmup: None
     transop_loss_active: true
-    transop_loss_weight: 1.0
+    transop_loss_weight: 0.1
 
 trainer_cfg:
   optimizer_cfg:
@@ -37,7 +37,7 @@ trainer_cfg:
   use_amp: false
 train_dataloader_cfg:
   batch_size: 256
-devices: [0, 1]
+devices: [0]
 
 evaluator_cfg:
   knn_eval_cfg:

@@ -22,7 +22,7 @@ def initialize_optimizer(
             model_params,
             lr=config.initial_lr,
             weight_decay=config.weight_decay,
-            momentum=0.8 if config.enable_nesterov else 0.0,
+            momentum=0.9 if config.enable_nesterov else 0.0,
             nesterov=config.enable_nesterov,
         )
     elif config.optimizer == "Adam":

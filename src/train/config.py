@@ -51,5 +51,6 @@ class TrainerConfig:
     scheduler_cfg: SchedulerConfig = SchedulerConfig()
     metric_logger_cfg: MetricLoggerConfig = MetricLoggerConfig()
     num_epochs: int = 300
+    grad_accumulation_iters: int = 1
     save_interval: int = 50
     use_amp: bool = False

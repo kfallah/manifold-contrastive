@@ -9,7 +9,7 @@ class TransOp_expm(nn.Module):
         if stable_init:
             self.psi = nn.Parameter(torch.zeros((M, N, N)), requires_grad=True)
             for i in range(0, self.psi.shape[1], 2):
-                real = (torch.rand(len(self.psi)) - 0.5) * 0.1
+                real = (torch.rand(len(self.psi)) - 0.5) * 0.01
                 imag = (torch.rand(len(self.psi)) - 0.5) * 5
                 self.psi.data[:, i, i] = real
                 self.psi.data[:, i + 1, i] = imag
