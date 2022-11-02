@@ -9,11 +9,11 @@ model_cfg:
   loss_cfg:
     kl_loss_weight: 1.0e-3
   header_cfg:
-    lambda_prior: 0.06
+    lambda_prior: 0.05
     enable_nn_point_pair: true
     nn_memory_bank_size: 98304
     enable_splicing: true
-    splice_dim: 64
+    splice_dim: 32
     vi_cfg:
       per_iter_samples: 1
       total_samples: 1

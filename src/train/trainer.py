@@ -78,14 +78,15 @@ class Trainer(nn.Module):
                 )
 
             # Backpropagate loss
-            self.optimizer.zero_grad()
-            self.scaler.scale(total_loss).backward()
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
-            self.scheduler.step()
+            self.scaler.scale(total_loss / self.trainer_cfg.grad_accumulation_iters).backward()
+            if idx % self.trainer_cfg.grad_accumulation_iters == 0:
+                self.scaler.step(self.optimizer)
+                self.optimizer.zero_grad()
+                self.scaler.update()
+                self.scheduler.step()
 
-            # Update momentum networks if they are enabled
-            self.get_model().update_momentum_network(model_output)
+                # Update momentum networks if they are enabled
+                self.get_model().update_momentum_network(model_output)
 
             loss_metadata["iter_time"] = time.time() - pre_time
             self.metric_logger.log_metrics(

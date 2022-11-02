@@ -13,13 +13,17 @@ model_cfg:
     projection_type: None
     projection_out_dim: 64
     enable_splicing: true
-    splice_dim: 64
+    splice_dim: 32
     fista_num_iterations: 800
     lambda_prior: 0.1
-    transop_weight_decay: 1.0e-5
+    transop_weight_decay: 1.0e-4
     transop_lr: 1.0e-3
 
 trainer_cfg:
+  optimizer_cfg:
+    optimizer: SGD
+    initial_lr: 0.0003
+    enable_nesterov: true
   save_interval: 5
   metric_logger_cfg:
     loss_log_freq: 50

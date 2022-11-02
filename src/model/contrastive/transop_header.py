@@ -18,24 +18,6 @@ from model.type import DistributionData, HeaderInput, HeaderOutput
 from torch.cuda.amp import autocast
 
 
-class Splicer(nn.Module):
-    def __init__(
-        self,
-        backbone_dim: int,
-        splice_dim: int,
-    ):
-        super(Splicer, self).__init__()
-        self.backbone_dim = backbone_dim
-        self.splice_dim = splice_dim
-
-    def forward(self, x):
-        return (
-            torch.stack(torch.split(x, self.splice_dim, dim=-1))
-            .transpose(0, 1)
-            .reshape(-1, self.splice_dim)
-        )
-
-
 class TransportOperatorHeader(nn.Module):
     def __init__(
         self,
