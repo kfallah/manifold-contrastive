@@ -21,6 +21,7 @@ model_cfg:
       normalize_coefficients: false
       normalize_mag: 1.0
 train_dataloader_cfg:
-  batch_size: 256
+  batch_size: 512
 trainer_cfg:
   save_interval: 20
+  grad_accumulation_iters: 4

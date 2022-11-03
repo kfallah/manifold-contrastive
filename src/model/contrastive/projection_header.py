@@ -99,4 +99,4 @@ class ProjectionHeader(nn.Module):
             if pred_1 is not None:
                 pred_1 = pred_1[..., : self.proj_cfg.direct_proj_num_dim]
 
-        return HeaderOutput(header_input.feature_0, header_input.feature_1, pred_0, pred_1, distribution_data=None)
+        return HeaderOutput(pred_0, pred_1, pred_0, pred_1, distribution_data=None)
