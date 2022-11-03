@@ -171,8 +171,8 @@ class TransportOperatorHeader(nn.Module):
             if self.transop_cfg.vi_cfg.encode_features:
                 # Use the features to estimate coefficients
                 distribution_data = self.coefficient_encoder(
-                    z0 / self.transop_cfg.latent_scale,
-                    z1_use / self.transop_cfg.latent_scale,
+                    z0.detach() / self.transop_cfg.latent_scale,
+                    z1_use.detach() / self.transop_cfg.latent_scale,
                     self.transop,
                 )
             else:
@@ -196,4 +196,4 @@ class TransportOperatorHeader(nn.Module):
             z1_hat = z1_hat.reshape(-1, feat_dim)
             z1_use = z1_use.reshape(-1, feat_dim)
 
-        return HeaderOutput(z0, z1, z1_hat, z1_use, distribution_data=distribution_data)
+        return HeaderOutput(z0, z1_use, z1_hat, z1_use, distribution_data=distribution_data)

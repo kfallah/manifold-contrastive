@@ -36,11 +36,13 @@ class VIEncoder(nn.Module):
         if self.vi_cfg.encoder_type == "MLP":
             self.enc_feat_extract = nn.Sequential(
                 nn.Linear(2 * input_size, 4 * feat_dim),
+                nn.LayerNorm(4 * feat_dim),
                 # nn.BatchNorm1d(2 * input_size),
-                nn.ReLU(),
+                nn.GELU(),
                 nn.Linear(4 * feat_dim, 2 * feat_dim),
+                nn.LayerNorm(2 * feat_dim),
                 # nn.BatchNorm1d(2 * input_size),
-                nn.ReLU(),
+                nn.GELU(),
                 nn.Linear(2 * feat_dim, feat_dim),
             )
         else:
@@ -85,11 +87,13 @@ class VIEncoder(nn.Module):
         if self.vi_cfg.prior_type == "Learned":
             self.prior_feat_extract = nn.Sequential(
                 nn.Linear(input_size, 4 * feat_dim),
+                nn.LayerNorm(4 * feat_dim),
                 # nn.BatchNorm1d(2 * input_size),
-                nn.ReLU(),
+                nn.GELU(),
                 nn.Linear(4 * feat_dim, 2 * feat_dim),
+                nn.LayerNorm(2 * feat_dim),
                 # nn.BatchNorm1d(2 * input_size),
-                nn.ReLU(),
+                nn.GELU(),
                 nn.Linear(2 * feat_dim, feat_dim),
             )
 
@@ -124,11 +128,11 @@ class VIEncoder(nn.Module):
             or self.vi_cfg.distribution == "Gaussian"
             or self.vi_cfg.distribution == "Gaussian+Gamma"
         ):
-            encoder_params["logscale"] = self.enc_scale(z_enc).clamp(max=1e4)
+            encoder_params["logscale"] = self.enc_scale(z_enc).clamp(max=2)
             encoder_params["logscale"] += torch.log(
                 torch.ones_like(encoder_params["logscale"]) * self.vi_cfg.scale_prior
             )
-            encoder_params["shift"] = self.enc_shift(z_enc)
+            encoder_params["shift"] = self.enc_shift(z_enc).clamp(min=-1, max=1)
 
         if (
             self.vi_cfg.distribution == "Laplacian+Gamma"
@@ -176,11 +180,11 @@ class VIEncoder(nn.Module):
                 or self.vi_cfg.distribution == "Gaussian"
                 or self.vi_cfg.distribution == "Gaussian+Gamma"
             ):
-                prior_params["logscale"] = self.prior_scale(z_prior)
+                prior_params["logscale"] = self.prior_scale(z_prior).clamp(max=2)
                 prior_params["logscale"] += torch.log(
                     torch.ones_like(prior_params["logscale"]) * self.vi_cfg.scale_prior
                 )
-                prior_params["shift"] = self.prior_shift(z_prior)
+                prior_params["shift"] = self.prior_shift(z_prior).clamp(min=-1, max=1)
 
             if (
                 self.vi_cfg.distribution == "Laplacian+Gamma"

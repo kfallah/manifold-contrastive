@@ -22,7 +22,7 @@ model_cfg:
     kl_loss_weight: 1.0e-3
     kl_weight_warmup: None
     transop_loss_active: true
-    transop_loss_weight: 0.1
+    transop_loss_weight: 10.0
 
 trainer_cfg:
   optimizer_cfg:

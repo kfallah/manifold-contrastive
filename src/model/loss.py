@@ -58,10 +58,10 @@ class Loss(nn.Module):
             if self.loss_cfg.ntxent_symmetric:
                 ntxent_loss = 0.5 * (
                     self.criterion["ntxent_loss"](
-                        model_output.feature_0, model_output.prediction_1
+                        model_output.projection_0, model_output.prediction_1
                     )
                     + self.criterion["ntxent_loss"](
-                        model_output.feature_1, model_output.prediction_0
+                        model_output.projection_1, model_output.prediction_0
                     )
                 )
             else:
