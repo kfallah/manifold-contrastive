@@ -134,23 +134,15 @@ class TransportOperatorHeader(nn.Module):
 
         # either use the nearnest neighbor bank or the projected feature to make the prediction
         if self.transop_cfg.enable_nn_point_pair:
-            z1_use = self.nn_memory_bank(z1.detach(), update=True)
+            z1_use = self.nn_memory_bank(z1.detach(), update=True).detach()
         else:
             z1_use = z1
 
         # Splice input into sequence if enabled
         if self.transop_cfg.enable_splicing:
             feat_dim = z0.shape[-1]
-            z0 = (
-                torch.stack(torch.split(z0, self.transop_cfg.splice_dim, dim=-1))
-                .transpose(0, 1)
-                .reshape(-1, self.transop_cfg.splice_dim)
-            )
-            z1_use = (
-                torch.stack(torch.split(z1_use, self.transop_cfg.splice_dim, dim=-1))
-                .transpose(0, 1)
-                .reshape(-1, self.transop_cfg.splice_dim)
-            )
+            z0 = TransportOperatorHeader.splice_input(z0, self.transop_cfg.splice_dim)
+            z1_use = TransportOperatorHeader.splice_input(z1_use, self.transop_cfg.splice_dim)
 
         # Infer coefficients for point pair
         if self.coefficient_encoder is None:
@@ -197,3 +189,11 @@ class TransportOperatorHeader(nn.Module):
             z1_use = z1_use.reshape(-1, feat_dim)
 
         return HeaderOutput(z0, z1_use, z1_hat, z1_use, distribution_data=distribution_data)
+
+    @staticmethod
+    def splice_input(x: torch.Tensor, splice_dim: int) -> torch.Tensor:
+        return (
+            torch.stack(torch.split(x, splice_dim, dim=-1))
+            .transpose(0, 1)
+            .reshape(-1, splice_dim)
+        )

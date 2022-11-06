@@ -1,0 +1,13 @@
+defaults:
+  - transop_nn
+  - dataloader/cifar10_ultraweak@train_dataloader_cfg
+  - _self_
+
+exp_name: Gaussian_kl1e-3
+
+model_cfg:
+  header_cfg:
+    lambda_prior: 0.2
+    vi_cfg:
+      distribution: Gaussian
+      prior_type: Fixed
