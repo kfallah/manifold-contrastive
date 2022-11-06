@@ -18,6 +18,7 @@ model_cfg:
     ntxent_normalize: true
     ntxent_logit: cos
     ntxent_detach_off_logit: false
+    ntxent_symmetric: true
     kl_loss_active: true
     kl_loss_weight: 1.0e-3
     kl_weight_warmup: None

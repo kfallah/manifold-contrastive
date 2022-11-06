@@ -13,6 +13,7 @@ import torch.nn.functional as F
 from torch.cuda.amp import autocast
 
 from model.config import ModelConfig
+from model.contrastive.transop_header import TransportOperatorHeader
 from model.manifold.reparameterize import compute_kl
 from model.public.ntx_ent_loss import NTXentLoss
 from model.type import ModelOutput
@@ -61,7 +62,7 @@ class Loss(nn.Module):
                         model_output.projection_0, model_output.prediction_1
                     )
                     + self.criterion["ntxent_loss"](
-                        model_output.projection_1, model_output.prediction_0
+                        model_output.prediction_0, model_output.projection_1
                     )
                 )
             else:
@@ -95,10 +96,14 @@ class Loss(nn.Module):
                 and model_output.prediction_1 is not None
             )
             z1_hat, z1 = model_output.prediction_0, model_output.prediction_1
-
-            transop_loss = F.mse_loss(z1_hat, z1)
-            if self.loss_cfg.transop_loss_weight > 0:
-                total_loss += self.loss_cfg.transop_loss_weight * transop_loss
+            if self.model_cfg.header_cfg.enable_splicing:
+                z1_hat = TransportOperatorHeader.splice_input(z1_hat, self.model_cfg.header_cfg.splice_dim)
+                z1 = TransportOperatorHeader.splice_input(z1, self.model_cfg.header_cfg.splice_dim)
+            c = model_output.distribution_data.samples
+            # Only take loss over values where transport significantly occured to prevent feature collapse
+            weight = ~(c.abs() < 1e-2).all(dim=-1)
+            transop_loss = (weight.unsqueeze(-1) * F.mse_loss(z1_hat, z1, reduction='none')).mean()
+            total_loss += self.loss_cfg.transop_loss_weight * transop_loss
             loss_meta["transop_loss"] = transop_loss.item()
         if self.loss_cfg.real_eig_reg_active:
             assert "psi" in args_dict.keys()
