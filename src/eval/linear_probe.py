@@ -48,13 +48,13 @@ class LinearProbeEval(EvalRunner):
     def train_epoch(self, train_dataloader: torch.utils.data.DataLoader, device: torch.device) -> float:
         epoch_loss = []
         self.model.train()
-        for _, batch in enumerate(train_dataloader):
+        for idx, batch in enumerate(train_dataloader):
             x, y, batch_idx = batch
             x, y = x.unsqueeze(1).to(device), y.to(device)
 
             with autocast(enabled=self.get_config().use_amp):
                 # Send inputs through model
-                model_out = self.model(x, batch_idx)
+                model_out = self.model(x, batch_idx, idx)
                 y_logit = self.linear_head(model_out.feature_0).squeeze(1)
                 loss = F.cross_entropy(y_logit, y)
 

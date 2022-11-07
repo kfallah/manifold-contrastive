@@ -114,7 +114,10 @@ class TransportOperatorHeader(nn.Module):
         distribution_data = None
 
         # Detach the predictions in the case where we dont want gradient going to the backbone
-        if self.transop_cfg.detach_feature:
+        # or when we do alternating minimization.
+        if ((self.transop_cfg.enable_alternating_min and 
+            (header_input.curr_iter // self.transop_cfg.alternating_min_step) % 2 == 0) or
+            self.transop_cfg.detach_feature):
             z0, z1 = z0.detach(), z1.detach()
 
         # either use the nearnest neighbor bank or the projected feature to make the prediction
@@ -157,11 +160,15 @@ class TransportOperatorHeader(nn.Module):
                 distribution_data = self.coefficient_encoder(x0, x1, self.transop)
             c = distribution_data.samples
 
+        transop_grad = not (self.transop_cfg.enable_alternating_min and 
+            (header_input.curr_iter // self.transop_cfg.alternating_min_step) % 2 != 0)
         # Matrix exponential not supported with float16
         with autocast(enabled=False):
             z1_hat = (
                 self.transop(
-                    z0.float().unsqueeze(-1) / self.transop_cfg.latent_scale, c
+                    z0.float().unsqueeze(-1) / self.transop_cfg.latent_scale, 
+                    c, 
+                    transop_grad=transop_grad
                 ).squeeze(dim=-1)
                 * self.transop_cfg.latent_scale
             )

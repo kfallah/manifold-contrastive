@@ -22,11 +22,15 @@ class TransOp_expm(nn.Module):
         self.M = M
         self.N = N
 
-    def forward(self, x, c):
-        if len(c.shape) == 2:
-            T = torch.einsum("bm,mpk->bpk", c, self.psi)
+    def forward(self, x, c, transop_grad=True):
+        if transop_grad:
+            psi_use = self.psi
         else:
-            T = torch.einsum("sbm,mpk->sbpk", c, self.psi)
+            psi_use = self.psi.detach()
+        if len(c.shape) == 2:
+            T = torch.einsum("bm,mpk->bpk", c, psi_use)
+        else:
+            T = torch.einsum("sbm,mpk->sbpk", c, psi_use)
         out = torch.matrix_exp(T) @ x
         return out
 

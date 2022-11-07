@@ -7,7 +7,8 @@ exp_name: Gaussian_kl1e-3
 
 model_cfg:
   header_cfg:
-    lambda_prior: 0.2
+    lambda_prior: 0.04
     vi_cfg:
+      scale_prior: 0.001
       distribution: Gaussian
       prior_type: Fixed

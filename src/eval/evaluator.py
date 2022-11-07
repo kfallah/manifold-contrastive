@@ -59,7 +59,7 @@ class Evaluator(nn.Module):
 
         checkpoint_metric = 0.0
         for eval_runner in self.eval_runners:
-            if epoch % eval_runner.get_eval_freq() == 0 or last_epoch:
+            if epoch > 0 and (epoch % eval_runner.get_eval_freq() == 0 or last_epoch):
                 metric_metadata, key_metric_value = eval_runner.run_eval(
                     train_eval_input=train_eval_input,
                     val_eval_input=val_eval_input,
