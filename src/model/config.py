@@ -27,8 +27,6 @@ class LossConfig:
     hyperkl_loss_weight: float = 0.1
     real_eig_reg_active: bool = False
     real_eig_reg_weight: float = 1e-4
-    cyclic_reg_active: bool = False
-    cyclic_reg_weight: float = 1e-4
     transop_loss_active: bool = False
     transop_loss_weight: float = 1.0
     memory_bank_size: int = 0

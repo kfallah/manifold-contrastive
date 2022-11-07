@@ -85,18 +85,16 @@ class ProjectionHeader(nn.Module):
         update_momentum(self.projector, self.momentum_projector, momentum_rate)
 
     def forward(self, header_input: HeaderInput) -> HeaderOutput:
-        pred_0 = self.projector(header_input.feature_0)
-        pred_1 = None
-        if header_input.feature_1 is not None:
-            if self.enable_momentum:
-                pred_1 = self.momentum_projector(header_input.feature_1)
-            else:
-                pred_1 = self.projector(header_input.feature_1)
+        header_out = {}
+        proj_0 = self.projector(header_input.feature_0)
+        proj_1 = self.projector(header_input.feature_1)
 
         # For DirectCLR only use a subset of the features for prediction
         if self.proj_cfg.projection_type == "Direct":
-            pred_0 = pred_0[..., : self.proj_cfg.direct_proj_num_dim]
-            if pred_1 is not None:
-                pred_1 = pred_1[..., : self.proj_cfg.direct_proj_num_dim]
+            proj_0 = proj_0[..., : self.proj_cfg.direct_proj_num_dim]
+            proj_1 = proj_1[..., : self.proj_cfg.direct_proj_num_dim]
 
-        return HeaderOutput(pred_0, pred_1, pred_0, pred_1, distribution_data=None)
+        header_out['proj_00'] = proj_0
+        header_out['proj_01'] = proj_1
+
+        return HeaderOutput(header_out, None)
