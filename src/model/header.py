@@ -33,7 +33,7 @@ class ContrastiveHeader(nn.Module):
         if header_cfg.header_name == "SimCLR" or header_cfg.header_name == "MoCo":
             self.projection_header = ProjectionHeader(header_cfg, backbone_feature_dim, enable_momentum)
         elif header_cfg.header_name == "TransOp":
-            self.transop_header = TransportOperatorHeader(header_cfg, loss_cfg, backbone_feature_dim, enable_momentum)
+            self.transop_header = TransportOperatorHeader(header_cfg, backbone_feature_dim)
         elif header_cfg.header_name == "NNCLR":
             self.projection_prediction_header = ProjectionPredictionHeader(header_cfg, backbone_feature_dim)
         else:

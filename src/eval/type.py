@@ -25,8 +25,6 @@ class EvaluationInput(NamedTuple):
     labels: torch.Tensor
     # Encoded features from backbone for the val dataloader [N x D] (expected on CPU)
     feature_list: torch.Tensor
-    # Prediction from the model header for the val dataloader [N x D] (expected on CPU)
-    prediction_list: torch.Tensor
 
 
 class EvalRunner:

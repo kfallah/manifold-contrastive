@@ -22,13 +22,10 @@ class TransportOperatorHeader(nn.Module):
     def __init__(
         self,
         transop_cfg: TransportOperatorConfig,
-        loss_cfg: LossConfig,
         backbone_feature_dim: int,
-        enable_momentum: bool,
     ):
         super(TransportOperatorHeader, self).__init__()
         self.transop_cfg = transop_cfg
-        self.failed_iters = 0
 
         if self.transop_cfg.projection_type == "None":
             self.projector = nn.Identity()
@@ -111,26 +108,14 @@ class TransportOperatorHeader(nn.Module):
         return param_list
 
     def forward(self, header_input: HeaderInput) -> HeaderOutput:
+        header_out = {}
         x0, x1 = header_input.x_0, header_input.x_1
-        feat_0, feat_1 = header_input.feature_0, header_input.feature_1
+        z0, z1 = header_input.feature_0, header_input.feature_1
         distribution_data = None
-
-        # In the case where only a single point pair is provided
-        if feat_1 is None:
-            return HeaderOutput(
-                feat_0,
-                feat_1,
-                feat_0,
-                feat_1,
-                distribution_data,
-            )
 
         # Detach the predictions in the case where we dont want gradient going to the backbone
         if self.transop_cfg.detach_feature:
-            feat_0, feat_1 = feat_0.detach(), feat_1.detach()
-
-        # Project both features
-        z0, z1 = self.projector(feat_0), self.projector(feat_1)
+            z0, z1 = z0.detach(), z1.detach()
 
         # either use the nearnest neighbor bank or the projected feature to make the prediction
         if self.transop_cfg.enable_nn_point_pair:
@@ -188,7 +173,20 @@ class TransportOperatorHeader(nn.Module):
             z1_hat = z1_hat.reshape(-1, feat_dim)
             z1_use = z1_use.reshape(-1, feat_dim)
 
-        return HeaderOutput(z0, z1_use, z1_hat, z1_use, distribution_data=distribution_data)
+        # Project features before applying InfoNCE objective
+        z0_proj = self.projector(z0)
+        z1_proj = self.projector(z1_use)
+        z1_hat_proj = self.projector(z1_hat)
+
+        header_out['proj_00'] = z0_proj
+        header_out['proj_01'] = z1_proj
+        header_out['proj_10'] = z1_proj
+        header_out['proj_11'] = z1_hat_proj
+        header_out['transop_z0'] = z0
+        header_out['transop_z1'] = z1_use
+        header_out['transop_z1hat'] = z1_hat
+
+        return HeaderOutput(header_out, distribution_data=distribution_data)
 
     @staticmethod
     def splice_input(x: torch.Tensor, splice_dim: int) -> torch.Tensor:

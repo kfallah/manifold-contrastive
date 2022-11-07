@@ -57,7 +57,7 @@ class Model(nn.Module):
         )
         return header_input, header_out
 
-    def forward(self, x: torch.Tensor, x_idx: List) -> Tuple[ModelOutput]:
+    def forward(self, x: torch.Tensor, x_idx: List) -> ModelOutput:
         """Take input image and get prediction from contrastive header.
 
         Args:
@@ -68,10 +68,11 @@ class Model(nn.Module):
         Returns:
             Returns the encoded features from the backbone and the prediction provided by the header.
         """
-        # Only a single view of an image is used
+        # Only a single view of an image is used, for evaluation purposes
         if x.shape[1] == 1:
             feature_0 = self.backbone(x[:, 0])
             header_input = HeaderInput(x, None, x_idx, feature_0, None)
+            return ModelOutput(header_input, None)
         # Two views of an image are provided
         elif x.shape[1] == 2:
             if not self.model_cfg.enable_backbone_momentum:
@@ -95,7 +96,7 @@ class Model(nn.Module):
                 shuffle_idx, header_input, header_out
             )
 
-        return ModelOutput(*header_input, *header_out)
+        return ModelOutput(header_input, header_out)
 
     def compute_loss(
         self, curr_idx: int, model_output: ModelOutput
@@ -103,7 +104,6 @@ class Model(nn.Module):
         args_dict = {}
         if (
             self.model_cfg.loss_cfg.real_eig_reg_active
-            or self.model_cfg.loss_cfg.cyclic_reg_active
         ):
             args_dict["psi"] = self.contrastive_header.transop_header.transop.psi
         return self.loss.compute_loss(curr_idx, model_output, args_dict)

@@ -8,6 +8,8 @@ transop_weight_decay: 1.0e-5
 transop_lr: 1.0e-3
 stable_operator_initialization: true
 detach_feature: false
+projection_type: Linear
+projection_out_dim: 128
 
 enable_variational_inference: true
 vi_cfg:

@@ -67,17 +67,19 @@ class ProjectionPredictionHeader(nn.Module):
         raise NotImplementedError
 
     def forward(self, header_input: HeaderInput) -> HeaderOutput:
+        header_out = {}
         z0 = self.projector(header_input.feature_0)
+        z1 = self.projector(header_input.feature_1)
         p0 = self.predictor(z0)
-        z1, p1 = None, None
-        if header_input.feature_1 is not None:
-            z1 = self.projector(header_input.feature_1)
-            p1 = self.predictor(z1)
-        if not self.training or header_input.feature_1 is None:
-            return HeaderOutput(header_input.feature_0, header_input.feature_1, p0, p1, distribution_data=None)
+        p1 = self.predictor(z1)
 
         if self.proj_cfg.enable_nn_bank:
-            z0 = self.nn_memory_bank(z0, update=False)
-            z1 = self.nn_memory_bank(z1, update=True)
+            z0 = self.nn_memory_bank(z0.detach(), update=False).detach()
+            z1 = self.nn_memory_bank(z1.detach(), update=True).detach()
 
-        return HeaderOutput(z0, z1, p0, p1, distribution_data=None)
+        header_out['proj_00'] = z0
+        header_out['proj_01'] = p1
+        header_out['proj_10'] = z1
+        header_out['proj_11'] = p0
+
+        return HeaderOutput(header_out, distribution_data=None)

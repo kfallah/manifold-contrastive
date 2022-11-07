@@ -47,15 +47,6 @@ class ClusteringEval(EvalRunner):
         # Save to metadata dictionary
         cluster_metrics["feat_cluster_acc"] = feature_cluster_acc
 
-        pred_cluster_idx = np.linspace(
-            0, len(val_eval_input.prediction_list) - 1, self.get_config().num_points_cluster, dtype=int
-        )
-        pred_cluster = KMeans(n_clusters=self.get_config().num_clusters, random_state=0).fit(
-            val_eval_input.prediction_list[pred_cluster_idx]
-        )
-        pred_cluster_acc = self.get_purity_acc(pred_cluster.labels_, val_eval_input.labels[pred_cluster_idx].numpy())
-        cluster_metrics["pred_cluster_acc"] = pred_cluster_acc
-
         return cluster_metrics, feature_cluster_acc
 
     def get_config(self) -> ClusteringEvalConfig:
