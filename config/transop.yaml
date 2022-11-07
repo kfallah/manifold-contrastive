@@ -37,7 +37,7 @@ trainer_cfg:
     enable_transop_logging: true
   use_amp: false
 train_dataloader_cfg:
-  batch_size: 256
+  batch_size: 512
 devices: [0]
 
 evaluator_cfg:
