@@ -55,7 +55,8 @@ class LinearProbeEval(EvalRunner):
             with autocast(enabled=self.get_config().use_amp):
                 # Send inputs through model
                 model_out = self.model(x, batch_idx, idx)
-                y_logit = self.linear_head(model_out.feature_0).squeeze(1)
+                feat = model_out.header_input.feature_0
+                y_logit = self.linear_head(feat).squeeze(1)
                 loss = F.cross_entropy(y_logit, y)
 
             epoch_loss.append(loss.item())
@@ -75,12 +76,13 @@ class LinearProbeEval(EvalRunner):
         total = 0
         val_loss = []
         with torch.no_grad():
-            for _, batch in enumerate(val_dataloader):
+            for idx, batch in enumerate(val_dataloader):
                 x, y, batch_idx = batch
                 x, y = x.unsqueeze(1).to(device), y.to(device)
 
-                model_out = self.model(x, batch_idx)
-                y_logit = self.linear_head(model_out.feature_0).squeeze(1)
+                model_out = self.model(x, batch_idx, idx)
+                feat = model_out.header_input.feature_0
+                y_logit = self.linear_head(feat).squeeze(1)
                 loss = F.cross_entropy(y_logit, y)
                 val_loss.append(loss.item())
 
