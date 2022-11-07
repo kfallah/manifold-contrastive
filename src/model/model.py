@@ -57,7 +57,7 @@ class Model(nn.Module):
         )
         return header_input, header_out
 
-    def forward(self, x: torch.Tensor, x_idx: List) -> ModelOutput:
+    def forward(self, x: torch.Tensor, x_idx: List, curr_iter: int) -> ModelOutput:
         """Take input image and get prediction from contrastive header.
 
         Args:
@@ -71,7 +71,7 @@ class Model(nn.Module):
         # Only a single view of an image is used, for evaluation purposes
         if x.shape[1] == 1:
             feature_0 = self.backbone(x[:, 0])
-            header_input = HeaderInput(x, None, x_idx, feature_0, None)
+            header_input = HeaderInput(curr_iter, x, None, x_idx, feature_0, None)
             return ModelOutput(header_input, None)
         # Two views of an image are provided
         elif x.shape[1] == 2:
@@ -84,7 +84,7 @@ class Model(nn.Module):
                 feature_0 = self.backbone(x[:, 0])
                 x_1, shuffle_idx = batch_shuffle(x[:, 1])
                 feature_1 = self.momentum_backbone(x_1)
-            header_input = HeaderInput(x[:, 0], x_1, x_idx, feature_0, feature_1)
+            header_input = HeaderInput(curr_iter, x[:, 0], x_1, x_idx, feature_0, feature_1)
         # All other cases are not currently supported
         else:
             raise NotImplementedError

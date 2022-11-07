@@ -11,7 +11,7 @@ model_cfg:
   enable_header_momentum: false
   backbone_cfg:
     pretrained: false
-    load_backbone: nnclr_mlp.pt
+    load_backbone: null
     freeze_backbone: false
   loss_cfg:
     ntxent_loss_active: true

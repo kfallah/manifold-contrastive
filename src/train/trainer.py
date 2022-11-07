@@ -64,6 +64,7 @@ class Trainer(nn.Module):
     ) -> Dict[str, float]:
         self.model.train()
         for idx, batch in enumerate(train_dataloader):
+            curr_iter = idx + (epoch * len(train_dataloader))
             pre_time = time.time()
             x_list = list(batch[0])
             # Tensor of input images of shape [B x V x H x W x C]
@@ -72,14 +73,14 @@ class Trainer(nn.Module):
 
             with autocast(enabled=self.trainer_cfg.use_amp):
                 # Send inputs through model
-                model_output = self.model(x_gpu, x_idx)
+                model_output = self.model(x_gpu, x_idx, curr_iter)
                 loss_metadata, total_loss = self.get_model().compute_loss(
-                    idx + (epoch * len(train_dataloader)), model_output
+                    curr_iter, model_output
                 )
 
             # Backpropagate loss
             self.scaler.scale(total_loss / self.trainer_cfg.grad_accumulation_iters).backward()
-            if idx % self.trainer_cfg.grad_accumulation_iters == 0:
+            if curr_iter % self.trainer_cfg.grad_accumulation_iters == 0:
                 self.scaler.step(self.optimizer)
                 self.optimizer.zero_grad()
                 self.scaler.update()
@@ -90,7 +91,7 @@ class Trainer(nn.Module):
 
             loss_metadata["iter_time"] = time.time() - pre_time
             self.metric_logger.log_metrics(
-                idx + (epoch * len(train_dataloader)),
+                curr_iter,
                 epoch,
                 model_output,
                 batch[1],

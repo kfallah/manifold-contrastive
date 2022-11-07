@@ -23,6 +23,8 @@ class DistributionData(NamedTuple):
 
 
 class HeaderInput(NamedTuple):
+    # Current iteration
+    curr_iter: int
     # Positive and negative augmentation pair
     # Dimensions [B x H x W x C]
     x_0: torch.Tensor

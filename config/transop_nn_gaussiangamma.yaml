@@ -8,7 +8,8 @@ model_cfg:
   loss_cfg:
     kl_loss_weight: 1.0e1
   header_cfg:
-    lambda_prior: 0.2
+    lambda_prior: 0.04
     vi_cfg:
+      scale_prior: 0.001
       distribution: Gaussian+Gamma
       prior_type: Learned

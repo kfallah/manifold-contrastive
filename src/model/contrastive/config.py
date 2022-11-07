@@ -95,6 +95,11 @@ class TransportOperatorConfig(ContrastiveHeaderConfig):
     enable_splicing: bool = False
     splice_dim: int = 32
 
+    # Option for alternating minimization between 
+    enable_alternating_min: bool = False
+    # Number of steps to alternate between updating the backbone and the transop/encoder
+    alternating_min_step: int = 200
+
     # Option to use NN to find point pairs
     enable_nn_point_pair: bool = False
     nn_memory_bank_size: int = 65536
