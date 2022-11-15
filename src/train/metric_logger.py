@@ -155,6 +155,22 @@ class MetricLogger:
             dist_bw_point_pairs = F.mse_loss(
                 header_dict['transop_z1'], header_dict['transop_z0']
             ).item()
+            transop_dist_improvement = (
+                (
+                    F.mse_loss(
+                        header_dict["transop_z1"],
+                        header_dict["transop_z1hat"],
+                        reduction="none",
+                    )
+                    / F.mse_loss(
+                        header_dict["transop_z1"],
+                        header_dict["transop_z0"],
+                        reduction="none",
+                    )
+                )
+                .mean()
+                .item()
+            )
 
             psi_mag = torch.norm(psi.data.reshape(len(psi.data), -1), dim=-1)
             to_metrics = {
@@ -165,11 +181,13 @@ class MetricLogger:
                 "avg_feat_norm": avg_feat_norm,
                 "transop_loss": transop_loss,
                 "dist_bw_point_pairs": dist_bw_point_pairs,
+                "transop_dist_improvement": transop_dist_improvement
             }
             if self.cfg.enable_console_logging:
                 log.info(
                     f"[Transport Operator iter {curr_iter}]: transop loss: {transop_loss:.3E}"
                     + f", dist bw point pairs: {dist_bw_point_pairs:.3E}"
+                    + f", transop dist improve: {transop_dist_improvement:.3E}"
                     + f", average transop mag: {psi_mag.mean():.3E}"
                     + f", total # operators used: {nz_tot}/{len(psi)}"
                     + f", avg # operators used: {total_nz.mean()}/{len(psi)}"
