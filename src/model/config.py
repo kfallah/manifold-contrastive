@@ -15,21 +15,29 @@ from model.contrastive.config import ContrastiveHeaderConfig
 @dataclass
 class LossConfig:
     ntxent_loss_active: bool = True
+    ntxent_loss_weight: float = 1.0
     ntxent_temp: float = 0.07
     ntxent_normalize: bool = True
     ntxent_logit: str = "cos"
     ntxent_detach_off_logit: bool = False
     ntxent_symmetric: bool = False
+
     kl_loss_active: bool = False
     kl_loss_weight: float = 0.1
     kl_weight_warmup: str = "None"
+
     hyperkl_loss_active: bool = False
     hyperkl_loss_weight: float = 0.1
+
     real_eig_reg_active: bool = False
     real_eig_reg_weight: float = 1e-4
+
     transop_loss_active: bool = False
     transop_loss_weight: float = 1.0
     memory_bank_size: int = 0
+
+    ce_loss_active: bool = False
+    ce_loss_weight: float = 1.0
 
 
 @dataclass
@@ -44,11 +52,8 @@ class BackboneConfig:
 @dataclass
 class ModelConfig:
     backbone_cfg: BackboneConfig = BackboneConfig()
-    # Whether to load weights for the backbone
     header_cfg: ContrastiveHeaderConfig = ContrastiveHeaderConfig()
     loss_cfg: LossConfig = LossConfig()
-    # Whether to concatenate different views of a batch of images and feed them into the model all at once
-    concat_different_views: bool = False
     # Whether to use momentum networks
     enable_backbone_momentum: bool = False
     backbone_momentum_update_rate: float = 0.99

@@ -6,7 +6,7 @@ Contains all typing information relevant to models.
 @Created     09/07/22
 """
 
-from typing import Callable, Dict, NamedTuple, Optional
+from typing import Dict, NamedTuple, Optional
 
 import torch
 
@@ -37,11 +37,13 @@ class HeaderInput(NamedTuple):
     feature_0: torch.Tensor
     feature_1: Optional[torch.Tensor]
 
+
 class HeaderOutput(NamedTuple):
     # Outputs from the header
     header_dict: Dict[str, torch.Tensor]
     # Optional distribution data if using a variational model
-    distribution_data: Optional[DistributionData]
+    distribution_data: Optional[DistributionData] = None
+
 
 class ModelOutput(NamedTuple):
     header_input: HeaderInput

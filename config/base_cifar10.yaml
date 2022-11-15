@@ -5,14 +5,12 @@ defaults:
   - dataloader/cifar10_simclr_strong@eval_dataloader_cfg
   - _self_
 
-exp_name: SimCLR
 exp_dir: results
-devices: [0, 1]
+devices: [0]
 enable_wandb: true
 seed: 0
 
 model_cfg:
-  concat_different_views: false
   backbone_cfg:
     hub_model_name: resnet18
   loss_cfg:
@@ -20,11 +18,11 @@ model_cfg:
     ntxent_temp: 0.5
 
 trainer_cfg:
-  num_epochs: 300
+  num_epochs: 1500
   use_amp: true
   optimizer_cfg:
-    optimizer: LARS
-    initial_lr: 0.3
+    optimizer: Adam
+    initial_lr: 0.0003
     weight_decay: 1e-6
   scheduler_cfg:
     scheduler: LinearWarmupCosineAnnealingLR
@@ -42,13 +40,13 @@ evaluator_cfg:
   knn_eval_cfg:
     use_for_best_checkpoint: true
     enable_runner: true
-    eval_freq: 50
+    eval_freq: 100
   clustering_eval_cfg:
     enable_runner: true
-    eval_freq: 50
+    eval_freq: 100
   linear_probe_eval_cfg:
     enable_runner: true
-    eval_freq: 150
+    eval_freq: 200
     num_epochs: 100
 eval_dataloader_cfg:
   collate_fn_cfg:

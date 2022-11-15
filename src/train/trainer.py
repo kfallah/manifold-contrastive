@@ -13,10 +13,10 @@ from typing import Dict
 
 import torch
 import torch.nn as nn
-from model.model import Model
-from model.optimizer import initialize_optimizer, initialize_scheduler
 from torch.cuda.amp import GradScaler, autocast
 
+from model.model import Model
+from model.optimizer import initialize_optimizer, initialize_scheduler
 from train.config import TrainerConfig
 from train.metric_logger import MetricLogger
 
@@ -87,7 +87,7 @@ class Trainer(nn.Module):
                 self.scheduler.step()
 
                 # Update momentum networks if they are enabled
-                self.get_model().update_momentum_network(model_output)
+                self.get_model().update_momentum_network()
 
             loss_metadata["iter_time"] = time.time() - pre_time
             self.metric_logger.log_metrics(

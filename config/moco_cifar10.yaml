@@ -1,6 +1,5 @@
 defaults:
-  - base
-  - header/simclr@model_cfg.header_cfg
+  - simclr_cifar10
   - _self_
 
 exp_name: MoCo
@@ -10,6 +9,7 @@ model_cfg:
   enable_header_momentum: true
   header_momentum_update_rate: 0.99
   header_cfg:
-    header_name: MoCo
+    projection_header_cfg:
+      header_name: MoCo
   loss_cfg:
     memory_bank_size: 4096

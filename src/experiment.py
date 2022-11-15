@@ -15,11 +15,11 @@ from typing import Tuple
 import hydra
 import numpy as np
 import torch
-import wandb
 from hydra.core.config_store import ConfigStore
 from omegaconf import DictConfig, OmegaConf
 
 import model.contrastive.config as header_config
+import wandb
 from dataloader.config import DataLoaderConfig
 from dataloader.contrastive_dataloader import get_dataloader
 from eval.config import EvaluatorConfig
@@ -49,7 +49,6 @@ class ExperimentConfig:
 
 def register_configs() -> None:
     cs.store(name="exp_cfg", node=ExperimentConfig)
-    header_config.register_configs()
 
 
 log = logging.getLogger(__name__)
@@ -119,7 +118,7 @@ def run_experiment(
     log.info("...Experiment complete!")
 
 
-@hydra.main(version_base=None, config_path="../config", config_name="simclr")
+@hydra.main(version_base=None, config_path="../config", config_name="simclr_cifar10")
 def initialize_experiment(cfg: DictConfig) -> None:
     wandb.init(
         project="manifold-contrastive",
@@ -143,10 +142,7 @@ def initialize_experiment(cfg: DictConfig) -> None:
     np.random.seed(cfg.seed)
 
     # Initialize the model
-    log.info(
-        f"Initializing model with {cfg.model_cfg.backbone_cfg.hub_model_name} backbone "
-        + f"and {cfg.model_cfg.header_cfg.header_name} header..."
-    )
+    log.info(f"Initializing model with {cfg.model_cfg.backbone_cfg.hub_model_name} backbone...")
     model = Model.initialize_model(cfg.model_cfg, cfg.devices)
 
     # Initialize the trainer and evaluator
