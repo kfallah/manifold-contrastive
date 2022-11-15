@@ -1,0 +1,26 @@
+defaults:
+  - transop_cifar10
+  - _self_
+
+exp_name: TransOp-FISTA-NN
+
+model_cfg:
+  loss_cfg:
+    kl_loss_active: false
+  header_cfg:
+    transop_header_cfg:
+      enable_nn_point_pair: true
+      nn_memory_bank_size: 98304
+      enable_variational_inference: false
+      enable_splicing: true
+      splice_dim: 32
+      fista_num_iterations: 800
+      lambda_prior: 0.1
+      transop_weight_decay: 1.0e-4
+trainer_cfg:
+  save_interval: 5
+  metric_logger_cfg:
+    loss_log_freq: 50
+    transop_log_freq: 100
+  scheduler_cfg:
+    scheduler: CosineAnnealingLR

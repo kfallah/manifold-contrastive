@@ -1,0 +1,25 @@
+defaults:
+  - transop_cifar10_nn
+  - _self_
+
+exp_name: TransOp-VI-NN
+
+model_cfg:
+  header_cfg:
+    enable_projection_header: true
+    projection_header_cfg:
+      header_name: SimCLR
+      projection_type: MLP
+    transop_header_cfg:
+      lambda_prior: 0.05
+      enable_nn_point_pair: true
+      nn_memory_bank_size: 98304
+      enable_splicing: true
+      splice_dim: 64
+      vi_cfg:
+        scale_prior: 0.001
+        distribution: Gaussian
+        prior_type: Fixed
+trainer_cfg:
+  save_interval: 100
+  grad_accumulation_iters: 1

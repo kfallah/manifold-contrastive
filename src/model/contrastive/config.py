@@ -7,34 +7,11 @@ Config for all the different contrastive headers.
 """
 from dataclasses import dataclass
 
-from hydra.core.config_store import ConfigStore
-
-
-def register_configs() -> None:
-    cs = ConfigStore.instance()
-    cs.store(
-        group="exp_cfg/model_cfg/header_cfg", name="simclr", node=ProjectionHeaderConfig
-    )
-    cs.store(
-        group="exp_cfg/model_cfg/header_cfg",
-        name="proj_pred",
-        node=ProjectionPredictionHeaderConfig,
-    )
-    cs.store(
-        group="exp_cfg/model_cfg/header_cfg",
-        name="transop_header",
-        node=TransportOperatorConfig,
-    )
-
 
 @dataclass
-class ContrastiveHeaderConfig:
-    header_name: str = "DefaultHeader"
-
-
-@dataclass
-class ProjectionPredictionHeaderConfig(ContrastiveHeaderConfig):
+class ProjectionPredictionHeaderConfig:
     # Whether to use a NN memory bank to store positive examples (used by NNCLR)
+    header_name: str = "SimCLR"
     enable_nn_bank: bool = False
     nn_memory_bank_size: int = 65536
     prediction_type: str = "MLP"
@@ -46,7 +23,8 @@ class ProjectionPredictionHeaderConfig(ContrastiveHeaderConfig):
 
 
 @dataclass
-class ProjectionHeaderConfig(ContrastiveHeaderConfig):
+class ProjectionHeaderConfig:
+    header_name: str = "NNCLR"
     projection_type: str = "MLP"
     hidden_dim: int = 2048
     output_dim: int = 128
@@ -70,33 +48,25 @@ class VariationalEncoderConfig:
     normalize_mag: float = 1.0
     per_iter_samples: int = 10
     total_samples: int = 100
-    ntxloss_sampling: bool = False
 
 
 @dataclass
-class TransportOperatorConfig(ContrastiveHeaderConfig):
+class TransportOperatorConfig:
     dictionary_size: int = 200
     lambda_prior: float = 0.04
     transop_lr: float = 1e-3
     transop_weight_decay: float = 1e-5
-    stable_operator_initialization: bool = False
+    stable_operator_initialization: bool = True
     detach_feature: bool = False
     batch_size: int = 256
     # Scale point pairs before inferring coefficients and applying transop
     latent_scale: float = 1.0
 
-    # Settings for projection
-    projection_type: str = "None"
-    projection_hidden_dim: int = 2048
-    projection_out_dim: int = 128
-    projection_network_lr: float = 3e-4
-    projection_network_weight_decay: float = 1e-6
-
     # Option to splice input to create BDM constraint on transop
     enable_splicing: bool = False
-    splice_dim: int = 32
+    splice_dim: int = 128
 
-    # Option for alternating minimization between 
+    # Option for alternating minimization between
     enable_alternating_min: bool = False
     # Number of steps to alternate between updating the backbone and the transop/encoder
     alternating_min_step: int = 200
@@ -110,3 +80,15 @@ class TransportOperatorConfig(ContrastiveHeaderConfig):
     vi_cfg: VariationalEncoderConfig = VariationalEncoderConfig()
     # Config for exact inference
     fista_num_iterations: int = 800
+
+
+@dataclass
+class ContrastiveHeaderConfig:
+    enable_projection_header: bool = False
+    projection_header_cfg: ProjectionHeaderConfig = ProjectionHeaderConfig()
+
+    enable_transop_header: bool = False
+    transop_header_cfg: TransportOperatorConfig = TransportOperatorConfig()
+
+    enable_proj_pred_header: bool = False
+    proj_pred_header_cfg: ProjectionPredictionHeaderConfig = ProjectionPredictionHeaderConfig()

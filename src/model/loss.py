@@ -10,7 +10,6 @@ from typing import Dict, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.cuda.amp import autocast
 
 from model.config import ModelConfig
 from model.contrastive.transop_header import TransportOperatorHeader
@@ -26,15 +25,19 @@ class Loss(nn.Module):
         self.loss_cfg = model_cfg.loss_cfg
         self.kl_warmup = 0
 
-        self.criterion = {}
+        self.ntxent_loss = None
         if self.loss_cfg.ntxent_loss_active:
-            self.criterion["ntxent_loss"] = NTXentLoss(
+            self.ntxent_loss = NTXentLoss(
                 memory_bank_size=self.loss_cfg.memory_bank_size,
                 temperature=self.loss_cfg.ntxent_temp,
                 normalize=self.loss_cfg.ntxent_normalize,
                 loss_type=self.loss_cfg.ntxent_logit,
                 detach_off_logit=self.loss_cfg.ntxent_detach_off_logit,
             )
+
+        self.ce_loss = None
+        if self.loss_cfg.ce_loss_active:
+            self.ce_loss = nn.CrossEntropyLoss()
 
     def get_kl_weight(self, curr_iter: int):
         if self.loss_cfg.kl_weight_warmup == "None":
@@ -47,26 +50,41 @@ class Loss(nn.Module):
         else:
             raise NotImplementedError()
 
-    def compute_loss(
-        self, curr_iter: int, model_output: ModelOutput, args_dict
-    ) -> Tuple[Dict[str, float], float]:
+    def compute_loss(self, curr_iter: int, model_output: ModelOutput, args_dict) -> Tuple[Dict[str, float], float]:
         loss_meta = {}
         header_out = model_output.header_output
         header_dict = header_out.header_dict
         total_loss = 0.0
 
+        # Contrastive loss terms
         if self.loss_cfg.ntxent_loss_active:
-            ntxent_loss = self.criterion["ntxent_loss"](
-                header_dict['proj_00'], header_dict['proj_01']
-            )
+            ntxent_loss = self.ntxent_loss(header_dict["proj_00"], header_dict["proj_01"])
             if self.loss_cfg.ntxent_symmetric:
-                ntxent_loss = 0.5 * (ntxent_loss
-                    + self.criterion["ntxent_loss"](
-                        header_dict['proj_10'], header_dict['proj_11']
-                    )
-                )
-            total_loss += ntxent_loss
+                ntxent_loss = 0.5 * (ntxent_loss + self.ntxent_loss(header_dict["proj_10"], header_dict["proj_11"]))
+            total_loss += self.loss_cfg.ntxent_loss_weight * ntxent_loss
             loss_meta["ntxent_loss"] = ntxent_loss.item()
+
+        # Transport operator loss terms
+        if self.loss_cfg.transop_loss_active:
+            z1_hat, z1 = header_dict["transop_z1hat"], header_dict["transop_z1"]
+            if self.model_cfg.header_cfg.enable_splicing:
+                z1_hat = TransportOperatorHeader.splice_input(z1_hat, self.model_cfg.header_cfg.splice_dim)
+                z1 = TransportOperatorHeader.splice_input(z1, self.model_cfg.header_cfg.splice_dim)
+            c = header_out.distribution_data.samples
+            # Only take loss over values where transport significantly occured to prevent feature collapse
+            weight = ~(c.abs() < 1e-2).all(dim=-1)
+            transop_loss = (weight.unsqueeze(-1) * F.mse_loss(z1_hat, z1, reduction="none")).mean()
+            total_loss += self.loss_cfg.transop_loss_weight * transop_loss
+            loss_meta["transop_loss"] = transop_loss.item()
+
+        if self.loss_cfg.real_eig_reg_active:
+            assert "psi" in args_dict.keys()
+            psi = args_dict["psi"]
+            eig_loss = (torch.real(torch.linalg.eigvals(psi)) ** 2).sum()
+            loss_meta["real_eig_loss"] = eig_loss.item()
+            total_loss += self.loss_cfg.real_eig_reg_weight * eig_loss
+
+        # Variational Inference loss terms
         if self.loss_cfg.kl_loss_active:
             assert header_out.distribution_data is not None
             kl_loss = compute_kl(
@@ -77,6 +95,7 @@ class Loss(nn.Module):
             kl_weight = self.get_kl_weight(curr_iter)
             total_loss += kl_weight * kl_loss
             loss_meta["kl_loss"] = kl_loss.item()
+
         if self.loss_cfg.hyperkl_loss_active:
             assert header_out.distribution_data is not None
             hyperkl_loss = compute_kl(
@@ -86,22 +105,5 @@ class Loss(nn.Module):
             )
             total_loss += self.loss_cfg.hyperkl_loss_weight * hyperkl_loss
             loss_meta["hyperkl_loss"] = hyperkl_loss.item()
-        if self.loss_cfg.transop_loss_active:
-            z1_hat, z1 = header_dict['transop_z1hat'], header_dict['transop_z1']
-            if self.model_cfg.header_cfg.enable_splicing:
-                z1_hat = TransportOperatorHeader.splice_input(z1_hat, self.model_cfg.header_cfg.splice_dim)
-                z1 = TransportOperatorHeader.splice_input(z1, self.model_cfg.header_cfg.splice_dim)
-            c = header_out.distribution_data.samples
-            # Only take loss over values where transport significantly occured to prevent feature collapse
-            weight = ~(c.abs() < 1e-2).all(dim=-1)
-            transop_loss = (weight.unsqueeze(-1) * F.mse_loss(z1_hat, z1, reduction='none')).mean()
-            total_loss += self.loss_cfg.transop_loss_weight * transop_loss
-            loss_meta["transop_loss"] = transop_loss.item()
-        if self.loss_cfg.real_eig_reg_active:
-            assert "psi" in args_dict.keys()
-            psi = args_dict["psi"]
-            eig_loss = (torch.real(torch.linalg.eigvals(psi)) ** 2).sum()
-            loss_meta["real_eig_loss"] = eig_loss.item()
-            total_loss += self.loss_cfg.real_eig_reg_weight * eig_loss
 
         return loss_meta, total_loss

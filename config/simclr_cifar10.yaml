@@ -1,0 +1,10 @@
+defaults:
+  - base_cifar10
+  - _self_
+
+model_cfg:
+  header_cfg:
+    enable_projection_header: true
+    projection_header_cfg:
+      header_name: SimCLR
+      projection_type: MLP

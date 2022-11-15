@@ -10,7 +10,6 @@ contrastive learning.
 from typing import Callable, Tuple
 
 import lightly.data as data
-import torch
 import torchvision
 import torchvision.transforms as T
 from torch.utils.data import DataLoader, Dataset
@@ -100,4 +99,3 @@ def get_dataloader(config: DataLoaderConfig) -> Tuple[Dataset, DataLoader]:
     )
 
     return (pytorch_dataset, dataloader)
-

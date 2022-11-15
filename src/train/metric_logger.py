@@ -14,11 +14,11 @@ from typing import Dict
 import numpy as np
 import torch
 import torch.nn.functional as F
-import wandb
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
-from model.model import Model, ModelOutput
 
+import wandb
+from model.model import Model, ModelOutput
 from train.config import MetricLoggerConfig
 from train.metric_utils import plot_log_spectra, plot_tsne, transop_plots
 
@@ -41,11 +41,7 @@ class MetricLogger:
         self.c_cache = []
 
     def enable_feature_cache(self):
-        return (
-            self.cfg.enable_log_spectra_plot
-            or self.cfg.enable_tsne_plot
-            or self.cfg.enable_transop_logging
-        )
+        return self.cfg.enable_log_spectra_plot or self.cfg.enable_tsne_plot or self.cfg.enable_transop_logging
 
     def save_figure(self, figure_name: str, fig: Figure):
         save_path = os.getcwd() + "/figures/"
@@ -70,9 +66,7 @@ class MetricLogger:
             self.label_cache = self.label_cache[-self.cfg.feature_cache_size :]
 
             if self.cfg.enable_transop_logging:
-                self.c_cache.extend(
-                    model_output.header_output.distribution_data.samples.detach().cpu().numpy()
-                )
+                self.c_cache.extend(model_output.header_output.distribution_data.samples.detach().cpu().numpy())
                 self.c_cache = self.c_cache[-self.cfg.feature_cache_size :]
         metrics = {}
 
@@ -86,58 +80,33 @@ class MetricLogger:
                 for key in loss_metadata.keys():
                     if key not in self.metadata_avg.keys():
                         self.metadata_avg[key] = 0.0
-                    self.metadata_avg[key] += (
-                        loss_metadata[key] / self.cfg.loss_log_freq
-                    )
+                    self.metadata_avg[key] += loss_metadata[key] / self.cfg.loss_log_freq
 
             if curr_iter % self.cfg.loss_log_freq == 0:
                 metrics.update(self.metadata_avg)
                 if self.cfg.enable_console_logging:
-                    format_loss = [
-                        f"{key}: {self.metadata_avg[key]:.3E}"
-                        for key in self.metadata_avg.keys()
-                    ]
-                    log.info(
-                        f"[Epoch {curr_epoch}, iter {curr_iter}]: "
-                        + ", ".join(format_loss)
-                    )
+                    format_loss = [f"{key}: {self.metadata_avg[key]:.3E}" for key in self.metadata_avg.keys()]
+                    log.info(f"[Epoch {curr_epoch}, iter {curr_iter}]: " + ", ".join(format_loss))
                     # Reset all values to zero for the next loop
                     self.metadata_avg = dict.fromkeys(self.metadata_avg, 0.0)
 
         # Logging optimizer LR
-        if (
-            self.cfg.enable_optimizer_logging
-            and curr_iter % self.cfg.optimizer_log_freq == 0
-        ):
+        if self.cfg.enable_optimizer_logging and curr_iter % self.cfg.optimizer_log_freq == 0:
             optim_lr = self.scheduler.get_last_lr()
             metrics["optim_lr"] = optim_lr
             if self.cfg.enable_console_logging:
-                log.info(
-                    f"[Epoch {curr_epoch}, iter {curr_iter}]: Optimizer LR: {optim_lr}"
-                )
+                log.info(f"[Epoch {curr_epoch}, iter {curr_iter}]: Optimizer LR: {optim_lr}")
 
         # Logging collapse level
-        if (
-            self.cfg.enable_collapse_logging
-            and curr_iter % self.cfg.collapse_log_freq == 0
-        ):
-            feat_norm = torch.nn.functional.normalize(
-                torch.tensor(np.array(self.feature_cache)).float(), dim=1
-            )
+        if self.cfg.enable_collapse_logging and curr_iter % self.cfg.collapse_log_freq == 0:
+            feat_norm = torch.nn.functional.normalize(torch.tensor(np.array(self.feature_cache)).float(), dim=1)
             feat_var = torch.std(feat_norm, dim=0)
-            feat_collapse = max(
-                0.0, 1 - math.sqrt(len(feat_var)) * feat_var.mean().item()
-            )
+            feat_collapse = max(0.0, 1 - math.sqrt(len(feat_var)) * feat_var.mean().item())
             metrics["feat_collapse"] = feat_collapse
             if self.cfg.enable_console_logging:
-                log.info(
-                    f"[Epoch {curr_epoch}, iter {curr_iter}]: Feature collapse: {feat_collapse:.2f}"
-                )
+                log.info(f"[Epoch {curr_epoch}, iter {curr_iter}]: Feature collapse: {feat_collapse:.2f}")
 
-        if (
-            self.cfg.enable_transop_logging
-            and curr_iter % self.cfg.transop_log_freq == 0
-        ):
+        if self.cfg.enable_transop_logging and curr_iter % self.cfg.transop_log_freq == 0:
             assert (
                 self.model.model_cfg.header_cfg.header_name == "TransOp"
                 and model_output.header_output.distribution_data is not None
@@ -149,12 +118,8 @@ class MetricLogger:
             nz_tot = np.count_nonzero(coeff_nz)
             total_nz = np.count_nonzero(c, axis=1)
             avg_feat_norm = np.linalg.norm(np.array(self.feature_cache), axis=-1).mean()
-            transop_loss = F.mse_loss(
-                header_dict['transop_z1'], header_dict['transop_z1hat']
-            ).item()
-            dist_bw_point_pairs = F.mse_loss(
-                header_dict['transop_z1'], header_dict['transop_z0']
-            ).item()
+            transop_loss = F.mse_loss(header_dict["transop_z1"], header_dict["transop_z1hat"]).item()
+            dist_bw_point_pairs = F.mse_loss(header_dict["transop_z1"], header_dict["transop_z0"]).item()
             transop_dist_improvement = (
                 (
                     F.mse_loss(
@@ -162,10 +127,13 @@ class MetricLogger:
                         header_dict["transop_z1hat"],
                         reduction="none",
                     )
-                    / F.mse_loss(
-                        header_dict["transop_z1"],
-                        header_dict["transop_z0"],
-                        reduction="none",
+                    / (
+                        F.mse_loss(
+                            header_dict["transop_z1"],
+                            header_dict["transop_z0"],
+                            reduction="none",
+                        )
+                        + 1e-6
                     )
                 )
                 .mean()
@@ -181,7 +149,7 @@ class MetricLogger:
                 "avg_feat_norm": avg_feat_norm,
                 "transop_loss": transop_loss,
                 "dist_bw_point_pairs": dist_bw_point_pairs,
-                "transop_dist_improvement": transop_dist_improvement
+                "transop_dist_improvement": transop_dist_improvement,
             }
             if self.cfg.enable_console_logging:
                 log.info(
@@ -196,9 +164,7 @@ class MetricLogger:
                 )
                 if self.model.model_cfg.header_cfg.enable_variational_inference:
                     distr_data = model_output.header_output.distribution_data
-                    scale = torch.exp(
-                        distr_data.encoder_params["logscale"]
-                    )
+                    scale = torch.exp(distr_data.encoder_params["logscale"])
                     shift = distr_data.encoder_params["shift"]
                     log.info(
                         f"[Encoder params]: "
@@ -210,12 +176,8 @@ class MetricLogger:
                         + f", mean shift: {shift.mean():.3E}"
                     )
                     if "Gamma" in self.model.model_cfg.header_cfg.vi_cfg.distribution:
-                        enc_gamma_a = distr_data.encoder_params[
-                            "gamma_a"
-                        ]
-                        enc_gamma_b = distr_data.encoder_params[
-                            "gamma_b"
-                        ]
+                        enc_gamma_a = distr_data.encoder_params["gamma_a"]
+                        enc_gamma_b = distr_data.encoder_params["gamma_b"]
                         enc_lambda_ev = enc_gamma_a / enc_gamma_b
                         log.info(
                             "[Encoder Gamma]: "
@@ -227,22 +189,11 @@ class MetricLogger:
                             + f", mean gamma_b: {enc_gamma_b.mean():.3E}"
                             + f", mean lambda ev: {enc_lambda_ev.mean():.3E}"
                         )
-                        if (
-                            self.model.model_cfg.header_cfg.vi_cfg.prior_type
-                            == "Learned"
-                        ):
-                            prior_scale = torch.exp(
-                                distr_data.prior_params["logscale"]
-                            )
-                            prior_shift = distr_data.prior_params[
-                                "shift"
-                            ]
-                            prior_gamma_a = distr_data.prior_params[
-                                "gamma_a"
-                            ]
-                            prior_gamma_b = distr_data.prior_params[
-                                "gamma_b"
-                            ]
+                        if self.model.model_cfg.header_cfg.vi_cfg.prior_type == "Learned":
+                            prior_scale = torch.exp(distr_data.prior_params["logscale"])
+                            prior_shift = distr_data.prior_params["shift"]
+                            prior_gamma_a = distr_data.prior_params["gamma_a"]
+                            prior_gamma_b = distr_data.prior_params["gamma_b"]
                             prior_lambda_ev = prior_gamma_a / prior_gamma_b
                             log.info(
                                 f"[Prior params]: "
@@ -268,9 +219,7 @@ class MetricLogger:
             fig_dict = transop_plots(c, psi, self.feature_cache[-1])
             for fig_name in fig_dict.keys():
                 if self.cfg.enable_wandb_logging:
-                    wandb.log(
-                        {fig_name: wandb.Image(fig_dict[fig_name])}, step=curr_iter
-                    )
+                    wandb.log({fig_name: wandb.Image(fig_dict[fig_name])}, step=curr_iter)
                 if self.cfg.enable_local_figure_saving:
                     self.save_figure(f"{fig_name}{curr_iter}", fig_dict[fig_name])
                 plt.close(fig_dict[fig_name])
@@ -283,9 +232,7 @@ class MetricLogger:
             and (self.cfg.enable_wandb_logging or self.cfg.enable_local_figure_saving)
             and curr_iter % self.cfg.tsne_plot_freq == 0
         ):
-            tsne_fig = plot_tsne(
-                np.array(self.feature_cache), np.array(self.label_cache)
-            )
+            tsne_fig = plot_tsne(np.array(self.feature_cache), np.array(self.label_cache))
             if self.cfg.enable_wandb_logging:
                 wandb.log({"tsne": wandb.Image(tsne_fig)}, step=curr_iter)
             if self.cfg.enable_local_figure_saving:
@@ -297,9 +244,7 @@ class MetricLogger:
             and (self.cfg.enable_wandb_logging or self.cfg.enable_local_figure_saving)
             and curr_iter % self.cfg.log_spectra_plot_freq == 0
         ):
-            feat_norm = torch.nn.functional.normalize(
-                torch.tensor(np.array(self.feature_cache)).float(), dim=1
-            )
+            feat_norm = torch.nn.functional.normalize(torch.tensor(np.array(self.feature_cache)).float(), dim=1)
             feat_cov = np.cov(feat_norm.numpy().T)
             feat_log_spectra_plot, feat_log_spectra = plot_log_spectra(feat_cov)
             metrics["feat_log_spectra"] = feat_log_spectra
@@ -309,9 +254,7 @@ class MetricLogger:
                     step=curr_iter,
                 )
             if self.cfg.enable_local_figure_saving:
-                self.save_figure(
-                    f"feat_log_spectra_iter{curr_iter}", feat_log_spectra_plot
-                )
+                self.save_figure(f"feat_log_spectra_iter{curr_iter}", feat_log_spectra_plot)
 
         if self.cfg.enable_wandb_logging:
             wandb.log(metrics, step=curr_iter)

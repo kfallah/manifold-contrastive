@@ -1,9 +1,0 @@
-defaults:
-  - /exp_cfg/model_cfg/header_cfg/proj_pred@_here_
-  - _self_
-header_name: ProjectionPrediction
-prediction_type: MLP
-proj_hidden_dim: 1024
-proj_output_dim: 128
-pred_hidden_dim: 1024
-pred_output_dim: 128
