@@ -81,6 +81,7 @@ class TransportOperatorConfig(ContrastiveHeaderConfig):
     transop_weight_decay: float = 1e-5
     stable_operator_initialization: bool = False
     detach_feature: bool = False
+    batch_size: int = 256
     # Scale point pairs before inferring coefficients and applying transop
     latent_scale: float = 1.0
 
