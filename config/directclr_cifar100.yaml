@@ -1,0 +1,10 @@
+defaults:
+  - simclr_cifar100
+  - _self_
+
+exp_name: DirectCLR
+model_cfg:
+  header_cfg:
+    projection_header_cfg:
+      header_name: DirectCLR
+      projection_type: Direct

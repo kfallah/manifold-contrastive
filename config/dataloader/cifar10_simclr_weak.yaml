@@ -1,6 +1,7 @@
 dataset_cfg: 
   dataset_name: CIFAR10
-  image_size: 64
+  num_classes: 10
+  image_size: 32
 collate_fn_cfg:
   collate_fn_type: LIGHTLY_IMAGE
   cj_bright: 0.08

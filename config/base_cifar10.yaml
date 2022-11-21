@@ -12,7 +12,7 @@ seed: 0
 
 model_cfg:
   backbone_cfg:
-    hub_model_name: resnet18
+    hub_model_name: torchhub:resnet18
   loss_cfg:
     ntxent_loss_active: true
     ntxent_temp: 0.5
@@ -21,11 +21,12 @@ trainer_cfg:
   num_epochs: 1500
   use_amp: true
   optimizer_cfg:
-    optimizer: Adam
-    initial_lr: 0.0003
+    optimizer: SGD
+    initial_lr: 0.6
     weight_decay: 1e-6
+    enable_nesterov: true
   scheduler_cfg:
-    scheduler: LinearWarmupCosineAnnealingLR
+    scheduler: CosineAnnealingMinLR
     warmup_epochs: 10
   metric_logger_cfg:
     enable_wandb_logging: true
@@ -53,4 +54,4 @@ eval_dataloader_cfg:
     collate_fn_type: NONE
   train: false
   shuffle: false
-  batch_size: 256
+  batch_size: 512

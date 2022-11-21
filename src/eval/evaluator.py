@@ -10,16 +10,16 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import torch
 import torch.nn as nn
+
 from dataloader.config import DataLoaderConfig
 from dataloader.utils import get_weak_aug_dataloader
-from model.model import Model
-
 from eval.clustering import ClusteringEval
 from eval.config import EvaluatorConfig
 from eval.knn_acc import KNNEval
 from eval.linear_probe import LinearProbeEval
 from eval.type import EvalRunner
 from eval.utils import encode_features
+from model.model import Model
 
 
 class Evaluator(nn.Module):
@@ -65,6 +65,7 @@ class Evaluator(nn.Module):
                     val_eval_input=val_eval_input,
                     train_dataloader=weak_aug_train_dataloader,
                     val_dataloader=eval_dataloader,
+                    num_classes=train_dataloader_cfg.dataset_cfg.num_classes,
                     device=self.device,
                 )
                 eval_metrics.update(metric_metadata)

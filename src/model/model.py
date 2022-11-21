@@ -11,12 +11,7 @@ from typing import Dict, List, Tuple
 
 import torch
 import torch.nn as nn
-from lightly.models.utils import (
-    batch_shuffle,
-    batch_unshuffle,
-    deactivate_requires_grad,
-    update_momentum,
-)
+from lightly.models.utils import batch_shuffle, batch_unshuffle, deactivate_requires_grad, update_momentum
 
 from model.backbone import Backbone
 from model.config import ModelConfig
@@ -114,8 +109,8 @@ class Model(nn.Module):
         return [{"params": self.backbone.parameters()}] + self.contrastive_header.get_param_groups()
 
     @staticmethod
-    def initialize_model(model_cfg: ModelConfig, devices: List[int]) -> "Model":
-        backbone, backbone_feature_dim = Backbone.initialize_backbone(model_cfg.backbone_cfg)
+    def initialize_model(model_cfg: ModelConfig, dataset_name: str, devices: List[int]) -> "Model":
+        backbone, backbone_feature_dim = Backbone.initialize_backbone(model_cfg.backbone_cfg, dataset_name)
         contrastive_header = ContrastiveHeader.initialize_header(
             model_cfg.header_cfg,
             backbone_feature_dim,

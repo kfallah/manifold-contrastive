@@ -23,13 +23,19 @@ class Backbone(nn.Module):
         return self.backbone_network(x)
 
     @staticmethod
-    def initialize_backbone(backbone_cfg: BackboneConfig) -> "Backbone":
-        backbone_network = torch.hub.load(
-            "pytorch/vision:v0.10.0", backbone_cfg.hub_model_name, pretrained=backbone_cfg.pretrained
-        )
-        backbone_feature_dim = backbone_network.fc.in_features
-        backbone_network.fc = nn.Identity()
+    def initialize_backbone(backbone_cfg: BackboneConfig, dataset_name: str) -> "Backbone":
+        if backbone_cfg.hub_model_name.split(":")[0] == "torchhub":
+            arch_name = backbone_cfg.hub_model_name.split(":")[1]
+            backbone_network = torch.hub.load("pytorch/vision:v0.10.0", arch_name, pretrained=backbone_cfg.pretrained)
+            backbone_feature_dim = backbone_network.fc.in_features
+            backbone_network.fc = nn.Identity()
+
+            if dataset_name == "CIFAR10" or dataset_name == "CIFAR100":
+                backbone_network.conv1 = nn.Conv2d(3, 64, 3, 1, 1, bias=False)
+                backbone_network.maxpool = nn.Identity()
+
         network = Backbone(backbone_cfg, backbone_network)
+
         if backbone_cfg.load_backbone:
             backbone_weights = torch.load(f"../../model_zoo/{backbone_cfg.load_backbone}")["model_state"]
             own_state = network.state_dict()

@@ -1,5 +1,5 @@
 defaults:
-  - transop_cifar10
+  - transop_cifar10_nn
   - _self_
 
 exp_name: TransOp-FISTA-NN
@@ -8,15 +8,20 @@ model_cfg:
   loss_cfg:
     kl_loss_active: false
   header_cfg:
+    enable_projection_header: true
+    projection_header_cfg:
+      header_name: SimCLR
+      projection_type: MLP
     transop_header_cfg:
       enable_nn_point_pair: true
       nn_memory_bank_size: 98304
       enable_variational_inference: false
       enable_splicing: true
-      splice_dim: 32
+      splice_dim: 64
       fista_num_iterations: 800
       lambda_prior: 0.1
-      transop_weight_decay: 1.0e-4
+      transop_weight_decay: 1.0e-5
+      batch_size: 64
 trainer_cfg:
   save_interval: 5
   metric_logger_cfg:

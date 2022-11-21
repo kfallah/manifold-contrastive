@@ -15,16 +15,15 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from model.optimizer import initialize_optimizer, initialize_scheduler
 from torch.cuda.amp import GradScaler, autocast
 
 from eval.config import LinearProbeConfig
 from eval.type import EvalRunner, EvaluationInput
 from eval.utils import num_correct
+from model.optimizer import initialize_optimizer, initialize_scheduler
 
 
 class LinearProbeEval(EvalRunner):
-    # TODO: Add support for datasets with different number of classes
     def initialize_training_modules(
         self,
         model: nn.Module,
@@ -39,6 +38,7 @@ class LinearProbeEval(EvalRunner):
         self.optimizer = initialize_optimizer(self.get_config().optimizer_cfg, self.linear_head.parameters())
         self.scheduler = initialize_scheduler(
             self.get_config().scheduler_cfg,
+            self.get_config().optimizer_cfg,
             self.get_config().num_epochs,
             num_epoch_iters * self.get_config().num_epochs,
             self.optimizer,
@@ -103,39 +103,22 @@ class LinearProbeEval(EvalRunner):
         device: torch.device,
         **kwargs
     ) -> Tuple[Dict[str, float], float]:
-        self.initialize_training_modules(train_eval_input.model, train_dataloader, device)
+        self.initialize_training_modules(train_eval_input.model, train_dataloader, device, kwargs["num_classes"])
 
-        val_top1_acc_list = {}
-        val_top5_acc_list = {}
-        val_avg_loss_list = {}
-        train_avg_loss_list = {}
         for epoch in range(self.get_config().num_epochs):
-            train_avg_loss = self.train_epoch(train_dataloader, device)
-            train_avg_loss_list[epoch] = train_avg_loss
+            _ = self.train_epoch(train_dataloader, device)
 
-            if epoch % self.get_config().val_acc_epoch_freq == 0:
-                val_top1_acc, val_top5_acc, val_avg_loss = self.val(val_dataloader, device)
-                val_top1_acc_list[epoch] = val_top1_acc
-                val_top5_acc_list[epoch] = val_top5_acc
-                val_avg_loss_list[epoch] = val_avg_loss
-
-        # Also save the validation performance at the end of training
+        # Save the validation performance at the end of training
         val_top1_acc, val_top5_acc, val_avg_loss = self.val(val_dataloader, device)
-        val_top1_acc_list[epoch] = val_top1_acc
-        val_top5_acc_list[epoch] = val_top5_acc
-        val_avg_loss_list[epoch] = val_avg_loss
 
         # Add full metrics, as well as final metrics, to the metrics log
         metrics = {
-            "val_top1_acc": val_top1_acc_list[epoch],
-            "val_top5_acc": val_top5_acc_list[epoch],
-            "val_top1_acc_list": val_top1_acc_list,
-            "val_top5_acc_list": val_top5_acc_list,
-            "train_avg_loss_list": train_avg_loss_list,
-            "val_avg_loss_list": val_avg_loss_list,
+            "val_top1_acc": val_top1_acc,
+            "val_top5_acc": val_top5_acc,
+            "val_avg_loss_list": val_avg_loss,
         }
 
-        return metrics, val_top1_acc_list[epoch]
+        return metrics, val_top1_acc
 
     def get_config(self) -> LinearProbeConfig:
         return self.cfg

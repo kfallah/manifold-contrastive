@@ -38,8 +38,8 @@ def get_weak_aug_dataloader(dataloader: DataLoader, dataloader_cfg: DataLoaderCo
     )
     return DataLoader(
         dataset,
-        batch_size=256,
-        shuffle=False,
+        batch_size=512,
+        shuffle=True,
         drop_last=False,
         num_workers=dataloader.num_workers,
         persistent_workers=dataloader.persistent_workers,

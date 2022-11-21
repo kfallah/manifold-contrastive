@@ -33,7 +33,7 @@ class ContrastiveHeader(nn.Module):
             )
 
         self.transop_header = None
-        if self.header_cfg.enable_transop_header == "TransOp":
+        if self.header_cfg.enable_transop_header:
             self.transop_header = TransportOperatorHeader(self.header_cfg.transop_header_cfg, backbone_feature_dim)
 
         self.proj_pred_header = None
@@ -49,7 +49,6 @@ class ContrastiveHeader(nn.Module):
     def unshuffle_outputs(self, shuffle_idx, header_out: HeaderOutput) -> HeaderOutput:
         if self.projection_header is not None:
             header_dict = header_out.header_dict
-            header_dict["proj_00"] = batch_unshuffle(header_dict["proj_00"], shuffle_idx)
             header_dict["proj_01"] = batch_unshuffle(header_dict["proj_01"], shuffle_idx)
 
         return HeaderOutput(header_dict, header_out.distribution_data)
@@ -67,6 +66,21 @@ class ContrastiveHeader(nn.Module):
             header_out = self.projection_header(header_input)
             aggregate_header_out.update(header_out.header_dict)
 
+            if self.header_cfg.enable_transop_augmentation:
+                feat_0, feat_1 = header_input.feature_0, header_input.feature_1
+                if self.header_cfg.transop_header_cfg.enable_splicing:
+                    feat_0 = TransportOperatorHeader.splice_input(
+                        feat_0, self.header_cfg.transop_header_cfg.splice_dim
+                    )
+                feat_aug = self.transop_header.sample_augmentation(feat_0.detach(), distribution_data)
+                if self.header_cfg.transop_header_cfg.enable_splicing:
+                    feat_aug = feat_aug.reshape(feat_1.shape)
+                    feat_0 = feat_0.reshape(feat_1.shape)
+                aug_header_input = HeaderInput(*header_input[:-2], feat_aug, feat_1.detach())
+                aug_header_out = self.projection_header(aug_header_input)
+                aggregate_header_out["proj_10"] = aug_header_out.header_dict["proj_00"]
+                aggregate_header_out["proj_11"] = aug_header_out.header_dict["proj_01"]
+
         if self.proj_pred_header is not None:
             header_out = self.proj_pred_header(header_input)
             aggregate_header_out.update(header_out.header_dict)
@@ -77,9 +91,9 @@ class ContrastiveHeader(nn.Module):
         param_list = []
         if self.projection_header is not None:
             param_list += [{"params": self.projection_header.parameters()}]
-        elif self.transop_header is not None:
+        if self.transop_header is not None:
             param_list += self.transop_header.get_param_groups()
-        elif self.projection_prediction_header is not None:
+        if self.proj_pred_header is not None:
             param_list += [{"params": self.proj_pred_header.parameters()}]
 
         return param_list

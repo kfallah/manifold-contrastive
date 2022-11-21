@@ -1,0 +1,17 @@
+defaults:
+  - transop_cifar10_nn
+  - _self_
+
+exp_name: TransOp_NN_CIFAR10_MoCoV2
+
+model_cfg:
+  enable_backbone_momentum: true
+  backbone_momentum_update_rate: 0.99
+  enable_header_momentum: true
+  header_momentum_update_rate: 0.99
+  header_cfg:
+    enable_projection_header: true
+    projection_header_cfg:
+      header_name: MoCo
+  loss_cfg:
+    memory_bank_size: 4096

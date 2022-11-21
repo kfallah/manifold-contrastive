@@ -68,8 +68,20 @@ class TransportOperatorHeader(nn.Module):
             )
         return param_list
 
+    def sample_augmentation(
+        self, z: torch.Tensor, distribution_data: DistributionData, detach_coeff: bool = False
+    ) -> torch.Tensor:
+        c = self.coefficient_encoder.sample_prior(z, distribution_data)
+
+        if detach_coeff:
+            c = c.detach()
+        psi_use = self.transop.psi.detach()
+        T = torch.einsum("bm,mpk->bpk", c, psi_use)
+        return (torch.matrix_exp(T) @ z.unsqueeze(-1)).squeeze(-1)
+
     def forward(self, header_input: HeaderInput) -> HeaderOutput:
         header_out = {}
+        curr_iter = header_input.curr_iter
         x0, x1 = header_input.x_0, header_input.x_1
         z0, z1 = header_input.feature_0, header_input.feature_1
         distribution_data = None
