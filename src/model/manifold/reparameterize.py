@@ -1,4 +1,3 @@
-from base64 import encode
 from typing import Dict, Tuple
 
 import torch
@@ -26,26 +25,16 @@ def reparameterize(
     normalize_mag: float = 1.0,
 ):
     if distribution == "Laplacian" or distribution == "Laplacian+Gamma":
-        assert (
-            "logscale" in distribution_params.keys()
-            and "shift" in distribution_params.keys()
-        )
+        assert "logscale" in distribution_params.keys() and "shift" in distribution_params.keys()
         logscale, shift = distribution_params["logscale"], distribution_params["shift"]
         if len(noise.shape) >= 3:
             logscale = logscale.view(1, *logscale.shape).expand(len(noise), -1, -1)
             shift = shift.view(1, *shift.shape).expand(len(noise), -1, -1)
         scale = torch.exp(logscale)
-        eps = (
-            -scale
-            * torch.sign(noise)
-            * torch.log((1.0 - 2.0 * torch.abs(noise)).clamp(min=1e-6, max=1e6))
-        )
+        eps = -scale * torch.sign(noise) * torch.log((1.0 - 2.0 * torch.abs(noise)).clamp(min=1e-6, max=1e6))
         c = shift + eps
     if distribution == "Gaussian" or distribution == "Gaussian+Gamma":
-        assert (
-            "logscale" in distribution_params.keys()
-            and "shift" in distribution_params.keys()
-        )
+        assert "logscale" in distribution_params.keys() and "shift" in distribution_params.keys()
         logscale, shift = distribution_params["logscale"], distribution_params["shift"]
         if len(noise.shape) >= 3:
             logscale = logscale.view(1, *logscale.shape).expand(len(noise), -1, -1)
@@ -55,10 +44,7 @@ def reparameterize(
         c = shift + eps
 
     if distribution == "Laplacian+Gamma" or distribution == "Gaussian+Gamma":
-        assert (
-            "gamma_a" in distribution_params.keys()
-            and "gamma_b" in distribution_params.keys()
-        )
+        assert "gamma_a" in distribution_params.keys() and "gamma_b" in distribution_params.keys()
         gamma_a, gamma_b = (
             distribution_params["gamma_a"],
             distribution_params["gamma_b"],
@@ -96,18 +82,9 @@ def compute_kl(
             encoder_params["logscale"],
         )
         prior_shift, prior_logscale = prior_params["shift"], prior_params["logscale"]
-        encoder_scale, prior_scale = torch.exp(encoder_logscale), torch.exp(
-            prior_logscale
-        )
-        laplace_kl = (
-            ((encoder_shift - prior_shift).abs() / prior_scale)
-            + prior_logscale
-            - encoder_logscale
-            - 1
-        )
-        laplace_kl += (encoder_scale / prior_scale) * (
-            -((encoder_shift - prior_shift).abs() / encoder_scale)
-        ).exp()
+        encoder_scale, prior_scale = torch.exp(encoder_logscale), torch.exp(prior_logscale)
+        laplace_kl = ((encoder_shift - prior_shift).abs() / prior_scale) + prior_logscale - encoder_logscale - 1
+        laplace_kl += (encoder_scale / prior_scale) * (-((encoder_shift - prior_shift).abs() / encoder_scale)).exp()
         kl_loss += laplace_kl.sum(dim=-1).mean()
     if distribution == "Gaussian" or distribution == "Gaussian+Gamma":
         assert "shift" in encoder_params.keys() and "logscale" in encoder_params.keys()
@@ -119,9 +96,7 @@ def compute_kl(
         prior_shift, prior_logscale = prior_params["shift"], prior_params["logscale"]
         encoder_scale = torch.exp(encoder_logscale)
         prior_scale = torch.exp(prior_logscale)
-        gauss_kl = (encoder_scale + ((encoder_shift - prior_shift) ** 2)) / (
-            2 * prior_scale
-        )
+        gauss_kl = (encoder_scale + ((encoder_shift - prior_shift) ** 2)) / (2 * prior_scale)
         gauss_kl += 0.5 * (prior_logscale - encoder_logscale - 1)
         kl_loss += gauss_kl.sum(dim=-1).mean()
 

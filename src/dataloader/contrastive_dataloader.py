@@ -38,6 +38,12 @@ def get_dataset(config: DatasetConfig, enable_collate: bool = True, train: bool 
             transform_list.insert(0, T.Resize(config.image_size))
         transform = T.Compose(transform_list)
         dataset = torchvision.datasets.CIFAR10(config.dataset_dir, transform=transform, train=train, download=False)
+    elif config.dataset_name == "CIFAR100":
+        if config.image_size != 32:
+            # Prepend transform so it comes before ToTensor()
+            transform_list.insert(0, T.Resize(config.image_size))
+        transform = T.Compose(transform_list)
+        dataset = torchvision.datasets.CIFAR100(config.dataset_dir, transform=transform, train=train, download=True)
     else:
         raise NotImplementedError
     return dataset, transform
@@ -63,6 +69,7 @@ def get_collate_fn(config: CollateFunctionConfig, image_size: int) -> Callable:
             cj_hue=config.cj_hue,
             min_scale=config.min_scale,
             gaussian_blur=config.gausian_blur,
+            normalize={"mean": config.normalize_mean, "std": config.normalize_std},
         )
     elif config.collate_fn_type == "NONE":
         collate_fn = None

@@ -108,7 +108,7 @@ class MetricLogger:
 
         if self.cfg.enable_transop_logging and curr_iter % self.cfg.transop_log_freq == 0:
             assert (
-                self.model.model_cfg.header_cfg.header_name == "TransOp"
+                self.model.model_cfg.header_cfg.enable_transop_header
                 and model_output.header_output.distribution_data is not None
             )
             header_dict = model_output.header_output.header_dict
@@ -162,7 +162,7 @@ class MetricLogger:
                     + f", avg feat norm: {avg_feat_norm:.2E}"
                     + f", avg coeff mag: {to_metrics['avg_coeff_mag']:.2f}"
                 )
-                if self.model.model_cfg.header_cfg.enable_variational_inference:
+                if self.model.model_cfg.header_cfg.transop_header_cfg.enable_variational_inference:
                     distr_data = model_output.header_output.distribution_data
                     scale = torch.exp(distr_data.encoder_params["logscale"])
                     shift = distr_data.encoder_params["shift"]
@@ -175,7 +175,7 @@ class MetricLogger:
                         + f", max shift: {shift.abs().max():.3E}"
                         + f", mean shift: {shift.mean():.3E}"
                     )
-                    if "Gamma" in self.model.model_cfg.header_cfg.vi_cfg.distribution:
+                    if "Gamma" in self.model.model_cfg.header_cfg.transop_header_cfg.vi_cfg.distribution:
                         enc_gamma_a = distr_data.encoder_params["gamma_a"]
                         enc_gamma_b = distr_data.encoder_params["gamma_b"]
                         enc_lambda_ev = enc_gamma_a / enc_gamma_b
@@ -189,7 +189,7 @@ class MetricLogger:
                             + f", mean gamma_b: {enc_gamma_b.mean():.3E}"
                             + f", mean lambda ev: {enc_lambda_ev.mean():.3E}"
                         )
-                        if self.model.model_cfg.header_cfg.vi_cfg.prior_type == "Learned":
+                        if self.model.model_cfg.header_cfg.transop_header_cfg.vi_cfg.prior_type == "Learned":
                             prior_scale = torch.exp(distr_data.prior_params["logscale"])
                             prior_shift = distr_data.prior_params["shift"]
                             prior_gamma_a = distr_data.prior_params["gamma_a"]

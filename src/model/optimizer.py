@@ -6,17 +6,21 @@ Module containing implementations for all optimizers and schedulers.
 @Created     09/01/22
 """
 
+import numpy as np
 import torch
 import torch.nn as nn
-from train.config import OptimizerConfig, SchedulerConfig
 
 from model.public.lars import LARS
 from model.public.linear_warmup_cos_anneal import LinearWarmupCosineAnnealingLR
+from train.config import OptimizerConfig, SchedulerConfig
 
 
-def initialize_optimizer(
-    config: OptimizerConfig, model_params: nn.Module
-) -> torch.optim.Optimizer:
+def get_lr(step, total_steps, lr_max, lr_min):
+    """Compute learning rate according to cosine annealing schedule."""
+    return lr_min + (lr_max - lr_min) * 0.5 * (1 + np.cos(step / total_steps * np.pi))
+
+
+def initialize_optimizer(config: OptimizerConfig, model_params: nn.Module) -> torch.optim.Optimizer:
     if config.optimizer == "SGD":
         return torch.optim.SGD(
             model_params,
@@ -45,18 +49,25 @@ def initialize_optimizer(
 
 def initialize_scheduler(
     config: SchedulerConfig,
+    opt_config: OptimizerConfig,
     num_epochs: int,
     num_iters: int,
     optimizer: torch.optim.Optimizer,
 ) -> torch.optim.lr_scheduler._LRScheduler:
     if config.scheduler == "CosineAnnealingLR":
-        return torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, num_iters, eta_min=0, last_epoch=-1
-        )
+        return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, num_iters, eta_min=0, last_epoch=-1)
     elif config.scheduler == "LinearWarmupCosineAnnealingLR":
         iters_per_epoch = num_iters / num_epochs
-        return LinearWarmupCosineAnnealingLR(
-            optimizer, config.warmup_epochs * iters_per_epoch, num_iters
+        return LinearWarmupCosineAnnealingLR(optimizer, config.warmup_epochs * iters_per_epoch, num_iters)
+    elif config.scheduler == "CosineAnnealingMinLR":
+        return torch.optim.lr_scheduler.LambdaLR(
+            optimizer,
+            lr_lambda=lambda step: get_lr(
+                step,
+                num_iters,
+                opt_config.initial_lr,
+                1e-3,
+            ),
         )
     else:
         raise NotImplementedError

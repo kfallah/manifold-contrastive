@@ -67,13 +67,7 @@ class Loss(nn.Module):
         # Transport operator loss terms
         if self.loss_cfg.transop_loss_active:
             z1_hat, z1 = header_dict["transop_z1hat"], header_dict["transop_z1"]
-            if self.model_cfg.header_cfg.enable_splicing:
-                z1_hat = TransportOperatorHeader.splice_input(z1_hat, self.model_cfg.header_cfg.splice_dim)
-                z1 = TransportOperatorHeader.splice_input(z1, self.model_cfg.header_cfg.splice_dim)
-            c = header_out.distribution_data.samples
-            # Only take loss over values where transport significantly occured to prevent feature collapse
-            weight = ~(c.abs() < 1e-2).all(dim=-1)
-            transop_loss = (weight.unsqueeze(-1) * F.mse_loss(z1_hat, z1, reduction="none")).mean()
+            transop_loss = F.mse_loss(z1_hat, z1, reduction="none").mean()
             total_loss += self.loss_cfg.transop_loss_weight * transop_loss
             loss_meta["transop_loss"] = transop_loss.item()
 
@@ -88,7 +82,7 @@ class Loss(nn.Module):
         if self.loss_cfg.kl_loss_active:
             assert header_out.distribution_data is not None
             kl_loss = compute_kl(
-                self.model_cfg.header_cfg.vi_cfg.distribution,
+                self.model_cfg.header_cfg.transop_header_cfg.vi_cfg.distribution,
                 header_out.distribution_data.encoder_params,
                 header_out.distribution_data.prior_params,
             )
@@ -99,7 +93,7 @@ class Loss(nn.Module):
         if self.loss_cfg.hyperkl_loss_active:
             assert header_out.distribution_data is not None
             hyperkl_loss = compute_kl(
-                self.model_cfg.header_cfg.vi_cfg.distribution,
+                self.model_cfg.header_cfg.transop_header_cfg.vi_cfg.distribution,
                 header_out.distribution_data.prior_params,
                 header_out.distribution_data.hyperprior_params,
             )

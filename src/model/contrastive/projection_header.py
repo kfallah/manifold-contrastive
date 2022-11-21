@@ -17,6 +17,7 @@ import torch
 import torch.nn as nn
 from lightly.models.modules.heads import MoCoProjectionHead, SimCLRProjectionHead
 from lightly.models.utils import deactivate_requires_grad, update_momentum
+
 from model.contrastive.config import ProjectionHeaderConfig
 from model.type import HeaderInput, HeaderOutput
 
@@ -28,9 +29,9 @@ class RandomProjection(nn.Module):
         self.out_dim = out_dim
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        random_proj = torch.randn(
-            (len(x), self.out_dim, self.in_dim), device=x.device, dtype=x.dtype
-        ) * (1 / math.sqrt(self.out_dim))
+        random_proj = torch.randn((len(x), self.out_dim, self.in_dim), device=x.device, dtype=x.dtype) * (
+            1 / math.sqrt(self.out_dim)
+        )
         return (random_proj @ x.unsqueeze(-1)).squeeze(-1)
 
 
@@ -61,17 +62,10 @@ class ProjectionHeader(nn.Module):
             else:
                 raise NotImplementedError
         elif self.proj_cfg.projection_type == "Linear":
-            self.projector = nn.Linear(
-                backbone_feature_dim, self.proj_cfg.output_dim, bias=False
-            )
+            self.projector = nn.Linear(backbone_feature_dim, self.proj_cfg.output_dim, bias=False)
         elif self.proj_cfg.projection_type == "RandomProjection":
-            self.projector = RandomProjection(
-                backbone_feature_dim, self.proj_cfg.output_dim
-            )
-        elif (
-            self.proj_cfg.projection_type == "None"
-            or self.proj_cfg.projection_type == "Direct"
-        ):
+            self.projector = RandomProjection(backbone_feature_dim, self.proj_cfg.output_dim)
+        elif self.proj_cfg.projection_type == "None" or self.proj_cfg.projection_type == "Direct":
             self.projector = nn.Identity()
         else:
             raise NotImplementedError
@@ -87,14 +81,18 @@ class ProjectionHeader(nn.Module):
     def forward(self, header_input: HeaderInput) -> HeaderOutput:
         header_out = {}
         proj_0 = self.projector(header_input.feature_0)
-        proj_1 = self.projector(header_input.feature_1)
+
+        if self.enable_momentum:
+            proj_1 = self.momentum_projector(header_input.feature_1)
+        else:
+            proj_1 = self.projector(header_input.feature_1)
 
         # For DirectCLR only use a subset of the features for prediction
         if self.proj_cfg.projection_type == "Direct":
             proj_0 = proj_0[..., : self.proj_cfg.direct_proj_num_dim]
             proj_1 = proj_1[..., : self.proj_cfg.direct_proj_num_dim]
 
-        header_out['proj_00'] = proj_0
-        header_out['proj_01'] = proj_1
+        header_out["proj_00"] = proj_0
+        header_out["proj_01"] = proj_1
 
         return HeaderOutput(header_out, None)

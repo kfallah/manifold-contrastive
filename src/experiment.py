@@ -143,7 +143,7 @@ def initialize_experiment(cfg: DictConfig) -> None:
 
     # Initialize the model
     log.info(f"Initializing model with {cfg.model_cfg.backbone_cfg.hub_model_name} backbone...")
-    model = Model.initialize_model(cfg.model_cfg, cfg.devices)
+    model = Model.initialize_model(cfg.model_cfg, cfg.train_dataloader_cfg.dataset_cfg.dataset_name, cfg.devices)
 
     # Initialize the trainer and evaluator
     trainer = Trainer.initialize_trainer(

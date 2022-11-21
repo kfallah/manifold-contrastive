@@ -23,10 +23,9 @@ class EvalRunnerConfig:
 
 @dataclass
 class LinearProbeConfig(EvalRunnerConfig):
-    optimizer_cfg: OptimizerConfig = OptimizerConfig()
+    optimizer_cfg: OptimizerConfig = OptimizerConfig(initial_lr=0.2, weight_decay=0.0, enable_nesterov=True)
     scheduler_cfg: SchedulerConfig = SchedulerConfig()
     num_epochs: int = 100
-    val_acc_epoch_freq: int = 10
     use_amp: bool = True
 
 

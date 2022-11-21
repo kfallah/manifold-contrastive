@@ -1,0 +1,15 @@
+defaults:
+  - simclr_cifar100
+  - _self_
+
+exp_name: MoCo
+model_cfg:
+  enable_backbone_momentum: true
+  backbone_momentum_update_rate: 0.99
+  enable_header_momentum: true
+  header_momentum_update_rate: 0.99
+  header_cfg:
+    projection_header_cfg:
+      header_name: MoCo
+  loss_cfg:
+    memory_bank_size: 4096

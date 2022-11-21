@@ -7,12 +7,14 @@ Class that contains all config DataClasses for the dataloaders.
 """
 
 from dataclasses import MISSING, dataclass
+from typing import List
 
 
 @dataclass
 class DatasetConfig:
-    # Supported values: ["CIFAR10"]
+    # Supported values: ["CIFAR10", "CIFAR100"]
     dataset_name: str = MISSING
+    num_classes: int = MISSING
     dataset_dir: str = "../../datasets"
     image_size: int = 224
 
@@ -28,6 +30,8 @@ class CollateFunctionConfig:
     cj_hue: float = 0.2
     min_scale: float = 0.08
     gausian_blur: float = 0.0
+    normalize_mean: List[float] = [0.49139968, 0.48215841, 0.44653091]
+    normalize_std: List[float] = [0.24703223, 0.24348513, 0.26158784]
 
 
 @dataclass

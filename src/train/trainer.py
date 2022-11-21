@@ -37,11 +37,10 @@ class Trainer(nn.Module):
         self.device = device
 
         # Initialize optimizer and scheduler
-        self.optimizer = initialize_optimizer(
-            self.trainer_cfg.optimizer_cfg, self.get_model().get_param_groups()
-        )
+        self.optimizer = initialize_optimizer(self.trainer_cfg.optimizer_cfg, self.get_model().get_param_groups())
         self.scheduler = initialize_scheduler(
             self.trainer_cfg.scheduler_cfg,
+            self.trainer_cfg.optimizer_cfg,
             self.trainer_cfg.num_epochs,
             num_train_iters,
             self.optimizer,
@@ -59,9 +58,7 @@ class Trainer(nn.Module):
         else:
             return self.model
 
-    def train_epoch(
-        self, epoch: int, train_dataloader: torch.utils.data.DataLoader
-    ) -> Dict[str, float]:
+    def train_epoch(self, epoch: int, train_dataloader: torch.utils.data.DataLoader) -> Dict[str, float]:
         self.model.train()
         for idx, batch in enumerate(train_dataloader):
             curr_iter = idx + (epoch * len(train_dataloader))
@@ -74,9 +71,7 @@ class Trainer(nn.Module):
             with autocast(enabled=self.trainer_cfg.use_amp):
                 # Send inputs through model
                 model_output = self.model(x_gpu, x_idx, curr_iter)
-                loss_metadata, total_loss = self.get_model().compute_loss(
-                    curr_iter, model_output
-                )
+                loss_metadata, total_loss = self.get_model().compute_loss(curr_iter, model_output)
 
             # Backpropagate loss
             self.scaler.scale(total_loss / self.trainer_cfg.grad_accumulation_iters).backward()
@@ -135,9 +130,7 @@ class Trainer(nn.Module):
     ) -> "Trainer":
         model_dict = torch.load(load_path)
 
-        trainer = Trainer.initialize_trainer(
-            trainer_cfg, model, num_train_iters, device
-        )
+        trainer = Trainer.initialize_trainer(trainer_cfg, model, num_train_iters, device)
         trainer.optimizer.load_state_dict(model_dict["optimizer"])
         trainer.scheduler.load_state_dict(model_dict["scheduler"])
         trainer.get_model().load_state_dict(model_dict["model_state"])

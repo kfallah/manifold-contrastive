@@ -1,8 +1,8 @@
 defaults:
-  - base_cifar10
+  - base_cifar100
   - _self_
 
-exp_name: SimCLR_CIFAR10
+exp_name: SimCLR_CIFAR100
 model_cfg:
   header_cfg:
     enable_projection_header: true

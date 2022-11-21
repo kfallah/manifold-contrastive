@@ -18,6 +18,7 @@ from lightly.models.modules import (
     NNCLRProjectionHead,
     NNMemoryBankModule,
 )
+
 from model.contrastive.config import ProjectionPredictionHeaderConfig
 from model.type import HeaderInput, HeaderOutput
 
@@ -35,7 +36,7 @@ class ProjectionPredictionHeader(nn.Module):
             self.projector = NNCLRProjectionHead(
                 backbone_feature_dim,
                 self.proj_cfg.proj_hidden_dim,
-                self.proj_cfg.proj_output_dim,
+                self.proj_cfg.pred_output_dim,
             )
         else:
             raise NotImplementedError
@@ -44,16 +45,14 @@ class ProjectionPredictionHeader(nn.Module):
         if self.proj_cfg.prediction_type == "MLP":
             if self.proj_cfg.header_name == "NNCLR":
                 self.predictor = NNCLRPredictionHead(
-                    self.proj_cfg.proj_output_dim,
+                    self.proj_cfg.pred_output_dim,
                     self.proj_cfg.pred_hidden_dim,
                     self.proj_cfg.pred_output_dim,
                 )
             else:
                 raise NotImplementedError
         elif self.proj_cfg.prediction_type == "Linear":
-            self.predictor = nn.Linear(
-                self.proj_cfg.proj_output_dim, self.proj_cfg.pred_output_dim, bias=False
-            )
+            self.predictor = nn.Linear(self.proj_cfg.pred_output_dim, self.proj_cfg.pred_output_dim, bias=False)
         elif self.proj_cfg.prediction_type == "None":
             self.predictor = nn.Identity()
         else:
@@ -77,9 +76,9 @@ class ProjectionPredictionHeader(nn.Module):
             z0 = self.nn_memory_bank(z0.detach(), update=False).detach()
             z1 = self.nn_memory_bank(z1.detach(), update=True).detach()
 
-        header_out['proj_00'] = z0
-        header_out['proj_01'] = p1
-        header_out['proj_10'] = z1
-        header_out['proj_11'] = p0
+        header_out["proj_00"] = z0
+        header_out["proj_01"] = p1
+        header_out["proj_10"] = z1
+        header_out["proj_11"] = p0
 
         return HeaderOutput(header_out, distribution_data=None)

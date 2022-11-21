@@ -35,7 +35,7 @@ class HeaderInput(NamedTuple):
     # List of features from backbone encoder
     # Dimensions [B x D]
     feature_0: torch.Tensor
-    feature_1: Optional[torch.Tensor]
+    feature_1: torch.Tensor
 
 
 class HeaderOutput(NamedTuple):

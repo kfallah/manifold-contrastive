@@ -1,0 +1,15 @@
+defaults:
+  - base_cifar10
+  - dataloader/cifar100_simclr_strong@train_dataloader_cfg
+  - dataloader/cifar100_simclr_strong@eval_dataloader_cfg
+  - _self_
+
+model_cfg:
+  backbone_cfg:
+    hub_model_name: torchhub:resnet50
+eval_dataloader_cfg:
+  collate_fn_cfg:
+    collate_fn_type: NONE
+  train: false
+  shuffle: false
+  batch_size: 256
