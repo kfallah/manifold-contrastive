@@ -7,7 +7,7 @@ Class that contains all config DataClasses for the dataloaders.
 """
 
 from dataclasses import MISSING, dataclass
-from typing import List
+from typing import Tuple
 
 
 @dataclass
@@ -30,8 +30,8 @@ class CollateFunctionConfig:
     cj_hue: float = 0.2
     min_scale: float = 0.08
     gausian_blur: float = 0.0
-    normalize_mean: List[float] = [0.49139968, 0.48215841, 0.44653091]
-    normalize_std: List[float] = [0.24703223, 0.24348513, 0.26158784]
+    normalize_mean: Tuple[float] = (0.49139968, 0.48215841, 0.44653091)
+    normalize_std: Tuple[float] = (0.24703223, 0.24348513, 0.26158784)
 
 
 @dataclass
