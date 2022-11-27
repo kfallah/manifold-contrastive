@@ -19,7 +19,7 @@ model_cfg:
 
 trainer_cfg:
   num_epochs: 1500
-  use_amp: true
+  use_amp: false
   optimizer_cfg:
     optimizer: SGD
     initial_lr: 0.6
@@ -49,6 +49,7 @@ evaluator_cfg:
     enable_runner: true
     eval_freq: 200
     num_epochs: 100
+    use_amp: false
 eval_dataloader_cfg:
   collate_fn_cfg:
     collate_fn_type: NONE

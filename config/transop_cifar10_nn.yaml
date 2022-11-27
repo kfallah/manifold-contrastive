@@ -18,6 +18,7 @@ model_cfg:
       nn_memory_bank_size: 98304
       enable_splicing: true
       splice_dim: 64
+      batch_size: 512
       enable_variational_inference: true
       vi_cfg:
         scale_prior: 0.001
@@ -27,7 +28,7 @@ model_cfg:
         total_samples: 1
         use_warmpup: false
         encode_features: true
-        feature_dim: 512
+        feature_dim: 256
         encoder_type: MLP
         variational_encoder_lr: 3.0e-4
         variational_encoder_weight_decay: 1.0e-5
