@@ -34,6 +34,7 @@ class LossConfig:
 
     transop_loss_active: bool = False
     transop_loss_weight: float = 1.0
+    transop_loss_fn: str = "mse"
     memory_bank_size: int = 0
 
     ce_loss_active: bool = False

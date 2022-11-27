@@ -6,6 +6,7 @@
 # All Rights Reserved
 
 import torch
+import torch.nn.functional as F
 from lightly.loss.memory_bank import MemoryBankModule
 from lightly.utils import dist
 from torch import nn
@@ -77,6 +78,25 @@ class NTXentLoss(MemoryBankModule):
             return -mse
         else:
             raise NotImplementedError
+
+    # Public implementation take from
+    # https://github.com/p3i0t/SimCLR-CIFAR10/blob/master/simclr.py
+    def nt_xent(self, x0, x1):
+        t = self.temperature
+        x = torch.concat((x0, x1), dim=0)
+        x = F.normalize(x, dim=1)
+        x_scores = (x @ x.t()).clamp(min=1e-7)  # normalized cosine similarity scores
+        x_scale = x_scores / t  # scale with temperature
+
+        # (2N-1)-way softmax without the score of i-th entry itself.
+        # Set the diagonals to be large negative values, which become zeros after softmax.
+        x_scale = x_scale - torch.eye(x_scale.size(0)).to(x_scale.device) * 1e5
+
+        # targets 2N elements.
+        targets = torch.arange(x.size()[0])
+        targets[: len(targets) // 2] += len(x0)  # target of 2k element is 2k+1
+        targets[len(targets) // 2 :] -= len(x0)  # target of 2k+1 element is 2k
+        return F.cross_entropy(x_scale, targets.long().to(x_scale.device))
 
     def forward(self, out0: torch.Tensor, out1: torch.Tensor):
         """Forward pass through Contrastive Cross-Entropy Loss.

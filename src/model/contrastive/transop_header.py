@@ -89,9 +89,13 @@ class TransportOperatorHeader(nn.Module):
         # Detach the predictions in the case where we dont want gradient going to the backbone
         # or when we do alternating minimization.
         if (
-            self.transop_cfg.enable_alternating_min
-            and (header_input.curr_iter // self.transop_cfg.alternating_min_step) % 2 == 0
-        ) or self.transop_cfg.detach_feature:
+            (
+                self.transop_cfg.enable_alternating_min
+                and (header_input.curr_iter // self.transop_cfg.alternating_min_step) % 2 == 0
+            )
+            or self.transop_cfg.detach_feature
+            or curr_iter < self.transop_cfg.start_iter
+        ):
             z0, z1 = z0.detach(), z1.detach()
 
         # either use the nearnest neighbor bank or the projected feature to make the prediction
