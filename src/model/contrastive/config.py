@@ -41,6 +41,7 @@ class VariationalEncoderConfig:
     encoder_type: str = "MLP"
     feature_dim: int = 256
     encode_features: bool = True
+    share_encoder: bool = True
 
     use_warmpup: bool = False
     normalize_coefficients: bool = False
@@ -51,6 +52,7 @@ class VariationalEncoderConfig:
 
 @dataclass
 class TransportOperatorConfig:
+    start_iter: int = 2000
     dictionary_size: int = 200
     lambda_prior: float = 0.04
     transop_lr: float = 1e-3

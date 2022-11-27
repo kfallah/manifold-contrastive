@@ -11,7 +11,7 @@ model_cfg:
       dictionary_size: 200
       lambda_prior: 0.05
       transop_weight_decay: 1.0e-6
-      transop_lr: 1.0e-3
+      transop_lr: 0.6
       stable_operator_initialization: true
       detach_feature: false
       enable_nn_point_pair: true
@@ -30,7 +30,7 @@ model_cfg:
         encode_features: true
         feature_dim: 256
         encoder_type: MLP
-        variational_encoder_lr: 3.0e-4
+        variational_encoder_lr: 0.6
         variational_encoder_weight_decay: 1.0e-5
   loss_cfg:
     ntxent_loss_active: true
@@ -43,6 +43,7 @@ model_cfg:
     kl_weight_warmup: None
     transop_loss_active: true
     transop_loss_weight: 0.1
+    transop_loss_fn: huber
 
 trainer_cfg:
   metric_logger_cfg:

@@ -26,7 +26,7 @@ trainer_cfg:
     weight_decay: 1e-6
     enable_nesterov: true
   scheduler_cfg:
-    scheduler: CosineAnnealingMinLR
+    scheduler: CosineAnnealingLR
     warmup_epochs: 10
   metric_logger_cfg:
     enable_wandb_logging: true

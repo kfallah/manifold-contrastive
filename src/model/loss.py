@@ -58,16 +58,23 @@ class Loss(nn.Module):
 
         # Contrastive loss terms
         if self.loss_cfg.ntxent_loss_active:
-            ntxent_loss = self.ntxent_loss(header_dict["proj_00"], header_dict["proj_01"])
+            ntxent_loss = self.ntxent_loss.nt_xent(header_dict["proj_00"], header_dict["proj_01"])
             if self.loss_cfg.ntxent_symmetric:
-                ntxent_loss = 0.5 * (ntxent_loss + self.ntxent_loss(header_dict["proj_10"], header_dict["proj_11"]))
+                ntxent_loss = 0.5 * (
+                    ntxent_loss + self.ntxent_loss.nt_xent(header_dict["proj_10"], header_dict["proj_11"])
+                )
             total_loss += self.loss_cfg.ntxent_loss_weight * ntxent_loss
             loss_meta["ntxent_loss"] = ntxent_loss.item()
 
         # Transport operator loss terms
         if self.loss_cfg.transop_loss_active:
             z1_hat, z1 = header_dict["transop_z1hat"], header_dict["transop_z1"]
-            transop_loss = F.mse_loss(z1_hat, z1, reduction="none").mean()
+            if self.loss_cfg.transop_loss_fn == "mse":
+                transop_loss = F.mse_loss(z1_hat, z1, reduction="none").mean()
+            elif self.loss_cfg.transop_loss_fn == "huber":
+                transop_loss = F.huber_loss(z1_hat, z1, reduction="none", delta=0.5).mean()
+            else:
+                raise NotImplementedError
             total_loss += self.loss_cfg.transop_loss_weight * transop_loss
             loss_meta["transop_loss"] = transop_loss.item()
 

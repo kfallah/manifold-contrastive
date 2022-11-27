@@ -34,8 +34,9 @@ class VIEncoder(nn.Module):
 
     def initialize_encoder_params(self, input_size, feat_dim, dict_size):
         if self.vi_cfg.encoder_type == "MLP":
+            in_size = input_size if self.vi_cfg.share_encoder else 2 * input_size
             self.enc_feat_extract = nn.Sequential(
-                nn.Linear(2 * input_size, 4 * feat_dim),
+                nn.Linear(in_size, 4 * feat_dim),
                 nn.LayerNorm(4 * feat_dim),
                 # nn.BatchNorm1d(2 * input_size),
                 nn.GELU(),
@@ -143,7 +144,12 @@ class VIEncoder(nn.Module):
     def get_distribution_params(self, x0, x1) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
         encoder_params = {}
         if self.vi_cfg.encoder_type == "MLP":
-            z_enc = self.enc_feat_extract(torch.cat((x0, x1), dim=1))
+            if self.vi_cfg.share_encoder:
+                z0 = self.enc_feat_extract(x0)
+                z1 = self.enc_feat_extract(x1)
+                z_enc = torch.max(z0, z1)
+            else:
+                z_enc = self.enc_feat_extract(torch.cat((x0, x1), dim=1))
         else:
             raise NotImplementedError()
 
