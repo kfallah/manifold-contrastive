@@ -92,7 +92,7 @@ class MetricLogger:
 
         # Logging optimizer LR
         if self.cfg.enable_optimizer_logging and curr_iter % self.cfg.optimizer_log_freq == 0:
-            optim_lr = self.scheduler.get_last_lr()
+            optim_lr = self.scheduler.get_last_lr()[0]
             metrics["optim_lr"] = optim_lr
             if self.cfg.enable_console_logging:
                 log.info(f"[Epoch {curr_epoch}, iter {curr_iter}]: Optimizer LR: {optim_lr}")
