@@ -42,7 +42,7 @@ class Trainer(nn.Module):
             self.trainer_cfg.scheduler_cfg,
             self.trainer_cfg.optimizer_cfg,
             self.trainer_cfg.num_epochs,
-            num_train_iters,
+            num_train_iters // self.trainer_cfg.grad_accumulation_iters,
             self.optimizer,
         )
         self.scaler = GradScaler(enabled=self.trainer_cfg.use_amp)
