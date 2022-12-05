@@ -94,7 +94,7 @@ class TransportOperatorHeader(nn.Module):
                 and (header_input.curr_iter // self.transop_cfg.alternating_min_step) % 2 == 0
             )
             or self.transop_cfg.detach_feature
-            or curr_iter < self.transop_cfg.start_iter
+            or curr_iter < (self.transop_cfg.start_iter + 2000)
         ):
             z0, z1 = z0.detach(), z1.detach()
 
@@ -139,9 +139,12 @@ class TransportOperatorHeader(nn.Module):
                 distribution_data = self.coefficient_encoder(x0, x1, self.transop)
             c = distribution_data.samples
 
-        transop_grad = not (
-            self.transop_cfg.enable_alternating_min
-            and (header_input.curr_iter // self.transop_cfg.alternating_min_step) % 2 != 0
+        transop_grad = (
+            not (
+                self.transop_cfg.enable_alternating_min
+                and (header_input.curr_iter // self.transop_cfg.alternating_min_step) % 2 != 0
+            )
+            and curr_iter > self.transop_cfg.start_iter
         )
         # Matrix exponential not supported with float16
         with autocast(enabled=False):

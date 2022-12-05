@@ -68,7 +68,7 @@ def initialize_scheduler(
                 step,
                 num_iters,
                 opt_config.initial_lr,
-                1e-3,
+                1e-4,
             ),
         )
     else:
