@@ -36,15 +36,11 @@ class VIEncoder(nn.Module):
         if self.vi_cfg.encoder_type == "MLP":
             in_size = input_size if self.vi_cfg.share_encoder else 2 * input_size
             self.enc_feat_extract = nn.Sequential(
+                nn.LayerNorm(in_size),
                 nn.Linear(in_size, 4 * feat_dim),
-                nn.LayerNorm(4 * feat_dim),
-                # nn.BatchNorm1d(2 * input_size),
+                nn.BatchNorm1d(4 * feat_dim),
                 nn.GELU(),
-                nn.Linear(4 * feat_dim, 2 * feat_dim),
-                nn.LayerNorm(2 * feat_dim),
-                # nn.BatchNorm1d(2 * input_size),
-                nn.GELU(),
-                nn.Linear(2 * feat_dim, feat_dim),
+                nn.Linear(4 * feat_dim, feat_dim),
             )
         else:
             raise NotImplementedError

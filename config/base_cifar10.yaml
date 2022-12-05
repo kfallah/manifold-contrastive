@@ -18,15 +18,15 @@ model_cfg:
     ntxent_temp: 0.5
 
 trainer_cfg:
-  num_epochs: 1500
+  num_epochs: 1000
   use_amp: false
   optimizer_cfg:
-    optimizer: SGD
-    initial_lr: 0.6
+    optimizer: Adam
+    initial_lr: 0.0003
     weight_decay: 1e-6
     enable_nesterov: true
   scheduler_cfg:
-    scheduler: CosineAnnealingLR
+    scheduler: LinearWarmupCosineAnnealingLR
     warmup_epochs: 10
   metric_logger_cfg:
     enable_wandb_logging: true
