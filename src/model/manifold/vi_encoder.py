@@ -17,6 +17,7 @@ class VIEncoder(nn.Module):
         input_size: int,
         dictionary_size: int,
         lambda_prior: float,
+        full_size: int = 512
     ):
         super(VIEncoder, self).__init__()
 
@@ -29,6 +30,7 @@ class VIEncoder(nn.Module):
         self.dictionary_size = dictionary_size
         self.lambda_prior = lambda_prior
 
+        self.layer_norm = nn.LayerNorm(full_size)
         self.initialize_encoder_params(input_size, feat_dim, dictionary_size)
         self.initialize_prior_params(input_size, feat_dim, dictionary_size)
 
@@ -36,7 +38,6 @@ class VIEncoder(nn.Module):
         if self.vi_cfg.encoder_type == "MLP":
             in_size = input_size if self.vi_cfg.share_encoder else 2 * input_size
             self.enc_feat_extract = nn.Sequential(
-                nn.LayerNorm(in_size),
                 nn.Linear(in_size, 4 * feat_dim),
                 nn.BatchNorm1d(4 * feat_dim),
                 nn.GELU(),

@@ -94,7 +94,7 @@ class TransportOperatorHeader(nn.Module):
                 and (header_input.curr_iter // self.transop_cfg.alternating_min_step) % 2 == 0
             )
             or self.transop_cfg.detach_feature
-            or curr_iter < (self.transop_cfg.start_iter + 2000)
+            or curr_iter < (self.transop_cfg.start_iter)
         ):
             z0, z1 = z0.detach(), z1.detach()
 
@@ -108,6 +108,11 @@ class TransportOperatorHeader(nn.Module):
         # Splice input into sequence if enabled
         if self.transop_cfg.enable_splicing:
             feat_dim = z0.shape[-1]
+            if self.coefficient_encoder:
+                z0_coeff = self.coefficient_encoder.layer_norm(z0.detach())
+                z1_use_coeff = self.coefficient_encoder.layer_norm(z1_use.detach())
+                z0_coeff = TransportOperatorHeader.splice_input(z0_coeff, self.transop_cfg.splice_dim)
+                z1_use_coeff = TransportOperatorHeader.splice_input(z1_use_coeff, self.transop_cfg.splice_dim)
             z0 = TransportOperatorHeader.splice_input(z0, self.transop_cfg.splice_dim)
             z1_use = TransportOperatorHeader.splice_input(z1_use, self.transop_cfg.splice_dim)
 
@@ -130,8 +135,8 @@ class TransportOperatorHeader(nn.Module):
             if self.transop_cfg.vi_cfg.encode_features:
                 # Use the features to estimate coefficients
                 distribution_data = self.coefficient_encoder(
-                    z0.detach() / self.transop_cfg.latent_scale,
-                    z1_use.detach() / self.transop_cfg.latent_scale,
+                    z0_coeff / self.transop_cfg.latent_scale,
+                    z1_use_coeff / self.transop_cfg.latent_scale,
                     self.transop,
                 )
             else:
@@ -144,7 +149,6 @@ class TransportOperatorHeader(nn.Module):
                 self.transop_cfg.enable_alternating_min
                 and (header_input.curr_iter // self.transop_cfg.alternating_min_step) % 2 != 0
             )
-            and curr_iter > self.transop_cfg.start_iter
         )
         # Matrix exponential not supported with float16
         with autocast(enabled=False):
