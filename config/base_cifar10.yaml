@@ -21,8 +21,8 @@ trainer_cfg:
   num_epochs: 1000
   use_amp: false
   optimizer_cfg:
-    optimizer: Adam
-    initial_lr: 0.0003
+    optimizer: SGD
+    initial_lr: 0.06
     weight_decay: 1e-6
     enable_nesterov: true
   scheduler_cfg:
