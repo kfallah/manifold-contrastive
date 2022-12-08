@@ -17,7 +17,7 @@ class VIEncoder(nn.Module):
         input_size: int,
         dictionary_size: int,
         lambda_prior: float,
-        full_size: int = 512
+        full_size: int = 512,
     ):
         super(VIEncoder, self).__init__()
 
@@ -36,11 +36,11 @@ class VIEncoder(nn.Module):
 
     def initialize_encoder_params(self, input_size, feat_dim, dict_size):
         if self.vi_cfg.encoder_type == "MLP":
-            in_size = input_size if self.vi_cfg.share_encoder else 2 * input_size
+            in_size = input_size if self.vi_cfg.share_encoder else ((2 * input_size) + 1)
             self.enc_feat_extract = nn.Sequential(
                 nn.Linear(in_size, 4 * feat_dim),
                 nn.BatchNorm1d(4 * feat_dim),
-                nn.GELU(),
+                nn.LeakyReLU(),
                 nn.Linear(4 * feat_dim, feat_dim),
             )
         else:
@@ -146,7 +146,8 @@ class VIEncoder(nn.Module):
                 z1 = self.enc_feat_extract(x1)
                 z_enc = torch.max(z0, z1)
             else:
-                z_enc = self.enc_feat_extract(torch.cat((x0, x1), dim=1))
+                dist = (torch.linalg.norm(x0 - x1, dim=-1) ** 2).unsqueeze(-1)
+                z_enc = self.enc_feat_extract(torch.cat((x0, x1, dist), dim=1))
         else:
             raise NotImplementedError()
 
@@ -160,7 +161,8 @@ class VIEncoder(nn.Module):
             encoder_params["logscale"] += torch.log(
                 torch.ones_like(encoder_params["logscale"]) * self.vi_cfg.scale_prior
             )
-            encoder_params["shift"] = self.enc_shift(z_enc).clamp(min=-1, max=1)
+            # encoder_params["shift"] = self.enc_shift(z_enc).clamp(min=-1, max=1)
+            encoder_params["shift"] = self.enc_shift(z_enc)
 
         if self.vi_cfg.distribution == "Laplacian+Gamma" or self.vi_cfg.distribution == "Gaussian+Gamma":
             # gamma_a = self.enc_gamma_a(z_enc).exp()
