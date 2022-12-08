@@ -105,14 +105,16 @@ class TransportOperatorHeader(nn.Module):
         else:
             z1_use = z1[: self.transop_cfg.batch_size]
 
+        if self.coefficient_encoder:
+            z0_coeff = self.coefficient_encoder.layer_norm(z0.detach())
+            z1_use_coeff = self.coefficient_encoder.layer_norm(z1_use.detach())
+            if self.transop_cfg.enable_splicing:
+                z0_coeff = TransportOperatorHeader.splice_input(z0_coeff, self.transop_cfg.splice_dim)
+                z1_use_coeff = TransportOperatorHeader.splice_input(z1_use_coeff, self.transop_cfg.splice_dim)
+
         # Splice input into sequence if enabled
         if self.transop_cfg.enable_splicing:
             feat_dim = z0.shape[-1]
-            if self.coefficient_encoder:
-                z0_coeff = self.coefficient_encoder.layer_norm(z0.detach())
-                z1_use_coeff = self.coefficient_encoder.layer_norm(z1_use.detach())
-                z0_coeff = TransportOperatorHeader.splice_input(z0_coeff, self.transop_cfg.splice_dim)
-                z1_use_coeff = TransportOperatorHeader.splice_input(z1_use_coeff, self.transop_cfg.splice_dim)
             z0 = TransportOperatorHeader.splice_input(z0, self.transop_cfg.splice_dim)
             z1_use = TransportOperatorHeader.splice_input(z1_use, self.transop_cfg.splice_dim)
 

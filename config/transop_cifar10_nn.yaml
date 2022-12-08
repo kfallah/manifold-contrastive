@@ -29,6 +29,7 @@ model_cfg:
         total_samples: 1
         use_warmpup: false
         encode_features: true
+        share_encoder: false
         feature_dim: 256
         encoder_type: MLP
         variational_encoder_lr: 0.003
