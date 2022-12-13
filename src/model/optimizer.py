@@ -17,7 +17,8 @@ from train.config import OptimizerConfig, SchedulerConfig
 
 def get_lr(step, total_steps, lr_max, lr_min):
     """Compute learning rate according to cosine annealing schedule."""
-    return lr_min + (lr_max - lr_min) * 0.5 * (1 + np.cos(step / total_steps * np.pi))
+    step_mult = min((step / total_steps), 1.0)
+    return lr_min + (lr_max - lr_min) * 0.5 * (1 + np.cos(step_mult * np.pi))
 
 
 def initialize_optimizer(config: OptimizerConfig, model_params: nn.Module) -> torch.optim.Optimizer:
@@ -59,7 +60,7 @@ def initialize_scheduler(
     elif config.scheduler == "LinearWarmupCosineAnnealingLR":
         iters_per_epoch = num_iters / num_epochs
         return LinearWarmupCosineAnnealingLR(
-            optimizer, warmup_epochs=config.warmup_epochs * iters_per_epoch, max_epochs=num_iters, eta_min=5e-3
+            optimizer, warmup_epochs=config.warmup_epochs * iters_per_epoch, max_epochs=num_iters, eta_min=1e-3
         )
     elif config.scheduler == "CosineAnnealingMinLR":
         return torch.optim.lr_scheduler.LambdaLR(
@@ -68,7 +69,7 @@ def initialize_scheduler(
                 step,
                 num_iters,
                 opt_config.initial_lr,
-                5e-3,
+                1e-3,
             ),
         )
     else:

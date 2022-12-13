@@ -42,6 +42,7 @@ class VariationalEncoderConfig:
     feature_dim: int = 256
     encode_features: bool = True
     share_encoder: bool = True
+    encode_position: bool = False
 
     use_warmpup: bool = False
     normalize_coefficients: bool = False
@@ -65,6 +66,8 @@ class TransportOperatorConfig:
 
     # Option to splice input to create BDM constraint on transop
     enable_splicing: bool = False
+    # Only use the top block in the BDM
+    enable_direct: bool = False
     splice_dim: int = 128
 
     # Option for alternating minimization between

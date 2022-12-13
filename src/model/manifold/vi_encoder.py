@@ -37,6 +37,8 @@ class VIEncoder(nn.Module):
     def initialize_encoder_params(self, input_size, feat_dim, dict_size):
         if self.vi_cfg.encoder_type == "MLP":
             in_size = input_size if self.vi_cfg.share_encoder else ((2 * input_size) + 1)
+            if self.vi_cfg.encode_position:
+                in_size += 1
             self.enc_feat_extract = nn.Sequential(
                 nn.Linear(in_size, 4 * feat_dim),
                 nn.BatchNorm1d(4 * feat_dim),

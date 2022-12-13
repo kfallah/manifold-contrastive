@@ -26,7 +26,7 @@ class TransportOperatorHeader(nn.Module):
         super(TransportOperatorHeader, self).__init__()
         self.transop_cfg = transop_cfg
 
-        if self.transop_cfg.enable_splicing:
+        if self.transop_cfg.enable_splicing or self.transop_cfg.enable_direct:
             backbone_feature_dim = self.transop_cfg.splice_dim
 
         self.transop = TransOp_expm(
@@ -111,12 +111,22 @@ class TransportOperatorHeader(nn.Module):
             if self.transop_cfg.enable_splicing:
                 z0_coeff = TransportOperatorHeader.splice_input(z0_coeff, self.transop_cfg.splice_dim)
                 z1_use_coeff = TransportOperatorHeader.splice_input(z1_use_coeff, self.transop_cfg.splice_dim)
+            elif self.transop_cfg.enable_direct:
+                z0_coeff = z0_coeff[:, :self.transop_cfg.splice_dim]
+                z1_use_coeff = z1_use_coeff[:, :self.transop_cfg.splice_dim]
+            
+            if self.transop_cfg.vi_cfg.encode_position:
+                position = torch.arange(self.transop_cfg.splice_dim, device=z1_use_coeff.device).view(1, self.transop_cfg.splice_dim).repeat(self.transop_cfg.batch_size, -1)
+                z1_use_coeff = torch.cat([z1_use_coeff, position], dim=-1)
 
         # Splice input into sequence if enabled
         if self.transop_cfg.enable_splicing:
             feat_dim = z0.shape[-1]
             z0 = TransportOperatorHeader.splice_input(z0, self.transop_cfg.splice_dim)
             z1_use = TransportOperatorHeader.splice_input(z1_use, self.transop_cfg.splice_dim)
+        elif self.transop_cfg.enable_direct:
+            z0 = z0[:, :self.transop_cfg.splice_dim]
+            z1_use = z1_use[:, :self.transop_cfg.splice_dim]
 
         # Infer coefficients for point pair
         if self.coefficient_encoder is None:
