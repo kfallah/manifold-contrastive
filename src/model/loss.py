@@ -47,6 +47,19 @@ class Loss(nn.Module):
             if self.kl_warmup > 1.0:
                 self.kl_warmup = 1.0
             return self.loss_cfg.kl_loss_weight * self.kl_warmup
+        elif self.loss_cfg.kl_weight_warmup == "Cyclic":
+            total_iters = 100000
+            mod_iter = curr_iter % 50000
+            weight = 1.0
+            if mod_iter >= 40000:
+                weight = 1 - ((mod_iter - 40000) / 10000)
+            return weight * self.loss_cfg.kl_loss_weight
+        elif self.loss_cfg.kl_weight_warmup == "Annealed":
+            self.kl_warmup += 1
+            if self.kl_warmup > 100000:
+                self.kl_warmup = 100000
+            temp = (1 * (100000 - self.kl_warmup) + 0.001 * self.kl_warmup) / 100000
+            return temp * self.loss_cfg.kl_loss_weight
         else:
             raise NotImplementedError()
 
@@ -77,7 +90,7 @@ class Loss(nn.Module):
                 z0 = header_dict["transop_z0"]
                 transop_loss = F.mse_loss(z1_hat, z1, reduction="none").mean(dim=-1)
                 # To detach, or not to detach, that is the question
-                transop_loss /= (F.mse_loss(z0.detach(), z1.detach(), reduction="none").mean(dim=-1) + 1e-4)
+                transop_loss /= (F.mse_loss(z0.detach(), z1.detach(), reduction="none").mean(dim=-1) + 1.0)
                 transop_loss = transop_loss.mean()
             else:
                 raise NotImplementedError
