@@ -30,9 +30,10 @@ model_cfg:
         use_warmpup: false
         encode_features: true
         share_encoder: false
+        encode_position: false
         feature_dim: 256
         encoder_type: MLP
-        variational_encoder_lr: 0.003
+        variational_encoder_lr: 0.006
         variational_encoder_weight_decay: 1.0e-5
   loss_cfg:
     ntxent_loss_active: true
@@ -44,7 +45,7 @@ model_cfg:
     kl_loss_weight: 1.0e-5
     kl_weight_warmup: None
     transop_loss_active: true
-    transop_loss_weight: 0.1
+    transop_loss_weight: 0.5
     transop_loss_fn: mse
 
 trainer_cfg:
