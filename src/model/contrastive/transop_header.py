@@ -112,12 +112,18 @@ class TransportOperatorHeader(nn.Module):
                 z0_coeff = TransportOperatorHeader.splice_input(z0_coeff, self.transop_cfg.splice_dim)
                 z1_use_coeff = TransportOperatorHeader.splice_input(z1_use_coeff, self.transop_cfg.splice_dim)
             elif self.transop_cfg.enable_direct:
-                z0_coeff = z0_coeff[:, :self.transop_cfg.splice_dim]
-                z1_use_coeff = z1_use_coeff[:, :self.transop_cfg.splice_dim]
-            
+                z0_coeff = z0_coeff[:, : self.transop_cfg.splice_dim]
+                z1_use_coeff = z1_use_coeff[:, : self.transop_cfg.splice_dim]
+
             if self.transop_cfg.vi_cfg.encode_position:
-                position = torch.arange(self.transop_cfg.splice_dim, device=z1_use_coeff.device).view(1, self.transop_cfg.splice_dim).repeat(self.transop_cfg.batch_size, -1)
-                z1_use_coeff = torch.cat([z1_use_coeff, position], dim=-1)
+                num_blocks = z0.shape[-1] // self.transop_cfg.splice_dim
+                position = (
+                    torch.arange(num_blocks, device=z1_use_coeff.device)
+                    .repeat(self.transop_cfg.batch_size)
+                    .unsqueeze(-1)
+                )
+                z0_coeff = torch.cat([position, z0_coeff], dim=-1)
+                z1_use_coeff = torch.cat([position, z1_use_coeff], dim=-1)
 
         # Splice input into sequence if enabled
         if self.transop_cfg.enable_splicing:
@@ -125,8 +131,8 @@ class TransportOperatorHeader(nn.Module):
             z0 = TransportOperatorHeader.splice_input(z0, self.transop_cfg.splice_dim)
             z1_use = TransportOperatorHeader.splice_input(z1_use, self.transop_cfg.splice_dim)
         elif self.transop_cfg.enable_direct:
-            z0 = z0[:, :self.transop_cfg.splice_dim]
-            z1_use = z1_use[:, :self.transop_cfg.splice_dim]
+            z0 = z0[:, : self.transop_cfg.splice_dim]
+            z1_use = z1_use[:, : self.transop_cfg.splice_dim]
 
         # Infer coefficients for point pair
         if self.coefficient_encoder is None:
@@ -156,11 +162,9 @@ class TransportOperatorHeader(nn.Module):
                 distribution_data = self.coefficient_encoder(x0, x1, self.transop)
             c = distribution_data.samples
 
-        transop_grad = (
-            not (
-                self.transop_cfg.enable_alternating_min
-                and (header_input.curr_iter // self.transop_cfg.alternating_min_step) % 2 != 0
-            )
+        transop_grad = not (
+            self.transop_cfg.enable_alternating_min
+            and (header_input.curr_iter // self.transop_cfg.alternating_min_step) % 2 != 0
         )
         # Matrix exponential not supported with float16
         with autocast(enabled=False):

@@ -36,12 +36,12 @@ class VIEncoder(nn.Module):
 
     def initialize_encoder_params(self, input_size, feat_dim, dict_size):
         if self.vi_cfg.encoder_type == "MLP":
-            in_size = input_size if self.vi_cfg.share_encoder else ((2 * input_size) + 1)
             if self.vi_cfg.encode_position:
-                in_size += 1
+                input_size += 1
+            if not self.vi_cfg.share_encoder:
+                input_size = (2 * input_size) + 1
             self.enc_feat_extract = nn.Sequential(
-                nn.Linear(in_size, 4 * feat_dim),
-                nn.BatchNorm1d(4 * feat_dim),
+                nn.Linear(input_size, 4 * feat_dim),
                 nn.LeakyReLU(),
                 nn.Linear(4 * feat_dim, feat_dim),
             )
@@ -164,7 +164,7 @@ class VIEncoder(nn.Module):
                 torch.ones_like(encoder_params["logscale"]) * self.vi_cfg.scale_prior
             )
             # encoder_params["shift"] = self.enc_shift(z_enc).clamp(min=-1, max=1)
-            encoder_params["shift"] = self.enc_shift(z_enc)
+            encoder_params["shift"] = self.enc_shift(z_enc).clamp(min=-1, max=1)
 
         if self.vi_cfg.distribution == "Laplacian+Gamma" or self.vi_cfg.distribution == "Gaussian+Gamma":
             # gamma_a = self.enc_gamma_a(z_enc).exp()
