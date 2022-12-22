@@ -6,6 +6,7 @@ Wrapper for different contrastive headers.
 @Created     08/31/22
 """
 
+import torch
 import torch.nn as nn
 from lightly.models.utils import batch_unshuffle
 
@@ -41,6 +42,17 @@ class ContrastiveHeader(nn.Module):
             self.proj_pred_header = ProjectionPredictionHeader(
                 self.header_cfg.proj_pred_header_cfg, backbone_feature_dim
             )
+
+    def load_model_state(self, state_path: str) -> None:
+        header_weights = torch.load(f"../../model_zoo/{state_path}")["model_state"]
+        for name, param in header_weights.items():
+            if self.projection_header is not None:
+                proj_name = name.replace("contrastive_header.projection_header.", "")
+                if proj_name in self.projection_header.state_dict():
+                    if isinstance(param, nn.Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    self.projection_header.state_dict()[proj_name].copy_(param)
 
     def update_momentum_network(self, momentum_rate: float) -> None:
         if self.projection_header is not None:
