@@ -123,13 +123,13 @@ class MetricLogger:
                     header_dict["transop_z1"],
                     header_dict["transop_z1hat"],
                     reduction="none",
-                )
+                ).sum(dim=-1)
                 / (
                     F.mse_loss(
                         header_dict["transop_z1"],
                         header_dict["transop_z0"],
                         reduction="none",
-                    )
+                    ).sum(dim=-1)
                     + 1e-6
                 )
             ).mean(dim=-1)
@@ -171,7 +171,7 @@ class MetricLogger:
                         + f", mean scale: {scale.mean():.3E}"
                         + f", min shift: {shift.abs().min():.3E}"
                         + f", max shift: {shift.abs().max():.3E}"
-                        + f", mean shift: {shift.mean():.3E}"
+                        + f", mean shift: {shift.abs().mean():.3E}"
                     )
                     if "Gamma" in self.model.model_cfg.header_cfg.transop_header_cfg.vi_cfg.distribution:
                         enc_gamma_a = distr_data.encoder_params["gamma_a"]

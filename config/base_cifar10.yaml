@@ -18,7 +18,7 @@ model_cfg:
     ntxent_temp: 0.5
 
 trainer_cfg:
-  num_epochs: 2000
+  num_epochs: 1000
   use_amp: false
   optimizer_cfg:
     optimizer: SGD
