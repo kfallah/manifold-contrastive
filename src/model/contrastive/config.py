@@ -53,7 +53,8 @@ class VariationalEncoderConfig:
 
 @dataclass
 class TransportOperatorConfig:
-    start_iter: int = 2000
+    start_iter: int = 50000
+    fine_tune_iter: int = 100000
     dictionary_size: int = 200
     lambda_prior: float = 0.04
     transop_lr: float = 1e-3
