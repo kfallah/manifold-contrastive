@@ -1,0 +1,28 @@
+defaults:
+  - transop_cifar10_nn_simclr_laplacian
+  - _self_
+
+exp_name: TransOp_NN_CIFAR10
+
+trainer_cfg:
+  num_epochs: 1000
+  use_amp: false
+  optimizer_cfg:
+    optimizer: SGD
+    initial_lr: 0.006
+    weight_decay: 1e-6
+    enable_nesterov: true
+model_cfg:
+  loss_cfg:
+    transop_loss_fn: mse 
+  backbone_cfg:
+    load_backbone: simclr_mlp.pt
+  header_cfg:
+    transop_header_cfg:
+      start_iter: 5000
+      fine_tune_iter: 20000
+      transop_weight_decay: 1.0e-5
+      transop_lr: 0.1
+      vi_cfg:
+        variational_encoder_lr: 0.006
+        variational_encoder_weight_decay: 1.0e-5

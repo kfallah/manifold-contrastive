@@ -116,6 +116,8 @@ class Model(nn.Module):
             backbone_feature_dim,
             model_cfg.enable_header_momentum,
         )
+        if model_cfg.backbone_cfg.load_backbone:
+            contrastive_header.load_model_state(model_cfg.backbone_cfg.load_backbone)
         model = Model(model_cfg, backbone, contrastive_header, backbone_feature_dim)
         model = model.to(devices[0])
         if len(devices) > 1:
