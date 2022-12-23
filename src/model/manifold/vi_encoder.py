@@ -43,6 +43,8 @@ class VIEncoder(nn.Module):
             self.enc_feat_extract = nn.Sequential(
                 nn.Linear(input_size, 4 * feat_dim),
                 nn.LeakyReLU(),
+                nn.Linear(4 * feat_dim, 4 * feat_dim),
+                nn.LeakyReLU(),
                 nn.Linear(4 * feat_dim, feat_dim),
             )
         else:

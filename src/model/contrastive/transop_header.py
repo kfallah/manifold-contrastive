@@ -162,6 +162,22 @@ class TransportOperatorHeader(nn.Module):
                 distribution_data = self.coefficient_encoder(x0, x1, self.transop)
             c = distribution_data.samples
 
+            if self.transop_cfg.enable_vi_refinement:
+                with autocast(enabled=False):
+                    _, c_refine = infer_coefficients(
+                        z0.float().detach() / self.transop_cfg.latent_scale,
+                        z1_use.float().detach() / self.transop_cfg.latent_scale,
+                        self.transop.get_psi().float(),
+                        self.transop_cfg.vi_refinement_lambda,
+                        max_iter=self.transop_cfg.fista_num_iterations,
+                        num_trials=1,
+                        lr=1e-1,
+                        device=z0.device,
+                        c_init=c.clone().unsqueeze(0),
+                    )
+                c = (c_refine - c).detach() + c
+                distribution_data = DistributionData(*distribution_data[:-1], c)
+
         transop_grad = (
             not (
                 self.transop_cfg.enable_alternating_min
