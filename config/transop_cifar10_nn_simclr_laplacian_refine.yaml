@@ -19,10 +19,13 @@ model_cfg:
     load_backbone: simclr_mlp.pt
   header_cfg:
     transop_header_cfg:
-      start_iter: 5000
+      start_iter: 2000
       fine_tune_iter: 20000
       transop_weight_decay: 1.0e-5
       transop_lr: 0.1
+      enable_vi_refinement: true
+      vi_refinement_lambda: 0.08
+      fista_num_iterations: 20
       vi_cfg:
         feature_dim: 512
         variational_encoder_lr: 0.006

@@ -83,6 +83,8 @@ class TransportOperatorConfig:
     # Config for variational network
     enable_variational_inference: bool = True
     vi_cfg: VariationalEncoderConfig = VariationalEncoderConfig()
+    enable_vi_refinement: bool = False
+    vi_refinement_lambda: float = 0.1
     # Config for exact inference
     fista_num_iterations: int = 800
 
