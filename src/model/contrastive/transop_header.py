@@ -172,6 +172,7 @@ class TransportOperatorHeader(nn.Module):
                         max_iter=self.transop_cfg.fista_num_iterations,
                         num_trials=1,
                         lr=1e-1,
+                        decay=0.9,
                         device=z0.device,
                         c_init=c.clone().unsqueeze(0),
                     )

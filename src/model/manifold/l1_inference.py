@@ -21,7 +21,9 @@ def get_lr(optimizer):
         return param_group["lr"]
 
 
-def infer_coefficients(x0, x1, psi, zeta, max_iter=300, tol=1e-5, num_trials=100, device="cpu", lr=1e-2, c_init=None):
+def infer_coefficients(
+    x0, x1, psi, zeta, max_iter=300, tol=1e-5, num_trials=100, device="cpu", lr=1e-2, decay=0.99, c_init=None
+):
     if c_init is not None:
         c = nn.Parameter(c_init.detach(), requires_grad=True)
     else:
@@ -29,7 +31,7 @@ def infer_coefficients(x0, x1, psi, zeta, max_iter=300, tol=1e-5, num_trials=100
             torch.mul(torch.randn((num_trials, len(x0), len(psi)), device=device), 0.02), requires_grad=True
         )
     c_opt = torch.optim.SGD([c], lr=lr, nesterov=False, momentum=0.9)
-    opt_scheduler = torch.optim.lr_scheduler.ExponentialLR(c_opt, gamma=0.99)
+    opt_scheduler = torch.optim.lr_scheduler.ExponentialLR(c_opt, gamma=decay)
     batch_size = len(x1)
     x1 = x1.repeat(num_trials, *torch.ones(x1.dim(), dtype=int))
     change = torch.ones((num_trials, len(x0)), device=device) * (1.0e99)
