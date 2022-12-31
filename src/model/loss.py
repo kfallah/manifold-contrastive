@@ -90,12 +90,18 @@ class Loss(nn.Module):
                 z0 = header_dict["transop_z0"]
                 transop_loss = F.mse_loss(z1_hat, z1, reduction="none").mean(dim=-1)
                 # To detach, or not to detach, that is the question
-                transop_loss /= (F.mse_loss(z0.detach(), z1.detach(), reduction="none").mean(dim=-1) + 1.0)
+                transop_loss /= F.mse_loss(z0.detach(), z1.detach(), reduction="none").mean(dim=-1) + 1.0
                 transop_loss = transop_loss.mean()
             else:
                 raise NotImplementedError
             total_loss += self.loss_cfg.transop_loss_weight * transop_loss
             loss_meta["transop_loss"] = transop_loss.item()
+
+        if self.loss_cfg.c_refine_loss_active:
+            c_vi = header_dict["c_vi"]
+            c_loss = F.mse_loss(c_vi, header_out.distribution_data.samples.detach())
+            total_loss += self.loss_cfg.c_refine_loss_weight * c_loss
+            loss_meta["c_pred"] = c_loss.item()
 
         if self.loss_cfg.real_eig_reg_active:
             assert "psi" in args_dict.keys()

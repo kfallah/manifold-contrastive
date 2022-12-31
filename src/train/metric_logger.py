@@ -94,7 +94,6 @@ class MetricLogger:
         if self.cfg.enable_optimizer_logging and curr_iter % self.cfg.optimizer_log_freq == 0:
             optim_lr = self.scheduler.get_last_lr()[0]
             metrics["optim_lr"] = optim_lr
-
         # Logging collapse level
         if self.cfg.enable_collapse_logging and curr_iter % self.cfg.collapse_log_freq == 0:
             feat_norm = torch.nn.functional.normalize(torch.tensor(np.array(self.feature_cache)).float(), dim=1)

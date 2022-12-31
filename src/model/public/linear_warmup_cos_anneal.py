@@ -89,18 +89,29 @@ class LinearWarmupCosineAnnealingLR(_LRScheduler):
                 for base_lr, group in zip(self.base_lrs, self.optimizer.param_groups)
             ]
 
-        return [
-            (1 + math.cos(math.pi * (self.last_epoch - self.warmup_epochs) / (self.max_epochs - self.warmup_epochs)))
-            / (
-                1
-                + math.cos(
-                    math.pi * (self.last_epoch - self.warmup_epochs - 1) / (self.max_epochs - self.warmup_epochs)
+        lr = []
+        for group in self.optimizer.param_groups:
+            eta_min = self.eta_min
+            if "eta_min" in group.keys():
+                eta_min = group["eta_min"]
+            lr.append(
+                (
+                    1
+                    + math.cos(
+                        math.pi * (self.last_epoch - self.warmup_epochs) / (self.max_epochs - self.warmup_epochs)
+                    )
                 )
+                / (
+                    1
+                    + math.cos(
+                        math.pi * (self.last_epoch - self.warmup_epochs - 1) / (self.max_epochs - self.warmup_epochs)
+                    )
+                )
+                * (group["lr"] - eta_min)
+                + eta_min
             )
-            * (group["lr"] - self.eta_min)
-            + self.eta_min
-            for group in self.optimizer.param_groups
-        ]
+
+        return lr
 
     def _get_closed_form_lr(self) -> List[float]:
         """Called when epoch is passed as a param to the `step` function of the scheduler."""
