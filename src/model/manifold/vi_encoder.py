@@ -119,7 +119,7 @@ class VIEncoder(nn.Module):
                 distr_params["logscale"] += torch.log(
                     torch.ones_like(distr_params["logscale"]) * self.vi_cfg.scale_prior
                 )
-                distr_params["shift"] = self.prior_shift(z_prior).clamp(min=-0.1, max=0.1)
+                distr_params["shift"] = self.prior_shift(z_prior).clamp(min=-0.2, max=0.2)
 
                 if self.vi_cfg.distribution == "Laplacian+Gamma" or self.vi_cfg.distribution == "Gaussian+Gamma":
                     # prior_gamma_a = self.prior_gamma_a(z_prior).exp()
@@ -165,8 +165,7 @@ class VIEncoder(nn.Module):
             encoder_params["logscale"] += torch.log(
                 torch.ones_like(encoder_params["logscale"]) * self.vi_cfg.scale_prior
             )
-            # encoder_params["shift"] = self.enc_shift(z_enc).clamp(min=-1, max=1)
-            encoder_params["shift"] = self.enc_shift(z_enc).clamp(min=-0.1, max=0.1)
+            encoder_params["shift"] = self.enc_shift(z_enc).clamp(min=-0.2, max=0.2)
 
         if self.vi_cfg.distribution == "Laplacian+Gamma" or self.vi_cfg.distribution == "Gaussian+Gamma":
             # gamma_a = self.enc_gamma_a(z_enc).exp()
@@ -201,7 +200,7 @@ class VIEncoder(nn.Module):
                 prior_params["logscale"] += torch.log(
                     torch.ones_like(prior_params["logscale"]) * self.vi_cfg.scale_prior
                 )
-                prior_params["shift"] = self.prior_shift(z_prior).clamp(min=-0.1, max=0.1)
+                prior_params["shift"] = self.prior_shift(z_prior).clamp(min=-0.2, max=0.2)
 
             if self.vi_cfg.distribution == "Laplacian+Gamma" or self.vi_cfg.distribution == "Gaussian+Gamma":
                 # prior_gamma_a = self.prior_gamma_a(z_prior).exp()

@@ -60,7 +60,7 @@ def initialize_scheduler(
     elif config.scheduler == "LinearWarmupCosineAnnealingLR":
         iters_per_epoch = num_iters / num_epochs
         return LinearWarmupCosineAnnealingLR(
-            optimizer, warmup_epochs=config.warmup_epochs * iters_per_epoch, max_epochs=num_iters, eta_min=1e-3
+            optimizer, warmup_epochs=config.warmup_epochs * iters_per_epoch, max_epochs=num_iters, eta_min=1e-4
         )
     elif config.scheduler == "CosineAnnealingMinLR":
         return torch.optim.lr_scheduler.LambdaLR(

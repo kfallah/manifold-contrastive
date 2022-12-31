@@ -53,6 +53,7 @@ class TransportOperatorHeader(nn.Module):
             {
                 "params": self.transop.parameters(),
                 "lr": self.transop_cfg.transop_lr,
+                "eta_min": 1e-2,
                 "weight_decay": self.transop_cfg.transop_weight_decay,
                 "disable_layer_adaptation": True,
             },
@@ -171,13 +172,16 @@ class TransportOperatorHeader(nn.Module):
                         self.transop_cfg.vi_refinement_lambda,
                         max_iter=self.transop_cfg.fista_num_iterations,
                         num_trials=1,
-                        lr=1e-1,
-                        decay=0.9,
+                        lr=5e-2,
+                        decay=0.99,
                         device=z0.device,
                         c_init=c.clone().unsqueeze(0),
                     )
-                c = (c_refine - c).detach() + c
-                distribution_data = DistributionData(*distribution_data[:-1], c)
+                header_out["c_vi"] = c.clone()
+                if not c_refine.isnan().any():
+                    c_refine = c_refine.clamp(min=-0.5, max=0.5)
+                    c = (c_refine - c).detach() + c
+                    distribution_data = DistributionData(*distribution_data[:-1], c)
 
         transop_grad = (
             not (
