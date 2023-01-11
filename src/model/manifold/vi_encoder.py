@@ -42,8 +42,10 @@ class VIEncoder(nn.Module):
                 input_size = (2 * input_size) + 1
             self.enc_feat_extract = nn.Sequential(
                 nn.Linear(input_size, 4 * feat_dim),
+                # nn.BatchNorm1d(4 * feat_dim),
                 nn.LeakyReLU(),
                 nn.Linear(4 * feat_dim, 4 * feat_dim),
+                # nn.BatchNorm1d(4 * feat_dim),
                 nn.LeakyReLU(),
                 nn.Linear(4 * feat_dim, feat_dim),
             )
@@ -119,7 +121,7 @@ class VIEncoder(nn.Module):
                 distr_params["logscale"] += torch.log(
                     torch.ones_like(distr_params["logscale"]) * self.vi_cfg.scale_prior
                 )
-                distr_params["shift"] = self.prior_shift(z_prior).clamp(min=-0.2, max=0.2)
+                distr_params["shift"] = self.prior_shift(z_prior).clamp(min=-2.0, max=2.0)
 
                 if self.vi_cfg.distribution == "Laplacian+Gamma" or self.vi_cfg.distribution == "Gaussian+Gamma":
                     # prior_gamma_a = self.prior_gamma_a(z_prior).exp()
@@ -165,7 +167,7 @@ class VIEncoder(nn.Module):
             encoder_params["logscale"] += torch.log(
                 torch.ones_like(encoder_params["logscale"]) * self.vi_cfg.scale_prior
             )
-            encoder_params["shift"] = self.enc_shift(z_enc).clamp(min=-0.2, max=0.2)
+            encoder_params["shift"] = self.enc_shift(z_enc).clamp(min=-2.0, max=2.0)
 
         if self.vi_cfg.distribution == "Laplacian+Gamma" or self.vi_cfg.distribution == "Gaussian+Gamma":
             # gamma_a = self.enc_gamma_a(z_enc).exp()
@@ -200,7 +202,7 @@ class VIEncoder(nn.Module):
                 prior_params["logscale"] += torch.log(
                     torch.ones_like(prior_params["logscale"]) * self.vi_cfg.scale_prior
                 )
-                prior_params["shift"] = self.prior_shift(z_prior).clamp(min=-0.2, max=0.2)
+                prior_params["shift"] = self.prior_shift(z_prior).clamp(min=-2.0, max=2.0)
 
             if self.vi_cfg.distribution == "Laplacian+Gamma" or self.vi_cfg.distribution == "Gaussian+Gamma":
                 # prior_gamma_a = self.prior_gamma_a(z_prior).exp()

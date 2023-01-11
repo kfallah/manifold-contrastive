@@ -9,21 +9,30 @@ trainer_cfg:
   use_amp: false
   optimizer_cfg:
     optimizer: SGD
-    initial_lr: 0.006
+    initial_lr: 0.03
     weight_decay: 1e-6
     enable_nesterov: true
 model_cfg:
   loss_cfg:
-    transop_loss_fn: mse 
+    ntxent_loss_weight: 1.0
+    kl_loss_weight: 1.0e-4
+    kl_weight_warmup: None
+    transop_loss_weight: 1.0
+    transop_loss_fn: mse
   backbone_cfg:
     load_backbone: simclr_mlp.pt
   header_cfg:
     transop_header_cfg:
-      start_iter: 5000
-      fine_tune_iter: 20000
-      transop_weight_decay: 1.0e-5
-      transop_lr: 0.1
+      start_iter: 2000
+      fine_tune_iter: 50000
+      transop_weight_decay: 1.0e-6
+      transop_lr: 0.3
+      lambda_prior: 0.16
+      batch_size: 64
       vi_cfg:
         feature_dim: 512
-        variational_encoder_lr: 0.006
-        variational_encoder_weight_decay: 1.0e-5
+        per_iter_samples: 10
+        total_samples: 10
+        scale_prior: 0.2
+        variational_encoder_lr: 0.03
+        variational_encoder_weight_decay: 1.0e-6

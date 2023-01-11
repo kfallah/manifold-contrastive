@@ -97,8 +97,16 @@ class Loss(nn.Module):
             total_loss += self.loss_cfg.transop_loss_weight * transop_loss
             loss_meta["transop_loss"] = transop_loss.item()
 
+            if "transop_z1hat_vi" in header_dict.keys():
+                z1_hat_vi = header_dict["transop_z1hat_vi"]
+                vi_loss = F.mse_loss(z1_hat_vi, z1, reduction="none").mean()
+                total_loss += self.loss_cfg.transop_loss_weight * vi_loss
+                loss_meta["transop_vi_loss"] = vi_loss.item()
+
         if self.loss_cfg.c_refine_loss_active:
-            c_vi = header_dict["c_vi"]
+            c_vi = header_out.distribution_data.encoder_params["shift"]
+            # nz_idx = torch.nonzero(header_out.distribution_data.samples.detach())
+            # c_loss = F.mse_loss(c_vi[nz_idx], header_out.distribution_data.samples.detach()[nz_idx])
             c_loss = F.mse_loss(c_vi, header_out.distribution_data.samples.detach())
             total_loss += self.loss_cfg.c_refine_loss_weight * c_loss
             loss_meta["c_pred"] = c_loss.item()

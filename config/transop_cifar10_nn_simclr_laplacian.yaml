@@ -12,7 +12,7 @@ model_cfg:
       projection_type: MLP
     enable_transop_header: true
     transop_header_cfg:
-      start_iter: 30000
+      start_iter: 2000
       fine_tune_iter: 50000
       dictionary_size: 100
       lambda_prior: 0.016
@@ -20,7 +20,7 @@ model_cfg:
       transop_lr: 0.1
       stable_operator_initialization: true
       detach_feature: false
-      enable_nn_point_pair: false
+      enable_nn_point_pair: true
       nn_memory_bank_size: 98304
       enable_splicing: true
       splice_dim: 64
