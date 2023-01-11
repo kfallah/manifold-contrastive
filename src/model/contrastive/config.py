@@ -59,7 +59,11 @@ class TransportOperatorConfig:
     lambda_prior: float = 0.04
     transop_lr: float = 1e-3
     transop_weight_decay: float = 1e-5
+
     stable_operator_initialization: bool = True
+    real_range_initialization: float = 1e-4
+    image_range_initialization: float = 0.3
+
     detach_feature: bool = False
     batch_size: int = 256
     # Scale point pairs before inferring coefficients and applying transop

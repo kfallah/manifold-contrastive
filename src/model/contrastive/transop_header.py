@@ -12,6 +12,7 @@ from torch.cuda.amp import autocast
 
 from model.contrastive.config import TransportOperatorConfig
 from model.manifold.l1_inference import infer_coefficients
+from model.manifold.reparameterize import draw_noise_samples
 from model.manifold.transop import TransOp_expm
 from model.manifold.vi_encoder import VIEncoder
 from model.type import DistributionData, HeaderInput, HeaderOutput
@@ -33,6 +34,8 @@ class TransportOperatorHeader(nn.Module):
             M=self.transop_cfg.dictionary_size,
             N=backbone_feature_dim,
             stable_init=self.transop_cfg.stable_operator_initialization,
+            real_range=self.transop_cfg.real_range_initialization,
+            imag_range=self.transop_cfg.image_range_initialization,
         )
 
         self.coefficient_encoder = None
@@ -102,13 +105,15 @@ class TransportOperatorHeader(nn.Module):
         # either use the nearnest neighbor bank or the projected feature to make the prediction
         z0 = z0[: self.transop_cfg.batch_size]
         if self.transop_cfg.enable_nn_point_pair:
-            z1_use = self.nn_memory_bank(z1[: self.transop_cfg.batch_size].detach(), update=True).detach()
+            z1_use = self.nn_memory_bank(z1.detach(), update=True).detach()[: self.transop_cfg.batch_size]
         else:
             z1_use = z1[: self.transop_cfg.batch_size]
 
         if self.coefficient_encoder:
             z0_coeff = self.coefficient_encoder.layer_norm(z0.detach())
             z1_use_coeff = self.coefficient_encoder.layer_norm(z1_use.detach())
+            # z0_coeff = z0.detach()
+            # z1_use_coeff = z1_use.detach()
             if self.transop_cfg.enable_splicing:
                 z0_coeff = TransportOperatorHeader.splice_input(z0_coeff, self.transop_cfg.splice_dim)
                 z1_use_coeff = TransportOperatorHeader.splice_input(z1_use_coeff, self.transop_cfg.splice_dim)
@@ -175,12 +180,21 @@ class TransportOperatorHeader(nn.Module):
                         lr=5e-2,
                         decay=0.99,
                         device=z0.device,
-                        c_init=c.clone().unsqueeze(0),
+                        c_init=c.clone().detach().unsqueeze(0),
                     )
-                header_out["c_vi"] = c.clone()
+
+                with autocast(enabled=False):
+                    z1_vi_hat = (
+                        self.transop(
+                            z0.float().unsqueeze(-1) / self.transop_cfg.latent_scale, c, transop_grad=False
+                        ).squeeze(dim=-1)
+                        * self.transop_cfg.latent_scale
+                    )
+                    header_out["transop_z1hat_vi"] = z1_vi_hat.reshape(-1, feat_dim)
                 if not c_refine.isnan().any():
-                    c_refine = c_refine.clamp(min=-0.5, max=0.5)
-                    c = (c_refine - c).detach() + c
+                    c_refine = c_refine.clamp(min=-2.0, max=2.0)
+                    # c = (c_refine - c).detach() + c
+                    c = c_refine.detach()
                     distribution_data = DistributionData(*distribution_data[:-1], c)
 
         transop_grad = (
