@@ -108,7 +108,7 @@ class Loss(nn.Module):
             # nz_idx = torch.nonzero(header_out.distribution_data.samples.detach())
             # c_loss = F.mse_loss(c_vi[nz_idx], header_out.distribution_data.samples.detach()[nz_idx])
             c_loss = F.mse_loss(c_vi, header_out.distribution_data.samples.detach())
-            total_loss += self.loss_cfg.c_refine_loss_weight * c_loss
+            #total_loss += self.loss_cfg.c_refine_loss_weight * c_loss
             loss_meta["c_pred"] = c_loss.item()
 
         if self.loss_cfg.real_eig_reg_active:

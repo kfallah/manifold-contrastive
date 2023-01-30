@@ -2,5 +2,7 @@
 .vscode
 datasets
 results
+results_vi
+scripts
 wandb
 *.log

@@ -15,7 +15,7 @@ trainer_cfg:
 model_cfg:
   loss_cfg:
     ntxent_loss_weight: 1.0
-    kl_loss_weight: 1.0e-4
+    kl_loss_weight: 5.0e-4
     kl_weight_warmup: None
     transop_loss_weight: 1.0
     transop_loss_fn: mse
@@ -27,12 +27,14 @@ model_cfg:
       fine_tune_iter: 50000
       transop_weight_decay: 1.0e-6
       transop_lr: 0.3
-      lambda_prior: 0.16
+      real_range_initialization: 0.0001
+      image_range_initialization: 0.3
+      lambda_prior: 0.0
       batch_size: 64
       vi_cfg:
         feature_dim: 512
-        per_iter_samples: 10
-        total_samples: 10
+        per_iter_samples: 50
+        total_samples: 100
         scale_prior: 0.2
         variational_encoder_lr: 0.03
-        variational_encoder_weight_decay: 1.0e-6
+        variational_encoder_weight_decay: 1.0e-5
