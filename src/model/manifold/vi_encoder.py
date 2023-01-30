@@ -224,6 +224,7 @@ class VIEncoder(nn.Module):
             with torch.no_grad():
                 noise_list = []
                 loss_list = []
+                l1_list = []
                 for _ in range(self.vi_cfg.total_samples // self.vi_cfg.per_iter_samples):
                     # Generate a new noise sample
                     shape = (
@@ -245,18 +246,20 @@ class VIEncoder(nn.Module):
                     with autocast(enabled=False):
                         z1_hat = transop(z0.detach().float().unsqueeze(-1), c.detach()).squeeze(dim=-1)
 
-                        transop_loss = F.mse_loss(
-                            z1_hat,
-                            z1.repeat(len(z1_hat), *torch.ones(z1.dim(), dtype=int)).detach(),
-                            reduction="none",
-                        ).mean(dim=-1)
+                    transop_loss = F.mse_loss(
+                        z1_hat,
+                        z1.repeat(len(z1_hat), *torch.ones(z1.dim(), dtype=int)).detach(),
+                        reduction="none",
+                    ).mean(dim=-1)
                     noise_list.append(u)
                     loss_list.append(transop_loss)
+                    l1_list.append(c.abs().sum(dim=-1))
 
                 # Pick the best sample
                 noise_list = torch.cat(noise_list, dim=0)
                 loss_list = torch.cat(loss_list, dim=0)
-                max_elbo = torch.argmin(loss_list, dim=0).detach()
+                l1_list = torch.cat(l1_list, dim=0)
+                max_elbo = torch.argmin(loss_list + 5e-1*l1_list, dim=0).detach()
 
                 # Pick out best noise sample for each batch entry for reparameterization
                 noise = noise_list[max_elbo, torch.arange(len(z0))]

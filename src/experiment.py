@@ -15,11 +15,11 @@ from typing import Tuple
 import hydra
 import numpy as np
 import torch
+import wandb
 from hydra.core.config_store import ConfigStore
 from omegaconf import DictConfig, OmegaConf
 
 import model.contrastive.config as header_config
-import wandb
 from dataloader.config import DataLoaderConfig
 from dataloader.contrastive_dataloader import get_dataloader
 from eval.config import EvaluatorConfig
