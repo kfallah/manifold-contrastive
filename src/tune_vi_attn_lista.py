@@ -28,7 +28,8 @@ class AttentionConfig:
     num_heads: int = 4
     psi_hidden_dim: int = 2048
     ff_hidden_dim: int = 2048
-    dropout: float = 0.2
+    residual_hidden_dim: int = 2048
+    dropout: float = 0.1
 
 
 @dataclass
@@ -108,6 +109,11 @@ class SparseCodeAttn(nn.Module):
             nn.LeakyReLU(),
             nn.Linear(cfg.psi_hidden_dim, cfg.feature_dim),
         )
+        self.residual_extract = nn.Sequential(
+            nn.Linear(64, cfg.residual_hidden_dim),
+            nn.LeakyReLU(),
+            nn.Linear(cfg.residual_hidden_dim, cfg.feature_dim),
+        )
 
         self.attn = nn.MultiheadAttention(
             cfg.feature_dim, num_heads=cfg.num_heads, dropout=cfg.dropout, batch_first=True
@@ -119,24 +125,27 @@ class SparseCodeAttn(nn.Module):
             nn.Linear(cfg.ff_hidden_dim, cfg.feature_dim),
         )
         self.post_norm = nn.LayerNorm(cfg.feature_dim)
+        self.c_proj = nn.Linear(cfg.feature_dim, dict_size)
 
-    def forward(self, z, psi):
+    def forward(self, r, psi):
+        # compute residual
+        r_feat = self.residual_extract(r)
         # extract features for operators
         psi_feat = self.psi_extract(psi.reshape(self.dict_size, -1))
-        psi_feat = psi_feat.unsqueeze(0).repeat(len(z), 1, 1)
+        psi_feat = psi_feat.unsqueeze(0).repeat(len(r), 1, 1)
         # Run through attention layer
-        z_attn, _ = self.attn(z, psi_feat, psi_feat)
-        z = self.pre_norm(z + z_attn)
-        z_mlp = self.mlp(z)
-        z = self.post_norm(z + z_mlp)
-        return z
+        r_attn, _ = self.attn(r_feat, psi_feat, psi_feat)
+        r_feat = self.pre_norm(r_feat + r_attn)
+        r_mlp = self.mlp(r_feat)
+        r_feat = self.post_norm(r_mlp + r_mlp)
+        return self.c_proj(r_feat)
 
 
 class VIEncoder(nn.Module):
     def __init__(self, cfg: CoeffEncoderConfig, dict_size: int):
         super(VIEncoder, self).__init__()
         self.feat_extract = nn.Sequential(
-            nn.Linear(128, cfg.hidden_dim1),
+            nn.Linear(64, cfg.hidden_dim1),
             nn.LeakyReLU(),
             nn.Linear(cfg.hidden_dim1, cfg.feature_dim),
         )
@@ -188,37 +197,6 @@ class VIEncoder(nn.Module):
         c = c + c_thresh - c.detach()
         return c
 
-    def max_elbo_sample(self, log_scale, shift, psi, x0, x1):
-        with torch.no_grad():
-            noise_list = []
-            loss_list = []
-            l1_list = []
-            log_scale_expanded = log_scale.unsqueeze(0).repeat(self.cfg.samples_per_iter, 1, 1, 1)
-            shift_expanded = shift.unsqueeze(0).repeat(self.cfg.samples_per_iter, 1, 1, 1)
-            for _ in range(self.cfg.total_num_samples // self.cfg.samples_per_iter):
-                noise = torch.rand_like(log_scale_expanded) - 0.5
-                c = self.reparameterize(noise, log_scale_expanded, shift_expanded)
-                T = torch.matrix_exp(torch.einsum("sblm,mpk->sblpk", c, psi))
-                x1_hat = (T @ x0.unsqueeze(0).unsqueeze(-1)).squeeze(-1)
-                transop_loss = torch.nn.functional.mse_loss(
-                    x1_hat, x1.unsqueeze(0).repeat(self.cfg.samples_per_iter, 1, 1, 1), reduction="none"
-                ).mean(dim=-1)
-
-                noise_list.append(noise)
-                loss_list.append(transop_loss)
-                l1_list.append(c.abs().sum(dim=-1))
-
-            noise_list = torch.cat(noise_list, dim=0)
-            loss_list = torch.cat(loss_list, dim=0)
-            l1_list = torch.cat(l1_list, dim=0)
-            max_elbo = torch.argmin(loss_list + self.cfg.max_sample_l1_penalty * l1_list, dim=0).detach()
-            # Pick out best noise sample for each batch entry for reparameterization
-            max_elbo = max_elbo.reshape(-1)
-            n_samples, n_batch, n_seq, n_feat = noise_list.shape
-            noise_list = noise_list.reshape(n_samples, -1, n_feat)
-            optimal_noise = noise_list[max_elbo, torch.arange(n_batch * n_seq)]
-            return optimal_noise.reshape(n_batch, n_seq, n_feat)
-
     def log_distr(self, curr_iter, scale, shift, prior_scale, prior_shift):
         distr = {
             "distr/avg_enc_scale": scale.mean(),
@@ -242,12 +220,8 @@ class VIEncoder(nn.Module):
 
         wandb.log(distr, step=curr_iter)
 
-    def forward(self, curr_iter, x0, x1, psi):
-        # Extract features for attention
-        # z0, z1 = self.feat_extract(x0), self.feat_extract(x1)
-        z = self.feat_extract(torch.cat((x0, x1), dim=-1))
-        z = self.attn1(z, psi)
-        # z = self.attn2(z, psi)
+    def sample(self, x, curr_iter=0):
+        z = self.feat_extract(x)
 
         if not self.cfg.variational:
             shift = self.shift(z)
@@ -258,20 +232,14 @@ class VIEncoder(nn.Module):
         log_scale, shift = log_scale.clamp(min=-20, max=2), shift.clamp(min=-5, max=5)
 
         # Reparameterization
-        if self.cfg.deterministic_pretrain and curr_iter < self.cfg.num_det_pretrain_iters:
-            c = shift
-        else:
-            if self.cfg.enable_max_sample:
-                noise = self.max_elbo_sample(log_scale, shift, psi, x0, x1)
-            else:
-                noise = torch.rand_like(log_scale) - 0.5
-            c = self.reparameterize(noise, log_scale, shift)
+        noise = torch.rand_like(log_scale) - 0.5
+        c = self.reparameterize(noise, log_scale, shift)
 
-        # Compute KL and find prior params if needed
+        # KL loss
         prior_scale = None
         prior_shift = None
         if self.cfg.learn_prior:
-            z_prior = self.prior_feat_extract(x0)
+            z_prior = self.prior_feat_extract(x)
             prior_log_scale, prior_shift = self.scale_prior(z_prior), self.shift_prior(z_prior)
             prior_log_scale += torch.log(torch.ones_like(prior_log_scale) * self.cfg.scale_prior)
             prior_scale, prior_shift = prior_log_scale.clamp(min=-20, max=2).exp(), prior_shift.clamp(min=-5, max=5)
@@ -282,7 +250,24 @@ class VIEncoder(nn.Module):
         if curr_iter % self.cfg.logging_interval == 0:
             self.log_distr(curr_iter, log_scale.exp(), shift, prior_scale, prior_shift)
 
-        return c, kl, (log_scale, shift)
+        return c, (kl, log_scale, shift)
+
+    def forward(self, x0, x1, psi, curr_iter=0):
+        c, (kl, log_scale, shift) = self.sample(x0, curr_iter)
+
+        # Refine distribution params with LISTA
+        c_final = c.clone()
+        r_list = []
+        for i in range(1):
+            T = torch.matrix_exp(torch.einsum("bsm,mpk->bspk", c_final, psi))
+            r = x1 - (T @ x0.unsqueeze(-1)).squeeze(-1)
+            r_list.append((r**2).mean().item())
+            c_update = self.attn1(r, psi)
+            c_final = c + c_update
+            c_refine = self.soft_threshold(c_final.detach(), 0.2)
+            c_final = c_final + c_refine - c_final.detach()
+
+        return c_final, kl, (log_scale, shift)
 
 
 def log_transop(psi, curr_iter):
@@ -400,7 +385,7 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
             z0 = torch.stack(torch.split(z0, 64, dim=-1)).transpose(0, 1)
             z1 = torch.stack(torch.split(z1, 64, dim=-1)).transpose(0, 1)
 
-            c, kl_loss, (log_scale, shift) = encoder(curr_iter, z0, z1, psi.detach())
+            c, kl_loss, (log_scale, shift) = encoder(z0, z1, psi.detach(), curr_iter)
             if exp_cfg.transop_cfg.train_transop and curr_iter < exp_cfg.transop_cfg.start_iter:
                 psi_use = psi.detach()
             else:
@@ -432,8 +417,8 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
                 )
 
             if curr_iter % exp_cfg.vi_cfg.grad_acc_iter == 0:
-                torch.nn.utils.clip_grad_norm_(psi, 0.01)
-                torch.nn.utils.clip_grad_norm_(encoder.parameters(), 0.01)
+                torch.nn.utils.clip_grad_norm_(psi, 0.1)
+                torch.nn.utils.clip_grad_norm_(encoder.parameters(), 0.1)
                 opt.step()
                 scheduler.step()
                 opt.zero_grad()
