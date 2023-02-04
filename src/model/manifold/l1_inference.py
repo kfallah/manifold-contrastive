@@ -28,7 +28,7 @@ def infer_coefficients(
         c = nn.Parameter(c_init.detach(), requires_grad=True)
     else:
         c = nn.Parameter(
-            torch.mul(torch.randn((num_trials, len(x0), len(psi)), device=device), 0.02), requires_grad=True
+            torch.mul(torch.randn((num_trials, len(x0), len(psi)), device=device), 0.1), requires_grad=True
         )
     c_opt = torch.optim.SGD([c], lr=lr, nesterov=False, momentum=0.9)
     opt_scheduler = torch.optim.lr_scheduler.ExponentialLR(c_opt, gamma=decay)

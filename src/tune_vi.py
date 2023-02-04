@@ -359,7 +359,7 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
                     z1.float().detach(),
                     psi.data,
                     exp_cfg.vi_cfg.threshold,
-                    max_iter=500,
+                    max_iter=600,
                     num_trials=1,
                     device=z0.device,
                 )
@@ -399,7 +399,8 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
 
             if curr_iter % exp_cfg.vi_cfg.grad_acc_iter == 0:
                 torch.nn.utils.clip_grad_norm_(psi, 0.1)
-                torch.nn.utils.clip_grad_norm_(encoder.parameters(), 0.1)
+                if encoder is not None:
+                    torch.nn.utils.clip_grad_norm_(encoder.parameters(), 0.1)
                 opt.step()
                 scheduler.step()
                 opt.zero_grad()
