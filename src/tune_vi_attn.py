@@ -353,7 +353,7 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
         {
             "params": encoder.parameters(),
             "lr": exp_cfg.vi_cfg.lr,
-            "eta_min": 1e-3,
+            "eta_min": 1e-4,
             "weight_decay": exp_cfg.vi_cfg.weight_decay,
             "disable_layer_adaptation": True,
         },
@@ -432,8 +432,8 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
                 )
 
             if curr_iter % exp_cfg.vi_cfg.grad_acc_iter == 0:
-                torch.nn.utils.clip_grad_norm_(psi, 0.01)
-                torch.nn.utils.clip_grad_norm_(encoder.parameters(), 0.01)
+                torch.nn.utils.clip_grad_norm_(psi, 0.1)
+                torch.nn.utils.clip_grad_norm_(encoder.parameters(), 0.1)
                 opt.step()
                 scheduler.step()
                 opt.zero_grad()
