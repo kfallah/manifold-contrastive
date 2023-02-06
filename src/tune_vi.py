@@ -42,6 +42,9 @@ class CoeffEncoderConfig:
     weight_decay: float = 1.0e-5
     grad_acc_iter: int = 1
 
+    enable_c_warmup: bool = False
+    c_warmup_iters: int = 2000
+
     enable_c_l2: bool = False
     c_l2_weight: float = 1.0e-3
 
@@ -49,6 +52,7 @@ class CoeffEncoderConfig:
     shift_l2_weight: float = 1.0e-2
 
     enable_max_sample: bool = True
+    max_sample_start_iter: int = 2000
     max_sample_l1_penalty: float = 1.0e-3
     total_num_samples: int = 100
     samples_per_iter: int = 20
@@ -209,7 +213,7 @@ class VIEncoder(nn.Module):
         if self.cfg.deterministic_pretrain and curr_iter < self.cfg.num_det_pretrain_iters:
             c = shift
         else:
-            if self.cfg.enable_max_sample:
+            if self.cfg.enable_max_sample and curr_iter > self.cfg.max_sample_start_iter:
                 noise = self.max_elbo_sample(log_scale, shift, psi, x0, x1)
             else:
                 noise = torch.rand_like(log_scale) - 0.5
@@ -229,6 +233,12 @@ class VIEncoder(nn.Module):
         # Log distribution params
         if curr_iter % self.cfg.logging_interval == 0:
             self.log_distr(curr_iter, log_scale.exp(), shift, prior_scale, prior_shift)
+
+        if self.cfg.enable_c_warmup:
+            warmup_c = curr_iter / self.cfg.c_warmup_iters
+            if warmup_c > 1.0:
+                warmup_c = 1.0
+            c *= warmup_c
 
         return c, kl, (log_scale, shift)
 
