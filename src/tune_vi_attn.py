@@ -143,10 +143,12 @@ class VIEncoder(nn.Module):
         self.feat_extract = nn.Sequential(
             nn.Linear(128, cfg.hidden_dim1),
             nn.LeakyReLU(),
-            nn.Linear(cfg.hidden_dim1, cfg.feature_dim),
+            nn.Linear(cfg.hidden_dim1, cfg.hidden_dim2),
+            nn.LeakyReLU(),
+            nn.Linear(cfg.hidden_dim2, cfg.feature_dim),
         )
 
-        self.attn1 = SparseCodeAttn(cfg.attention_cfg, dict_size)
+        # self.attn1 = SparseCodeAttn(cfg.attention_cfg, dict_size)
         # self.attn2 = SparseCodeAttn(cfg.attention_cfg, dict_size)
 
         self.cfg = cfg
@@ -164,7 +166,6 @@ class VIEncoder(nn.Module):
                 nn.Linear(cfg.hidden_dim2, cfg.feature_dim),
             )
             self.scale_prior = nn.Linear(cfg.feature_dim, dict_size)
-            self.shift_prior = nn.Linear(cfg.feature_dim, dict_size)
 
     def soft_threshold(self, z: torch.Tensor, lambda_: torch.Tensor) -> torch.Tensor:
         return torch.nn.functional.relu(torch.abs(z) - lambda_) * torch.sign(z)
@@ -224,7 +225,7 @@ class VIEncoder(nn.Module):
             optimal_noise = noise_list[max_elbo, torch.arange(n_batch * n_seq)]
             return optimal_noise.reshape(n_batch, n_seq, n_feat)
 
-    def log_distr(self, curr_iter, scale, shift, prior_scale, prior_shift):
+    def log_distr(self, curr_iter, scale, shift, prior_scale):
         distr = {
             "distr/avg_enc_scale": scale.mean(),
             "distr/min_enc_scale": scale.min(),
@@ -239,9 +240,6 @@ class VIEncoder(nn.Module):
                     "distr/avg_prior_scale": prior_scale.mean(),
                     "distr/min_prior_scale": prior_scale.min(),
                     "distr/max_prior_scale": prior_scale.max(),
-                    "distr/avg_prior_shift": prior_shift.abs().mean(),
-                    "distr/min_prior_shift": prior_shift.abs().min(),
-                    "distr/max_prior_shift": prior_shift.abs().max(),
                 }
             )
 
@@ -251,7 +249,7 @@ class VIEncoder(nn.Module):
         # Extract features for attention
         # z0, z1 = self.feat_extract(x0), self.feat_extract(x1)
         z = self.feat_extract(torch.cat((x0, x1), dim=-1))
-        z = self.attn1(z, psi)
+        # z = self.attn1(z, psi)
         # z = self.attn2(z, psi)
 
         if not self.cfg.variational:
@@ -260,11 +258,12 @@ class VIEncoder(nn.Module):
 
         log_scale, shift = self.scale(z), self.shift(z)
         log_scale += torch.log(torch.ones_like(log_scale) * self.cfg.scale_prior)
-        log_scale, shift = log_scale.clamp(min=-20, max=2), shift.clamp(min=-5, max=5)
+        log_scale, shift = log_scale.clamp(min=-100, max=2), shift.clamp(min=-5, max=5)
 
         # Reparameterization
         if self.cfg.deterministic_pretrain and curr_iter < self.cfg.num_det_pretrain_iters:
-            c = shift
+            c = shift.clone()
+            shift = shift.detach()
         else:
             if self.cfg.enable_max_sample and curr_iter > self.cfg.max_sample_start_iter:
                 noise = self.max_elbo_sample(log_scale, shift, psi, x0, x1)
@@ -274,18 +273,16 @@ class VIEncoder(nn.Module):
 
         # Compute KL and find prior params if needed
         prior_scale = None
-        prior_shift = None
         if self.cfg.learn_prior:
             z_prior = self.prior_feat_extract(x0)
-            prior_log_scale, prior_shift = self.scale_prior(z_prior), self.shift_prior(z_prior)
+            prior_log_scale = self.scale_prior(z_prior)
             prior_log_scale += torch.log(torch.ones_like(prior_log_scale) * self.cfg.scale_prior)
-            prior_scale, prior_shift = prior_log_scale.clamp(min=-20, max=2).exp(), prior_shift.clamp(min=-5, max=5)
-            prior_shift = torch.zeros_like(shift)
-        kl = self.kl_loss(log_scale.exp(), shift, prior_scale, prior_shift).sum(dim=-1).mean()
+            prior_scale = prior_log_scale.clamp(min=-100, max=2).exp()
+        kl = self.kl_loss(log_scale.exp(), shift, prior_scale, None).sum(dim=-1).mean()
 
         # Log distribution params
         if curr_iter % self.cfg.logging_interval == 0:
-            self.log_distr(curr_iter, log_scale.exp(), shift, prior_scale, prior_shift)
+            self.log_distr(curr_iter, log_scale.exp(), shift, prior_scale)
 
         return c, kl, (log_scale, shift)
 
@@ -382,8 +379,9 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
     else:
         raise NotImplementedError()
     iters_per_epoch = len(train_dataloader)
+    n_epochs = exp_cfg.num_epochs + (exp_cfg.vi_cfg.num_det_pretrain_iters // iters_per_epoch)
     scheduler = LinearWarmupCosineAnnealingLR(
-        opt, warmup_epochs=20 * iters_per_epoch, max_epochs=iters_per_epoch * exp_cfg.num_epochs, eta_min=1e-4
+        opt, warmup_epochs=20 * iters_per_epoch, max_epochs=iters_per_epoch * n_epochs, eta_min=1e-4
     )
 
     transop_loss_save = []
@@ -391,7 +389,7 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
     dw_loss_save = []
     c_save = []
     iter_time = []
-    for i in range(exp_cfg.num_epochs):
+    for i in range(n_epochs):
         for idx, batch in enumerate(train_dataloader):
             curr_iter = i * len(train_dataloader) + idx
             pre_time = time.time()
@@ -415,7 +413,9 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
             transop_loss = torch.nn.functional.mse_loss(z1_hat, z1, reduction="none")
 
             loss = transop_loss.mean() + exp_cfg.vi_cfg.kl_weight * kl_loss
-            if exp_cfg.vi_cfg.enable_c_l2:
+            if exp_cfg.vi_cfg.enable_c_l2 or (
+                exp_cfg.vi_cfg.deterministic_pretrain and curr_iter < exp_cfg.vi_cfg.num_det_pretrain_iters
+            ):
                 l2_reg = (c**2).sum(dim=-1).mean()
                 loss += exp_cfg.vi_cfg.c_l2_weight * l2_reg
             if exp_cfg.vi_cfg.enable_shift_l2:

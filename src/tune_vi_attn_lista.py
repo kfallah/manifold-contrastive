@@ -150,7 +150,8 @@ class VIEncoder(nn.Module):
             nn.Linear(cfg.hidden_dim1, cfg.feature_dim),
         )
 
-        self.attn1 = SparseCodeAttn(cfg.attention_cfg, dict_size)
+        # self.attn1 = SparseCodeAttn(cfg.attention_cfg, dict_size)
+        self.lista_mlp = nn.Sequential(nn.Linear(64, 2048), nn.LeakyReLU(), nn.Linear(2048, dict_size))
         # self.attn2 = SparseCodeAttn(cfg.attention_cfg, dict_size)
 
         self.cfg = cfg
@@ -158,17 +159,6 @@ class VIEncoder(nn.Module):
         if cfg.variational:
             self.scale = nn.Linear(cfg.feature_dim, dict_size)
         self.shift = nn.Linear(cfg.feature_dim, dict_size)
-
-        if self.cfg.learn_prior:
-            self.prior_feat_extract = nn.Sequential(
-                nn.Linear(64, cfg.hidden_dim1),
-                nn.LeakyReLU(),
-                nn.Linear(cfg.hidden_dim1, cfg.hidden_dim2),
-                nn.LeakyReLU(),
-                nn.Linear(cfg.hidden_dim2, cfg.feature_dim),
-            )
-            self.scale_prior = nn.Linear(cfg.feature_dim, dict_size)
-            self.shift_prior = nn.Linear(cfg.feature_dim, dict_size)
 
     def soft_threshold(self, z: torch.Tensor, lambda_: torch.Tensor) -> torch.Tensor:
         return torch.nn.functional.relu(torch.abs(z) - lambda_) * torch.sign(z)
@@ -197,7 +187,7 @@ class VIEncoder(nn.Module):
         c = c + c_thresh - c.detach()
         return c
 
-    def log_distr(self, curr_iter, scale, shift, prior_scale, prior_shift):
+    def log_distr(self, curr_iter, scale, shift):
         distr = {
             "distr/avg_enc_scale": scale.mean(),
             "distr/min_enc_scale": scale.min(),
@@ -206,18 +196,6 @@ class VIEncoder(nn.Module):
             "distr/min_enc_shift": shift.abs().min(),
             "distr/max_enc_shift": shift.abs().max(),
         }
-        if self.cfg.learn_prior:
-            distr.update(
-                {
-                    "distr/avg_prior_scale": prior_scale.mean(),
-                    "distr/min_prior_scale": prior_scale.min(),
-                    "distr/max_prior_scale": prior_scale.max(),
-                    "distr/avg_prior_shift": prior_shift.abs().mean(),
-                    "distr/min_prior_shift": prior_shift.abs().min(),
-                    "distr/max_prior_shift": prior_shift.abs().max(),
-                }
-            )
-
         wandb.log(distr, step=curr_iter)
 
     def sample(self, x, curr_iter=0):
@@ -236,19 +214,11 @@ class VIEncoder(nn.Module):
         c = self.reparameterize(noise, log_scale, shift)
 
         # KL loss
-        prior_scale = None
-        prior_shift = None
-        if self.cfg.learn_prior:
-            z_prior = self.prior_feat_extract(x)
-            prior_log_scale, prior_shift = self.scale_prior(z_prior), self.shift_prior(z_prior)
-            prior_log_scale += torch.log(torch.ones_like(prior_log_scale) * self.cfg.scale_prior)
-            prior_scale, prior_shift = prior_log_scale.clamp(min=-20, max=2).exp(), prior_shift.clamp(min=-5, max=5)
-            prior_shift = torch.zeros_like(shift)
-        kl = self.kl_loss(log_scale.exp(), shift, prior_scale, prior_shift).sum(dim=-1).mean()
+        kl = self.kl_loss(log_scale.exp(), shift, None, None).sum(dim=-1).mean()
 
         # Log distribution params
         if curr_iter % self.cfg.logging_interval == 0:
-            self.log_distr(curr_iter, log_scale.exp(), shift, prior_scale, prior_shift)
+            self.log_distr(curr_iter, log_scale.exp(), shift)
 
         return c, (kl, log_scale, shift)
 
@@ -262,9 +232,10 @@ class VIEncoder(nn.Module):
             T = torch.matrix_exp(torch.einsum("bsm,mpk->bspk", c_final, psi))
             r = x1 - (T @ x0.unsqueeze(-1)).squeeze(-1)
             r_list.append((r**2).mean().item())
-            c_update = self.attn1(r, psi)
+            # c_update = self.attn1(r, psi)
+            c_update = self.lista_mlp(r)
             c_final = c + c_update
-            c_refine = self.soft_threshold(c_final.detach(), 0.2)
+            c_refine = self.soft_threshold(c_final.detach(), 0.1)
             c_final = c_final + c_refine - c_final.detach()
 
         return c_final, kl, (log_scale, shift)
