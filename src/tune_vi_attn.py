@@ -139,12 +139,12 @@ class SparseCodeAttn(nn.Module):
 class VIEncoder(nn.Module):
     def __init__(self, cfg: CoeffEncoderConfig, dict_size: int):
         super(VIEncoder, self).__init__()
-        self.feat_extract = nn.Sequential(
+        self.shift = nn.Sequential(
             nn.Linear(128, cfg.hidden_dim1),
             nn.LeakyReLU(),
             nn.Linear(cfg.hidden_dim1, cfg.hidden_dim2),
             nn.LeakyReLU(),
-            nn.Linear(cfg.hidden_dim2, cfg.feature_dim),
+            nn.Linear(cfg.hidden_dim2, dict_size),
         )
 
         # self.attn1 = SparseCodeAttn(cfg.attention_cfg, dict_size)
@@ -153,18 +153,24 @@ class VIEncoder(nn.Module):
         self.cfg = cfg
         self.dict_size = dict_size
         if cfg.variational:
-            self.scale = nn.Linear(cfg.feature_dim, dict_size)
-        self.shift = nn.Linear(cfg.feature_dim, dict_size)
+            # self.scale = nn.Linear(cfg.feature_dim, dict_size)
+            self.scale = nn.Sequential(
+                nn.Linear(128, cfg.hidden_dim1),
+                nn.LeakyReLU(),
+                nn.Linear(cfg.hidden_dim1, cfg.hidden_dim2),
+                nn.LeakyReLU(),
+                nn.Linear(cfg.hidden_dim2, dict_size),
+            )
+        # self.shift = nn.Linear(cfg.feature_dim, dict_size)
 
         if self.cfg.learn_prior:
-            self.prior_feat_extract = nn.Sequential(
+            self.prior_scale = nn.Sequential(
                 nn.Linear(64, cfg.hidden_dim1),
                 nn.LeakyReLU(),
                 nn.Linear(cfg.hidden_dim1, cfg.hidden_dim2),
                 nn.LeakyReLU(),
-                nn.Linear(cfg.hidden_dim2, cfg.feature_dim),
+                nn.Linear(cfg.hidden_dim2, dict_size),
             )
-            self.scale_prior = nn.Linear(cfg.feature_dim, dict_size)
 
         if self.cfg.enable_thresh_warmup:
             self.thresh_warmup = 0.0
@@ -252,21 +258,22 @@ class VIEncoder(nn.Module):
     def forward(self, curr_iter, x0, x1, psi):
         # Extract features for attention
         # z0, z1 = self.feat_extract(x0), self.feat_extract(x1)
-        z = self.feat_extract(torch.cat((x0, x1), dim=-1))
+        shift = self.shift(torch.cat((x0, x1), dim=-1))
         # z = self.attn1(z, psi)
         # z = self.attn2(z, psi)
 
         if self.cfg.enable_thresh_warmup:
             if not self.cfg.deterministic_pretrain or curr_iter > self.cfg.num_det_pretrain_iters:
-                self.thresh_warmup += 2.0e-4
+                self.thresh_warmup += 1.0e-4
             if self.thresh_warmup > 1.0:
                 self.thresh_warmup = 1.0
 
         if not self.cfg.variational:
-            shift = self.shift(z)
+            # shift = self.shift(z)
             return shift, torch.tensor(0.0), (torch.zeros_like(shift), shift)
 
-        log_scale, shift = self.scale(z), self.shift(z)
+        # log_scale, shift = self.scale(z), self.shift(z)
+        log_scale = self.scale(torch.cat((x0, x1), dim=-1))
         log_scale += torch.log(torch.ones_like(log_scale) * self.cfg.scale_prior)
         log_scale, shift = log_scale.clamp(min=-100, max=2), shift.clamp(min=-5, max=5)
 
@@ -283,8 +290,7 @@ class VIEncoder(nn.Module):
         # Compute KL and find prior params if needed
         prior_scale = None
         if self.cfg.learn_prior:
-            z_prior = self.prior_feat_extract(x0)
-            prior_log_scale = self.scale_prior(z_prior)
+            prior_log_scale = self.prior_scale(x0)
             prior_log_scale += torch.log(torch.ones_like(prior_log_scale) * self.cfg.scale_prior)
             prior_scale = prior_log_scale.clamp(min=-100, max=2).exp()
         kl = self.kl_loss(log_scale.exp(), shift, prior_scale, None).sum(dim=-1).mean()
@@ -364,7 +370,7 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
         {
             "params": encoder.parameters(),
             "lr": exp_cfg.vi_cfg.lr,
-            "eta_min": 1e-4,
+            "eta_min": 1e-3,
             "weight_decay": exp_cfg.vi_cfg.weight_decay,
             "disable_layer_adaptation": True,
         },
