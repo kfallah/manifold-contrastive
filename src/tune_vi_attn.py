@@ -51,8 +51,7 @@ class CoeffEncoderConfig:
     weight_decay: float = 1.0e-5
     grad_acc_iter: int = 1
 
-    enable_c_warmup: bool = False
-    c_warmup_iters: int = 2000
+    enable_thresh_warmup: bool = False
 
     enable_c_l2: bool = False
     c_l2_weight: float = 1.0e-3
@@ -167,6 +166,11 @@ class VIEncoder(nn.Module):
             )
             self.scale_prior = nn.Linear(cfg.feature_dim, dict_size)
 
+        if self.cfg.enable_thresh_warmup:
+            self.thresh_warmup = 0.0
+        else:
+            self.thresh_warmup = 1.0
+
     def soft_threshold(self, z: torch.Tensor, lambda_: torch.Tensor) -> torch.Tensor:
         return torch.nn.functional.relu(torch.abs(z) - lambda_) * torch.sign(z)
 
@@ -188,7 +192,7 @@ class VIEncoder(nn.Module):
         c = shift + eps
 
         # Threshold
-        c_thresh = self.soft_threshold(eps.detach(), self.cfg.threshold)
+        c_thresh = self.soft_threshold(eps.detach(), self.cfg.threshold * self.thresh_warmup)
         non_zero = torch.nonzero(c_thresh, as_tuple=True)
         c_thresh[non_zero] = shift[non_zero].detach() + c_thresh[non_zero]
         c = c + c_thresh - c.detach()
@@ -252,6 +256,12 @@ class VIEncoder(nn.Module):
         # z = self.attn1(z, psi)
         # z = self.attn2(z, psi)
 
+        if self.cfg.enable_thresh_warmup:
+            if not self.cfg.deterministic_pretrain or curr_iter > self.cfg.num_det_pretrain_iters:
+                self.thresh_warmup += 2.0e-4
+            if self.thresh_warmup > 1.0:
+                self.thresh_warmup = 1.0
+
         if not self.cfg.variational:
             shift = self.shift(z)
             return shift, torch.tensor(0.0), (torch.zeros_like(shift), shift)
@@ -263,7 +273,6 @@ class VIEncoder(nn.Module):
         # Reparameterization
         if self.cfg.deterministic_pretrain and curr_iter < self.cfg.num_det_pretrain_iters:
             c = shift.clone()
-            shift = shift.detach()
         else:
             if self.cfg.enable_max_sample and curr_iter > self.cfg.max_sample_start_iter:
                 noise = self.max_elbo_sample(log_scale, shift, psi, x0, x1)
@@ -413,9 +422,7 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
             transop_loss = torch.nn.functional.mse_loss(z1_hat, z1, reduction="none")
 
             loss = transop_loss.mean() + exp_cfg.vi_cfg.kl_weight * kl_loss
-            if exp_cfg.vi_cfg.enable_c_l2 or (
-                exp_cfg.vi_cfg.deterministic_pretrain and curr_iter < exp_cfg.vi_cfg.num_det_pretrain_iters
-            ):
+            if exp_cfg.vi_cfg.enable_c_l2:
                 l2_reg = (c**2).sum(dim=-1).mean()
                 loss += exp_cfg.vi_cfg.c_l2_weight * l2_reg
             if exp_cfg.vi_cfg.enable_shift_l2:
