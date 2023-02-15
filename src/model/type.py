@@ -31,7 +31,7 @@ class HeaderInput(NamedTuple):
     x_1: torch.Tensor
     # List of indices for each entry in the batch
     # Dimensions [B]
-    x_idx: torch.Tensor
+    x_idx: list
     # List of features from backbone encoder
     # Dimensions [B x D]
     feature_0: torch.Tensor
