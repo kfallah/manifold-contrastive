@@ -35,10 +35,6 @@ class Loss(nn.Module):
                 detach_off_logit=self.loss_cfg.ntxent_detach_off_logit,
             )
 
-        self.ce_loss = None
-        if self.loss_cfg.ce_loss_active:
-            self.ce_loss = nn.CrossEntropyLoss()
-
     def get_kl_weight(self, curr_iter: int):
         if self.loss_cfg.kl_weight_warmup == "None":
             return self.loss_cfg.kl_loss_weight
@@ -97,19 +93,10 @@ class Loss(nn.Module):
             total_loss += self.loss_cfg.transop_loss_weight * transop_loss
             loss_meta["transop_loss"] = transop_loss.item()
 
-            if "transop_z1hat_vi" in header_dict.keys():
-                z1_hat_vi = header_dict["transop_z1hat_vi"]
-                vi_loss = F.mse_loss(z1_hat_vi, z1, reduction="none").mean()
-                total_loss += self.loss_cfg.transop_loss_weight * vi_loss
-                loss_meta["transop_vi_loss"] = vi_loss.item()
-
         if self.loss_cfg.c_refine_loss_active:
             c_vi = header_out.distribution_data.encoder_params["shift"]
-            # nz_idx = torch.nonzero(header_out.distribution_data.samples.detach())
-            # c_loss = F.mse_loss(c_vi[nz_idx], header_out.distribution_data.samples.detach()[nz_idx])
             c_loss = F.mse_loss(c_vi, header_out.distribution_data.samples.detach())
-            #total_loss += self.loss_cfg.c_refine_loss_weight * c_loss
-            loss_meta["c_pred"] = c_loss.item()
+            loss_meta["c_pred"] = self.loss_cfg.c_refine_loss_weight * c_loss.item()
 
         if self.loss_cfg.real_eig_reg_active:
             assert "psi" in args_dict.keys()
@@ -129,15 +116,5 @@ class Loss(nn.Module):
             kl_weight = self.get_kl_weight(curr_iter)
             total_loss += kl_weight * kl_loss
             loss_meta["kl_loss"] = kl_loss.item()
-
-        if self.loss_cfg.hyperkl_loss_active:
-            assert header_out.distribution_data is not None
-            hyperkl_loss = compute_kl(
-                self.model_cfg.header_cfg.transop_header_cfg.vi_cfg.distribution,
-                header_out.distribution_data.prior_params,
-                header_out.distribution_data.hyperprior_params,
-            )
-            total_loss += self.loss_cfg.hyperkl_loss_weight * hyperkl_loss
-            loss_meta["hyperkl_loss"] = hyperkl_loss.item()
 
         return loss_meta, total_loss

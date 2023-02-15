@@ -19,26 +19,27 @@ model_cfg:
     kl_weight_warmup: None
     transop_loss_weight: 1.0
     transop_loss_fn: mse
-    c_refine_loss_active: false
+    c_refine_loss_active: true
     c_refine_loss_weight: 10.0
   backbone_cfg:
     load_backbone: simclr_mlp.pt
   header_cfg:
     transop_header_cfg:
       start_iter: 1000
-      fine_tune_iter: 60000
-      transop_weight_decay: 5.0e-6
-      lambda_prior: 0.6
+      fine_tune_iter: 20000
+      transop_weight_decay: 1.0e-6
+      lambda_prior: 0.02
       dictionary_size: 100
-      transop_lr: 0.3
+      transop_lr: 0.1
       enable_vi_refinement: true
-      vi_refinement_lambda: 0.15
-      fista_num_iterations: 50
-      batch_size: 64
+      vi_refinement_lambda: 0.1
+      fista_num_iterations: 20
+      batch_size: 128
       vi_cfg:
-        per_iter_samples: 20
-        total_samples: 20
+        max_sample_start_iter: 0
+        samples_per_iter: 20
+        total_num_samples: 20
         feature_dim: 512
-        scale_prior: 0.5
-        variational_encoder_lr: 0.03
+        scale_prior: 0.02
+        variational_encoder_lr: 0.01
         variational_encoder_weight_decay: 1.0e-5

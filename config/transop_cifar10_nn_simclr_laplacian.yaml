@@ -15,30 +15,10 @@ model_cfg:
       start_iter: 2000
       fine_tune_iter: 50000
       dictionary_size: 100
-      lambda_prior: 0.016
-      transop_weight_decay: 0.0
+      lambda_prior: 0.01
+      transop_weight_decay: 1.0e-6
       transop_lr: 0.1
-      stable_operator_initialization: true
-      detach_feature: false
-      enable_nn_point_pair: true
-      nn_memory_bank_size: 98304
-      enable_splicing: true
-      splice_dim: 64
-      batch_size: 256
       enable_variational_inference: true
-      vi_cfg:
-        scale_prior: 0.01
-        distribution: Laplacian
-        prior_type: Fixed
-        per_iter_samples: 1
-        total_samples: 1
-        use_warmpup: false
-        encode_features: true
-        share_encoder: false
-        feature_dim: 256
-        encoder_type: MLP
-        variational_encoder_lr: 0.006
-        variational_encoder_weight_decay: 1.0e-5
   loss_cfg:
     ntxent_loss_active: true
     ntxent_normalize: true
