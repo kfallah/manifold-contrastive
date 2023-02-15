@@ -14,7 +14,8 @@ import torchvision
 import torchvision.transforms as T
 from torch.utils.data import DataLoader, Dataset
 
-from dataloader.config import CollateFunctionConfig, DataLoaderConfig, DatasetConfig
+from dataloader.config import (CollateFunctionConfig, DataLoaderConfig,
+                               DatasetConfig)
 
 
 def get_dataset(config: DatasetConfig, enable_collate: bool = True, train: bool = True) -> Dataset:
@@ -37,13 +38,18 @@ def get_dataset(config: DatasetConfig, enable_collate: bool = True, train: bool 
             # Prepend transform so it comes before ToTensor()
             transform_list.insert(0, T.Resize(config.image_size))
         transform = T.Compose(transform_list)
-        dataset = torchvision.datasets.CIFAR10(config.dataset_dir, transform=transform, train=train, download=False)
+        dataset = torchvision.datasets.CIFAR10(config.dataset_dir, transform=transform, train=train, download=True)
     elif config.dataset_name == "CIFAR100":
         if config.image_size != 32:
             # Prepend transform so it comes before ToTensor()
             transform_list.insert(0, T.Resize(config.image_size))
         transform = T.Compose(transform_list)
         dataset = torchvision.datasets.CIFAR100(config.dataset_dir, transform=transform, train=train, download=True)
+    elif config.dataset_name == "ImageNet":
+        transform = T.Compose(transform_list)
+        split = "train" if train else "val"
+        directory = config.dataset_dir + "/" + split
+        dataset = torchvision.datasets.ImageFolder(directory, transform=transform)
     else:
         raise NotImplementedError
     return dataset, transform

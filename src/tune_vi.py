@@ -10,10 +10,10 @@ import omegaconf
 import torch
 import torch.distributions as distr
 import torch.nn as nn
+import wandb
 from hydra.core.config_store import ConfigStore
 from omegaconf import OmegaConf
 
-import wandb
 from dataloader.contrastive_dataloader import get_dataloader
 from model.config import ModelConfig
 from model.manifold.transop import TransOp_expm
@@ -25,11 +25,11 @@ warnings.filterwarnings("ignore")
 
 @dataclass
 class AttentionConfig:
-    feature_dim: int = 256
-    num_heads: int = 4
+    feature_dim: int = 512
+    num_heads: int = 8
     psi_hidden_dim: int = 2048
     ff_hidden_dim: int = 2048
-    dropout: float = 0.2
+    dropout: float = 0.1
 
 
 @dataclass
@@ -37,7 +37,7 @@ class CoeffEncoderConfig:
     variational: bool = True
     attention_cfg: AttentionConfig = AttentionConfig()
 
-    feature_dim: int = 256
+    feature_dim: int = 512
     hidden_dim1: int = 2048
     hidden_dim2: int = 2048
     scale_prior: float = 0.02
@@ -82,10 +82,10 @@ class TransportOperatorConfig:
     dict_size: int = 100
 
     lr: float = 0.1
-    weight_decay: float = 1.0e-5
+    weight_decay: float = 1.0e-6
 
-    init_real_range: float = 2.0e-4
-    init_imag_range: float = 0.6
+    init_real_range: float = 0.0001
+    init_imag_range: float = 5.0
 
 
 @dataclass
@@ -112,7 +112,6 @@ class SparseCodeAttn(nn.Module):
 
         self.psi_extract = nn.Sequential(
             nn.Linear(64**2, cfg.psi_hidden_dim),
-            nn.LayerNorm(cfg.psi_hidden_dim),
             nn.LeakyReLU(),
             nn.Linear(cfg.psi_hidden_dim, cfg.feature_dim),
         )
@@ -143,29 +142,22 @@ class SparseCodeAttn(nn.Module):
 class VIEncoder(nn.Module):
     def __init__(self, cfg: CoeffEncoderConfig, dict_size: int):
         super(VIEncoder, self).__init__()
-        self.shift = nn.Sequential(
+        self.feat_extract = nn.Sequential(
             nn.Linear(128, cfg.hidden_dim1),
             nn.LeakyReLU(),
             nn.Linear(cfg.hidden_dim1, cfg.hidden_dim2),
             nn.LeakyReLU(),
-            nn.Linear(cfg.hidden_dim2, dict_size),
+            nn.Linear(cfg.hidden_dim2, cfg.feature_dim),
         )
 
-        # self.attn1 = SparseCodeAttn(cfg.attention_cfg, dict_size)
+        self.attn1 = SparseCodeAttn(cfg.attention_cfg, dict_size)
         # self.attn2 = SparseCodeAttn(cfg.attention_cfg, dict_size)
 
         self.cfg = cfg
         self.dict_size = dict_size
         if cfg.variational:
-            # self.scale = nn.Linear(cfg.feature_dim, dict_size)
-            self.scale = nn.Sequential(
-                nn.Linear(128, cfg.hidden_dim1),
-                nn.LeakyReLU(),
-                nn.Linear(cfg.hidden_dim1, cfg.hidden_dim2),
-                nn.LeakyReLU(),
-                nn.Linear(cfg.hidden_dim2, dict_size),
-            )
-        # self.shift = nn.Linear(cfg.feature_dim, dict_size)
+            self.scale = nn.Linear(cfg.feature_dim, dict_size)
+        self.shift = nn.Linear(cfg.feature_dim, dict_size)
 
         if self.cfg.learn_prior:
             self.prior_scale = nn.Sequential(
@@ -184,11 +176,13 @@ class VIEncoder(nn.Module):
     def soft_threshold(self, z: torch.Tensor, lambda_: torch.Tensor) -> torch.Tensor:
         return torch.nn.functional.relu(torch.abs(z) - lambda_) * torch.sign(z)
 
-    def kl_loss(self, scale, shift, prior_scale=None, prior_shift=None):
+    def kl_loss(self, scale, shift, prior_scale=None, prior_shift=None, kl_scale=None):
         if prior_scale is None:
             prior_scale = torch.ones_like(scale) * self.cfg.scale_prior
         if prior_shift is None:
             prior_shift = torch.ones_like(shift) * self.cfg.shift_prior * torch.sign(shift).detach()
+            if kl_scale is not None:
+                prior_shift *= kl_scale
             # prior_shift = shift.clone().detach()
         if self.cfg.no_shift_prior:
             shift = shift.detach()
@@ -268,8 +262,8 @@ class VIEncoder(nn.Module):
     def forward(self, curr_iter, x0, x1, psi):
         # Extract features for attention
         # z0, z1 = self.feat_extract(x0), self.feat_extract(x1)
-        shift = self.shift(torch.cat((x0, x1), dim=-1))
-        # z = self.attn1(z, psi)
+        z = self.feat_extract(torch.cat((x0, x1), dim=-1))
+        z = self.attn1(z, psi)
         # z = self.attn2(z, psi)
 
         if self.cfg.enable_thresh_warmup:
@@ -279,11 +273,10 @@ class VIEncoder(nn.Module):
                 self.thresh_warmup = 1.0
 
         if not self.cfg.variational:
-            # shift = self.shift(z)
+            shift = self.shift(z)
             return shift, torch.tensor(0.0), (torch.zeros_like(shift), shift)
 
-        # log_scale, shift = self.scale(z), self.shift(z)
-        log_scale = self.scale(torch.cat((x0, x1), dim=-1))
+        log_scale, shift = self.scale(z), self.shift(z)
         log_scale += torch.log(torch.ones_like(log_scale) * self.cfg.scale_prior)
         log_scale, shift = log_scale.clamp(min=-100, max=2), shift.clamp(min=-5, max=5)
 
@@ -299,11 +292,15 @@ class VIEncoder(nn.Module):
 
         # Compute KL and find prior params if needed
         prior_scale = None
+        kl_scale = None
+        # psi_mag = (psi.reshape(-1, self.dict_size) ** 2).sum(dim=0)
+        # psi_median = torch.median(psi_mag)
+        # kl_scale = torch.exp(5 * torch.log((psi_median / psi_mag))).detach().clamp(min=0.1, max=10)
         if self.cfg.learn_prior:
             prior_log_scale = self.prior_scale(x0)
             prior_log_scale += torch.log(torch.ones_like(prior_log_scale) * self.cfg.scale_prior)
             prior_scale = prior_log_scale.clamp(min=-100, max=2).exp()
-        kl = self.kl_loss(log_scale.exp(), shift, prior_scale, None).sum(dim=-1).mean()
+        kl = self.kl_loss(log_scale.exp(), shift, prior_scale, None, kl_scale).sum(dim=-1).mean()
 
         # Log distribution params
         if curr_iter % self.cfg.logging_interval == 0:
@@ -385,7 +382,7 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
         {
             "params": encoder.parameters(),
             "lr": exp_cfg.vi_cfg.lr,
-            "eta_min": 1e-3,
+            "eta_min": 1e-4,
             "weight_decay": exp_cfg.vi_cfg.weight_decay,
             "disable_layer_adaptation": True,
         },
@@ -395,7 +392,7 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
             {
                 "params": psi,
                 "lr": exp_cfg.transop_cfg.lr,
-                "eta_min": 1e-3,
+                "eta_min": 1e-6,
                 "weight_decay": exp_cfg.transop_cfg.weight_decay,
                 "disable_layer_adaptation": True,
             }
@@ -466,7 +463,7 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
 
             if curr_iter % exp_cfg.vi_cfg.grad_acc_iter == 0:
                 torch.nn.utils.clip_grad_norm_(psi, 0.1)
-                torch.nn.utils.clip_grad_norm_(encoder.parameters(), 0.1)
+                torch.nn.utils.clip_grad_norm_(encoder.parameters(), 10.0)
                 opt.step()
                 scheduler.step()
                 opt.zero_grad()
@@ -505,17 +502,18 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
 
                 if exp_cfg.transop_cfg.train_transop:
                     log_transop(psi.detach().cpu(), curr_iter)
-        torch.save(
-            {
-                "encoder": encoder.state_dict(),
-                "psi": psi,
-                "optimizer": opt.state_dict(),
-                "scheduler": scheduler.state_dict(),
-                "curr_iter": curr_iter,
-                "curr_epoch": i,
-            },
-            os.getcwd() + "/model_state.pt",
-        )
+        if curr_iter % 5000 == 0:
+            torch.save(
+                {
+                    "encoder": encoder.state_dict(),
+                    "psi": psi,
+                    "optimizer": opt.state_dict(),
+                    "scheduler": scheduler.state_dict(),
+                    "curr_iter": curr_iter,
+                    "curr_epoch": i,
+                },
+                os.getcwd() + f"/model_state{curr_iter}.pt",
+            )
 
 
 def register_configs() -> None:
