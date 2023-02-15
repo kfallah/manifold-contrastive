@@ -39,7 +39,6 @@ def encode_features(
         for _, batch in enumerate(data_loader):
             x, batch_label, batch_idx = batch
             x_gpu = x.to(device).unsqueeze(1)
-            batch_idx = torch.Tensor([int(idx) for idx in batch_idx])
             model_output = model(x_gpu, batch_idx, 0)
             feat = model_output.header_input.feature_0
 
