@@ -76,6 +76,18 @@ class Trainer(nn.Module):
             # Backpropagate loss
             self.scaler.scale(total_loss / self.trainer_cfg.grad_accumulation_iters).backward()
             if curr_iter % self.trainer_cfg.grad_accumulation_iters == 0:
+                # clip gradients if relevant
+                if self.trainer_cfg.enable_transop_grad_clip:
+                    torch.nn.utils.clip_grad_norm_(
+                            self.get_model().contrastive_header.transop_header.transop.parameters(), 
+                            self.trainer_cfg.transop_grad_clip
+                        )
+                if self.trainer_cfg.enable_coeffenc_grad_clip:
+                    torch.nn.utils.clip_grad_norm_(
+                            self.get_model().contrastive_header.transop_header.coefficient_encoder.parameters(), 
+                            self.trainer_cfg.coeffenc_grad_clip
+                        )
+
                 self.scaler.step(self.optimizer)
                 self.optimizer.zero_grad()
                 self.scaler.update()
