@@ -37,6 +37,9 @@ class LossConfig:
     c_refine_loss_active: bool = False
     c_refine_loss_weight: float = 10.0
 
+    c_l2_active: bool = False
+    c_l2_weight: float = 1.0e-2
+
 
 @dataclass
 class BackboneConfig:
