@@ -79,7 +79,7 @@ class MetricLogger:
             else:
                 # Get moving average for the iterations between the loss metadata
                 for key in loss_metadata.keys():
-                    if key not in self.metadata_avg.keys():
+                    if 'loss/'+key not in self.metadata_avg.keys():
                         self.metadata_avg['loss/' + key] = 0.0
                     self.metadata_avg['loss/' + key] += loss_metadata[key] / self.cfg.loss_log_freq
 

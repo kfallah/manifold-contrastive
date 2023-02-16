@@ -98,6 +98,11 @@ class Loss(nn.Module):
             c_loss = F.mse_loss(c_vi, header_out.distribution_data.samples.detach())
             loss_meta["c_pred"] = self.loss_cfg.c_refine_loss_weight * c_loss.item()
 
+        if self.loss_cfg.c_l2_active:
+            c = header_out.distribution_data.samples
+            c_l2 = (c**2).sum(dim=-1).mean()
+            loss_meta['c_l2'] = self.loss_cfg.c_l2_weight * c_l2
+
         if self.loss_cfg.real_eig_reg_active:
             assert "psi" in args_dict.keys()
             psi = args_dict["psi"]
