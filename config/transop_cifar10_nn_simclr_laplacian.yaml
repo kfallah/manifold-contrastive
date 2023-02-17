@@ -12,24 +12,34 @@ model_cfg:
       projection_type: MLP
     enable_transop_header: true
     transop_header_cfg:
-      start_iter: 2000
-      fine_tune_iter: 50000
+      batch_size: 128
+      start_iter: 10000
+      fine_tune_iter: 30000
       dictionary_size: 100
-      lambda_prior: 0.01
-      transop_weight_decay: 1.0e-6
-      transop_lr: 0.1
+      lambda_prior: 0.02
+      transop_weight_decay: 1.0e-5
+      transop_lr: 0.01
       enable_variational_inference: true
+      vi_cfg:
+        max_sample_start_iter: 10000
+        samples_per_iter: 20
+        total_num_samples: 20
+        max_sample_l1_penalty: 0.005
+        feature_dim: 512
+        scale_prior: 0.02
+        variational_encoder_lr: 0.001
+        variational_encoder_weight_decay: 1.0e-5
+
   loss_cfg:
     ntxent_loss_active: true
-    ntxent_normalize: true
-    ntxent_logit: cos
-    ntxent_detach_off_logit: false
-    ntxent_symmetric: false
+    ntxent_loss_weight: 0.1
     kl_loss_active: true
-    kl_loss_weight: 1.0e-6
-    kl_weight_warmup: None
+    kl_loss_weight: 1.0e-5
+    kl_weight_warmup: Exponential
+    shift_l2_active: true
+    shift_l2_weight: 1.0e-2
     transop_loss_active: true
-    transop_loss_weight: 0.5
+    transop_loss_weight: 1.0
     transop_loss_fn: mse
 
 trainer_cfg:
@@ -37,3 +47,5 @@ trainer_cfg:
     enable_transop_logging: true
   use_amp: false
   save_interval: 200
+  enable_transop_grad_clip: true
+  enable_coeffenc_grad_clip: true

@@ -5,36 +5,15 @@ defaults:
 exp_name: TransOp_NN_CIFAR10
 
 trainer_cfg:
-  num_epochs: 1000
-  use_amp: false
-  optimizer_cfg:
-    optimizer: SGD
-    initial_lr: 0.03
-    weight_decay: 1e-6
-    enable_nesterov: true
+  num_epochs: 500
 model_cfg:
   loss_cfg:
-    ntxent_loss_weight: 1.0
-    kl_loss_weight: 5.0e-4
-    kl_weight_warmup: None
-    transop_loss_weight: 1.0
-    transop_loss_fn: mse
+    kl_detach_shift: true
   backbone_cfg:
     load_backbone: simclr_mlp.pt
   header_cfg:
     transop_header_cfg:
-      start_iter: 2000
-      fine_tune_iter: 50000
-      transop_weight_decay: 1.0e-6
-      transop_lr: 0.3
-      real_range_initialization: 0.0001
-      image_range_initialization: 0.3
-      lambda_prior: 0.0
-      batch_size: 64
+      start_iter: 1000
+      fine_tune_iter: 20000
       vi_cfg:
-        feature_dim: 512
-        per_iter_samples: 50
-        total_samples: 100
-        scale_prior: 0.2
-        variational_encoder_lr: 0.03
-        variational_encoder_weight_decay: 1.0e-5
+        max_sample_start_iter: 0

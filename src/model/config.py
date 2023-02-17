@@ -24,6 +24,7 @@ class LossConfig:
 
     kl_loss_active: bool = False
     kl_loss_weight: float = 0.1
+    kl_detach_shift: bool = False
     kl_weight_warmup: str = "None"
 
     real_eig_reg_active: bool = False
@@ -39,6 +40,9 @@ class LossConfig:
 
     c_l2_active: bool = False
     c_l2_weight: float = 1.0e-2
+
+    shift_l2_active: bool = False
+    shift_l2_weight: float = 1.0e-2
 
 
 @dataclass
