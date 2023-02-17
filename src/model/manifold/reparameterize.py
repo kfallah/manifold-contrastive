@@ -69,30 +69,27 @@ def compute_kl(
     distribution: str,
     encoder_params: Dict[str, torch.Tensor],
     prior_params: Dict[str, torch.Tensor],
+    detach_shift: bool = False
 ):
     kl_loss = 0.0
+    assert "shift" in encoder_params.keys() and "logscale" in encoder_params.keys()
+    assert "shift" in prior_params.keys() and "logscale" in prior_params.keys()
+    encoder_shift, encoder_logscale = (
+        encoder_params["shift"],
+        encoder_params["logscale"],
+    )
+    if detach_shift:
+        encoder_shift = encoder_shift.detach()
+    prior_shift, prior_logscale = prior_params["shift"], prior_params["logscale"]
+    encoder_scale, prior_scale = torch.exp(encoder_logscale), torch.exp(prior_logscale)
+
     if distribution == "Laplacian" or distribution == "Laplacian+Gamma":
-        assert "shift" in encoder_params.keys() and "logscale" in encoder_params.keys()
-        assert "shift" in prior_params.keys() and "logscale" in prior_params.keys()
-        encoder_shift, encoder_logscale = (
-            encoder_params["shift"],
-            encoder_params["logscale"],
-        )
-        prior_shift, prior_logscale = prior_params["shift"], prior_params["logscale"]
         encoder_scale, prior_scale = torch.exp(encoder_logscale), torch.exp(prior_logscale)
         laplace_kl = ((encoder_shift - prior_shift).abs() / prior_scale) + prior_logscale - encoder_logscale - 1
         laplace_kl += (encoder_scale / prior_scale) * (-((encoder_shift - prior_shift).abs() / encoder_scale)).exp()
         kl_loss += laplace_kl.sum(dim=-1).mean()
+
     if distribution == "Gaussian" or distribution == "Gaussian+Gamma":
-        assert "shift" in encoder_params.keys() and "logscale" in encoder_params.keys()
-        assert "shift" in prior_params.keys() and "logscale" in prior_params.keys()
-        encoder_shift, encoder_logscale = (
-            encoder_params["shift"],
-            encoder_params["logscale"],
-        )
-        prior_shift, prior_logscale = prior_params["shift"], prior_params["logscale"]
-        encoder_scale = torch.exp(encoder_logscale)
-        prior_scale = torch.exp(prior_logscale)
         gauss_kl = (encoder_scale + ((encoder_shift - prior_shift) ** 2)) / (2 * prior_scale)
         gauss_kl += 0.5 * (prior_logscale - encoder_logscale - 1)
         kl_loss += gauss_kl.sum(dim=-1).mean()
