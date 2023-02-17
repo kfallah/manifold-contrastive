@@ -45,7 +45,7 @@ class ContrastiveHeader(nn.Module):
             )
 
     def load_model_state(self, state_path: str) -> None:
-        header_weights = torch.load(f"../../model_zoo/{state_path}")["model_state"]
+        header_weights = torch.load(f"../../model_zoo/{state_path}", map_location="cuda:0")["model_state"]
         for name, param in header_weights.items():
             if self.projection_header is not None:
                 proj_name = name.replace("contrastive_header.projection_header.", "")

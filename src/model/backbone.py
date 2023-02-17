@@ -37,7 +37,7 @@ class Backbone(nn.Module):
         network = Backbone(backbone_cfg, backbone_network)
 
         if backbone_cfg.load_backbone:
-            backbone_weights = torch.load(f"../../model_zoo/{backbone_cfg.load_backbone}")["model_state"]
+            backbone_weights = torch.load(f"../../model_zoo/{backbone_cfg.load_backbone}", map_location="cuda:0")["model_state"]
             own_state = network.state_dict()
             for name, param in backbone_weights.items():
                 name = name.replace("backbone.", "")
