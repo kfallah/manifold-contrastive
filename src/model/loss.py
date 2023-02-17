@@ -12,7 +12,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from model.config import ModelConfig
-from model.contrastive.transop_header import TransportOperatorHeader
 from model.manifold.reparameterize import compute_kl
 from model.public.ntx_ent_loss import NTXentLoss
 from model.type import ModelOutput
@@ -39,10 +38,17 @@ class Loss(nn.Module):
         if self.loss_cfg.kl_weight_warmup == "None":
             return self.loss_cfg.kl_loss_weight
         elif self.loss_cfg.kl_weight_warmup == "Linear":
-            self.kl_warmup += 1e-5
+            self.kl_warmup += 5e-5
             if self.kl_warmup > 1.0:
                 self.kl_warmup = 1.0
             return self.loss_cfg.kl_loss_weight * self.kl_warmup
+        elif self.loss_cfg.kl_weight_warmup == "Exponential":
+            self.kl_warmup += 1
+            if self.kl_warmup > 20000:
+                self.kl_warmup = 20000
+            ratio = self.kl_warmup / 20000
+            kl_weight = (5e-3)**(1-ratio)
+            return self.loss_cfg.kl_loss_weight * kl_weight
         elif self.loss_cfg.kl_weight_warmup == "Cyclic":
             total_iters = 100000
             mod_iter = curr_iter % 50000
@@ -103,6 +109,12 @@ class Loss(nn.Module):
             c_l2 = (c**2).sum(dim=-1).mean()
             loss_meta['c_l2'] = self.loss_cfg.c_l2_weight * c_l2
 
+        if self.loss_cfg.shift_l2_active:
+            shift = header_out.distribution_data.encoder_params['shift']
+            #shift_l2 = (shift**2).sum(dim=-1).mean()
+            shift_l2 = F.relu(shift.abs() - 0.08).sum()
+            loss_meta['shift_l2'] = self.loss_cfg.shift_l2_weight * shift_l2
+
         if self.loss_cfg.real_eig_reg_active:
             assert "psi" in args_dict.keys()
             psi = args_dict["psi"]
@@ -117,6 +129,7 @@ class Loss(nn.Module):
                 self.model_cfg.header_cfg.transop_header_cfg.vi_cfg.distribution,
                 header_out.distribution_data.encoder_params,
                 header_out.distribution_data.prior_params,
+                self.loss_cfg.kl_detach_shift
             )
             kl_weight = self.get_kl_weight(curr_iter)
             total_loss += kl_weight * kl_loss

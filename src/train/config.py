@@ -58,4 +58,4 @@ class TrainerConfig:
     enable_transop_grad_clip: bool = False
     transop_grad_clip: float = 1.0
     enable_coeffenc_grad_clip: bool = False
-    coeffenc_grad_clip: float = 1.0
+    coeffenc_grad_clip: float = 0.1

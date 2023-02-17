@@ -1,0 +1,28 @@
+defaults:
+  - transop_cifar10_nn_simclr_laplacian
+  - _self_
+
+exp_name: TransOp_NN_CIFAR10
+
+trainer_cfg:
+  num_epochs: 1000
+  use_amp: false
+model_cfg:
+  loss_cfg:
+    c_refine_loss_active: true
+    c_refine_loss_weight: 10.0
+  backbone_cfg:
+    load_backbone: simclr_mlp.pt
+  header_cfg:
+    transop_header_cfg:
+      start_iter: 0
+      fine_tune_iter: 20000
+      transop_weight_decay: 1.0e-6
+      lambda_prior: 0.032
+      dictionary_size: 100
+      transop_lr: 0.1
+      enable_vi_refinement: true
+      vi_refinement_lambda: 0.15
+      fista_num_iterations: 40
+      vi_cfg:
+        max_sample_start_iter: 0
