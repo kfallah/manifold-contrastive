@@ -36,7 +36,7 @@ model_cfg:
     kl_loss_active: true
     kl_loss_weight: 1.0e-5
     kl_weight_warmup: Exponential
-    shift_l2_active: true
+    shift_l2_active: false
     shift_l2_weight: 1.0e-2
     transop_loss_active: true
     transop_loss_weight: 1.0
