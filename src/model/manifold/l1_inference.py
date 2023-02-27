@@ -22,7 +22,19 @@ def get_lr(optimizer):
 
 
 def infer_coefficients(
-    x0, x1, psi, zeta, max_iter=300, tol=1e-5, num_trials=100, device="cpu", lr=1e-2, decay=0.99, c_init=None
+    x0,
+    x1,
+    psi,
+    zeta,
+    max_iter=300,
+    tol=1e-5,
+    num_trials=100,
+    device="cpu",
+    lr=1e-2,
+    decay=0.99,
+    c_init=None,
+    c_scale=None,
+    c_scale_weight=1.0e1,
 ):
     if c_init is not None:
         c = nn.Parameter(c_init.detach(), requires_grad=True)
@@ -43,6 +55,10 @@ def infer_coefficients(
 
         c_opt.zero_grad()
         loss = compute_loss(c, x0, x1, psi)
+        if c_scale is not None:
+            c_std = torch.sqrt(c.reshape(-1, c.shape[-1]).var(dim=0) / 2)
+            c_std_hinge = F.relu(c_scale - c_std) ** 2
+            loss += c_scale_weight * c_std_hinge.sum()
         (loss.mean(dim=(-1)) * change_idx).sum().backward()
         c_opt.step()
         opt_scheduler.step()
