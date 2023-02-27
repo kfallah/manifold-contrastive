@@ -55,7 +55,7 @@ class CoeffEncoderConfig:
     opt_type: str = "SGD"
     batch_size: int = 128
     kl_weight: float = 1.0e-5
-    weight_decay: float = 1.0e-5
+    weight_decay: float = 1.0e-6
     grad_acc_iter: int = 1
 
     enable_c_l2: bool = False
@@ -252,7 +252,7 @@ class VIEncoder(nn.Module):
 
                 # Straight through estimator
                 c_final = c + c_update
-                c_refine = self.soft_threshold(c_final.detach(), 0.2)
+                c_refine = self.soft_threshold(c_final.detach(), 0.1)
                 c_final = c_final + c_refine - c_final.detach()
 
         if self.cfg.use_fista:
