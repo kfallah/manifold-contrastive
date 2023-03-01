@@ -131,18 +131,17 @@ class TransportOperatorHeader(nn.Module):
                         self.cfg.vi_refinement_lambda,
                         max_iter=self.cfg.fista_num_iterations,
                         num_trials=1,
-                        lr=5e-2,
+                        lr=1e-2,
                         decay=0.99,
                         device=z0.device,
                         c_init=c.clone().detach().reshape(1, -1, self.cfg.dictionary_size),
+                        c_scale=self.cfg.fista_var_reg_scale if self.cfg.enable_fista_var_reg else None,
+                        c_scale_weight=self.cfg.fista_var_reg_weight,
                     )
 
                 # Sometimes FISTA can result in NaN values in inference, handle them here.
-                if not c_refine.isnan().any():
-                    c_refine = c_refine.reshape(c.shape).clamp(min=-2.0, max=2.0)
-                    # c = (c_refine - c).detach() + c
-                    c = c_refine.detach()
-                    distribution_data = DistributionData(*distribution_data[:-1], c)
+                c = c_refine.detach().clamp(min=-2.0, max=2.0).nan_to_num(nan=0.01).reshape(c.shape)
+                distribution_data = DistributionData(*distribution_data[:-1], c)
 
         # Whether or not to compute gradient through the transport operator
         transop_grad = (

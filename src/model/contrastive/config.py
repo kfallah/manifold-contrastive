@@ -38,6 +38,7 @@ class VariationalEncoderConfig:
     distribution: str = "Laplacian"
     scale_prior: float = 0.02
     feature_dim: int = 512
+    encode_point_pair: bool = True
 
     enable_max_sampling: bool = True
     max_sample_l1_penalty: float = 1.0e-2
@@ -47,6 +48,9 @@ class VariationalEncoderConfig:
 
     enable_learned_prior: bool = False
     enable_prior_shift: bool = False
+
+    # Use attention layer to refine features before drawing samples
+    enable_enc_attn: bool = False
 
 
 @dataclass
@@ -89,6 +93,10 @@ class TransportOperatorConfig:
     vi_refinement_lambda: float = 0.1
     # Config for exact inference
     fista_num_iterations: int = 20
+    # Enable variance regularization to prevent L1 collapse with FISTA
+    enable_fista_var_reg: bool = False
+    fista_var_reg_scale: float = 0.02
+    fista_var_reg_weight: float = 0.5
 
 
 @dataclass
