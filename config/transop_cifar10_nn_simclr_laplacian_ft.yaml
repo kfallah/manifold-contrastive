@@ -5,15 +5,7 @@ defaults:
 exp_name: TransOp_NN_CIFAR10
 
 trainer_cfg:
-  num_epochs: 500
+  num_epochs: 1000
 model_cfg:
-  loss_cfg:
-    kl_detach_shift: true
   backbone_cfg:
     load_backbone: simclr_mlp.pt
-  header_cfg:
-    transop_header_cfg:
-      start_iter: 1000
-      fine_tune_iter: 20000
-      vi_cfg:
-        max_sample_start_iter: 0

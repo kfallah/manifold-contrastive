@@ -10,6 +10,42 @@ from model.manifold.reparameterize import draw_noise_samples, reparameterize
 from model.type import DistributionData
 
 
+class SparseCodeAttn(nn.Module):
+    def __init__(self, vi_cfg: VariationalEncoderConfig, input_size: int, dict_size: int):
+        super(SparseCodeAttn, self).__init__()
+        self.vi_cfg = vi_cfg
+        self.dict_size = dict_size
+        feat_dim = vi_cfg.feature_dim
+
+        self.psi_extract = nn.Sequential(
+            nn.Linear(input_size**2, feat_dim * 4),
+            nn.LeakyReLU(),
+            nn.Linear(feat_dim * 4, feat_dim),
+        )
+
+        self.attn = nn.MultiheadAttention(
+            feat_dim, num_heads=8, dropout=0.1, batch_first=True
+        )
+        self.pre_norm = nn.LayerNorm(feat_dim)
+        self.mlp = nn.Sequential(
+            nn.Linear(feat_dim, feat_dim * 4),
+            nn.LeakyReLU(),
+            nn.Linear(feat_dim * 4, feat_dim),
+        )
+        self.post_norm = nn.LayerNorm(feat_dim)
+
+    def forward(self, z, psi):
+        # extract features for operators
+        psi_feat = self.psi_extract(psi.reshape(self.dict_size, -1))
+        psi_feat = psi_feat.unsqueeze(0).repeat(len(z), 1, 1)
+        # Run through attention layer
+        z_attn, _ = self.attn(z, psi_feat, psi_feat)
+        z = self.pre_norm(z + z_attn)
+        z_mlp = self.mlp(z)
+        z = self.post_norm(z + z_mlp)
+        return z
+
+
 class CoefficientEncoder(nn.Module):
     def __init__(
         self,
@@ -29,8 +65,13 @@ class CoefficientEncoder(nn.Module):
         self.initialize_prior_params(input_size, feat_dim, dictionary_size)
 
     def initialize_encoder_params(self, input_size, feat_dim, dict_size):
+        if self.vi_cfg.encode_point_pair:
+            enc_input = input_size * 2
+        else:
+            enc_input = input_size
+
         self.enc_feat_extract = nn.Sequential(
-                nn.Linear(2*input_size, 4 * feat_dim),
+                nn.Linear(enc_input, 4 * feat_dim),
                 nn.LeakyReLU(),
                 nn.Linear(4 * feat_dim, 4 * feat_dim),
                 nn.LeakyReLU(),
@@ -38,6 +79,10 @@ class CoefficientEncoder(nn.Module):
             )
         self.enc_scale = nn.Linear(feat_dim, dict_size)
         self.enc_shift = nn.Linear(feat_dim, dict_size)
+
+        self.attn = None
+        if self.vi_cfg.enable_enc_attn:
+            self.attn = SparseCodeAttn(self.vi_cfg, input_size, dict_size)
 
     def initialize_prior_params(self, input_size, feat_dim, dict_size):
         self.prior_params = {}
@@ -58,9 +103,16 @@ class CoefficientEncoder(nn.Module):
 
     # Return encoder, prior, and hyperprior params. In case where the prior is fixed and not learned,
     # the hyperprior is equal to the pror.
-    def get_distribution_params(self, x0, x1) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+    def get_distribution_params(self, x0, x1, psi) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
         encoder_params = {}
-        z_enc = self.enc_feat_extract(torch.cat((x0, x1), dim=-1))
+        if self.vi_cfg.encode_point_pair:
+            enc_input = torch.cat((x0, x1), dim=-1)
+        else:
+            enc_input = x0
+
+        z_enc = self.enc_feat_extract(enc_input)
+        if self.vi_cfg.enable_enc_attn:
+            z_enc = self.attn(z_enc, psi)
 
         encoder_params["logscale"] = self.enc_scale(z_enc).clamp(min=-100, max=2)
         encoder_params["logscale"] += torch.log(
@@ -117,7 +169,7 @@ class CoefficientEncoder(nn.Module):
             return optimal_noise.reshape(n_batch, n_seq, n_feat)
 
     def forward(self, x0: torch.Tensor, x1: torch.Tensor, transop: nn.Module, curr_iter = 0):
-        encoder_params, prior_params, hyperprior_params = self.get_distribution_params(x0, x1)
+        encoder_params, prior_params, hyperprior_params = self.get_distribution_params(x0, x1, transop.psi)
 
         if self.vi_cfg.enable_max_sampling and curr_iter > self.vi_cfg.max_sample_start_iter:
             noise = self.max_elbo_sample(encoder_params, transop.psi.detach(), x0, x1)

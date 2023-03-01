@@ -2,16 +2,11 @@ defaults:
   - transop_cifar10_nn_simclr_laplacian
   - _self_
 
-exp_name: vi-20s-40refine-thresh0.2-infonce1e-2-lr0.6
+exp_name: vi-20s-40refine-thresh0.1-infonce1e-2
 
 trainer_cfg:
-  num_epochs: 600
+  num_epochs: 1000
   use_amp: false
-  optimizer_cfg:
-    optimizer: SGD
-    initial_lr: 0.6
-    weight_decay: 1e-6
-    enable_nesterov: true
 model_cfg:
   loss_cfg:
     ntxent_loss_weight: 0.01
@@ -27,20 +22,13 @@ model_cfg:
     transop_header_cfg:
       start_iter: 0
       fine_tune_iter: 30000
-      transop_weight_decay: 1.0e-6
-      lambda_prior: 0.032
-      dictionary_size: 100
-      transop_lr: 0.1
+      lambda_prior: 0.02
       enable_vi_refinement: true
-      vi_refinement_lambda: 0.2
+      vi_refinement_lambda: 0.1
       fista_num_iterations: 40
       batch_size: 128
       vi_cfg:
         max_sample_start_iter: 0
-        samples_per_iter: 20
-        total_num_samples: 20
-        max_sample_l1_penalty: 0.001
-        feature_dim: 512
         scale_prior: 0.02
-        variational_encoder_lr: 0.005
-        variational_encoder_weight_decay: 1.0e-6
+        encode_point_pair: false
+        enable_enc_attn: false

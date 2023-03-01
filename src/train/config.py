@@ -56,6 +56,6 @@ class TrainerConfig:
     use_amp: bool = False
 
     enable_transop_grad_clip: bool = False
-    transop_grad_clip: float = 1.0
+    transop_grad_clip: float = 0.1
     enable_coeffenc_grad_clip: bool = False
-    coeffenc_grad_clip: float = 0.1
+    coeffenc_grad_clip: float = 1.0
