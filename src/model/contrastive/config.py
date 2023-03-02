@@ -32,48 +32,50 @@ class ProjectionHeaderConfig:
 
 @dataclass
 class VariationalEncoderConfig:
-    variational_encoder_lr: float = 3e-4
-    variational_encoder_weight_decay: float = 1e-6
+    variational_encoder_lr: float = 0.001
+    variational_encoder_weight_decay: float = 1e-5
 
     distribution: str = "Laplacian"
-    prior_type: str = "Fixed"
     scale_prior: float = 0.02
-    encoder_type: str = "MLP"
-    feature_dim: int = 256
-    encode_features: bool = True
-    share_encoder: bool = True
-    encode_position: bool = False
+    feature_dim: int = 512
+    encode_point_pair: bool = True
 
-    use_warmpup: bool = False
-    normalize_coefficients: bool = False
-    normalize_mag: float = 1.0
-    per_iter_samples: int = 10
-    total_samples: int = 100
+    enable_max_sampling: bool = True
+    max_sample_l1_penalty: float = 1.0e-2
+    max_sample_start_iter: int = 50000
+    total_num_samples: int = 20
+    samples_per_iter: int = 20
+
+    enable_learned_prior: bool = False
+    enable_prior_shift: bool = False
+
+    # Use attention layer to refine features before drawing samples
+    enable_enc_attn: bool = False
 
 
 @dataclass
 class TransportOperatorConfig:
+    # What iteration to start training the transport operator/VI
     start_iter: int = 50000
+    # What iteration to start co-adapting the backbone weights with the operator
     fine_tune_iter: int = 100000
-    dictionary_size: int = 200
-    lambda_prior: float = 0.04
-    transop_lr: float = 1e-3
+    # Default dictionary size
+    dictionary_size: int = 100
+    # Default threshold degree by variational encoder
+    lambda_prior: float = 0.02
+    # Learning rate for operators
+    transop_lr: float = 0.1
     transop_weight_decay: float = 1e-5
 
     stable_operator_initialization: bool = True
-    real_range_initialization: float = 1e-4
-    image_range_initialization: float = 0.3
+    real_range_initialization: float = 0.0001
+    image_range_initialization: float = 5.0
 
-    detach_feature: bool = False
-    batch_size: int = 256
-    # Scale point pairs before inferring coefficients and applying transop
-    latent_scale: float = 1.0
+    batch_size: int = 128
 
     # Option to splice input to create BDM constraint on transop
-    enable_splicing: bool = False
-    # Only use the top block in the BDM
-    enable_direct: bool = False
-    splice_dim: int = 128
+    enable_block_diagonal: bool = True
+    block_dim: int = 64
 
     # Option for alternating minimization between
     enable_alternating_min: bool = False
@@ -90,7 +92,11 @@ class TransportOperatorConfig:
     enable_vi_refinement: bool = False
     vi_refinement_lambda: float = 0.1
     # Config for exact inference
-    fista_num_iterations: int = 800
+    fista_num_iterations: int = 20
+    # Enable variance regularization to prevent L1 collapse with FISTA
+    enable_fista_var_reg: bool = False
+    fista_var_reg_scale: float = 0.02
+    fista_var_reg_weight: float = 0.5
 
 
 @dataclass

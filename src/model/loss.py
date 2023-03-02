@@ -12,7 +12,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from model.config import ModelConfig
-from model.contrastive.transop_header import TransportOperatorHeader
 from model.manifold.reparameterize import compute_kl
 from model.public.ntx_ent_loss import NTXentLoss
 from model.type import ModelOutput
@@ -35,18 +34,21 @@ class Loss(nn.Module):
                 detach_off_logit=self.loss_cfg.ntxent_detach_off_logit,
             )
 
-        self.ce_loss = None
-        if self.loss_cfg.ce_loss_active:
-            self.ce_loss = nn.CrossEntropyLoss()
-
     def get_kl_weight(self, curr_iter: int):
         if self.loss_cfg.kl_weight_warmup == "None":
             return self.loss_cfg.kl_loss_weight
         elif self.loss_cfg.kl_weight_warmup == "Linear":
-            self.kl_warmup += 1e-5
+            self.kl_warmup += 5e-5
             if self.kl_warmup > 1.0:
                 self.kl_warmup = 1.0
             return self.loss_cfg.kl_loss_weight * self.kl_warmup
+        elif self.loss_cfg.kl_weight_warmup == "Exponential":
+            self.kl_warmup += 1
+            if self.kl_warmup > 20000:
+                self.kl_warmup = 20000
+            ratio = self.kl_warmup / 20000
+            kl_weight = (5e-3)**(1-ratio)
+            return self.loss_cfg.kl_loss_weight * kl_weight
         elif self.loss_cfg.kl_weight_warmup == "Cyclic":
             total_iters = 100000
             mod_iter = curr_iter % 50000
@@ -97,19 +99,21 @@ class Loss(nn.Module):
             total_loss += self.loss_cfg.transop_loss_weight * transop_loss
             loss_meta["transop_loss"] = transop_loss.item()
 
-            if "transop_z1hat_vi" in header_dict.keys():
-                z1_hat_vi = header_dict["transop_z1hat_vi"]
-                vi_loss = F.mse_loss(z1_hat_vi, z1, reduction="none").mean()
-                total_loss += self.loss_cfg.transop_loss_weight * vi_loss
-                loss_meta["transop_vi_loss"] = vi_loss.item()
-
         if self.loss_cfg.c_refine_loss_active:
             c_vi = header_out.distribution_data.encoder_params["shift"]
-            # nz_idx = torch.nonzero(header_out.distribution_data.samples.detach())
-            # c_loss = F.mse_loss(c_vi[nz_idx], header_out.distribution_data.samples.detach()[nz_idx])
             c_loss = F.mse_loss(c_vi, header_out.distribution_data.samples.detach())
-            #total_loss += self.loss_cfg.c_refine_loss_weight * c_loss
-            loss_meta["c_pred"] = c_loss.item()
+            loss_meta["c_pred"] = self.loss_cfg.c_refine_loss_weight * c_loss.item()
+
+        if self.loss_cfg.c_l2_active:
+            c = header_out.distribution_data.samples
+            c_l2 = (c**2).sum(dim=-1).mean()
+            loss_meta['c_l2'] = self.loss_cfg.c_l2_weight * c_l2
+
+        if self.loss_cfg.shift_l2_active:
+            shift = header_out.distribution_data.encoder_params['shift']
+            #shift_l2 = (shift**2).sum(dim=-1).mean()
+            shift_l2 = F.relu(shift.abs() - 0.08).sum()
+            loss_meta['shift_l2'] = self.loss_cfg.shift_l2_weight * shift_l2
 
         if self.loss_cfg.real_eig_reg_active:
             assert "psi" in args_dict.keys()
@@ -125,19 +129,10 @@ class Loss(nn.Module):
                 self.model_cfg.header_cfg.transop_header_cfg.vi_cfg.distribution,
                 header_out.distribution_data.encoder_params,
                 header_out.distribution_data.prior_params,
+                self.loss_cfg.kl_detach_shift
             )
             kl_weight = self.get_kl_weight(curr_iter)
             total_loss += kl_weight * kl_loss
             loss_meta["kl_loss"] = kl_loss.item()
-
-        if self.loss_cfg.hyperkl_loss_active:
-            assert header_out.distribution_data is not None
-            hyperkl_loss = compute_kl(
-                self.model_cfg.header_cfg.transop_header_cfg.vi_cfg.distribution,
-                header_out.distribution_data.prior_params,
-                header_out.distribution_data.hyperprior_params,
-            )
-            total_loss += self.loss_cfg.hyperkl_loss_weight * hyperkl_loss
-            loss_meta["hyperkl_loss"] = hyperkl_loss.item()
 
         return loss_meta, total_loss

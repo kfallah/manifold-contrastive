@@ -16,8 +16,6 @@ model_cfg:
       enable_nn_point_pair: true
       nn_memory_bank_size: 98304
       enable_variational_inference: false
-      enable_splicing: true
-      splice_dim: 64
       fista_num_iterations: 800
       lambda_prior: 0.1
       transop_weight_decay: 1.0e-5

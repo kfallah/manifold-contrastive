@@ -10,277 +10,171 @@ from model.manifold.reparameterize import draw_noise_samples, reparameterize
 from model.type import DistributionData
 
 
-class VIEncoder(nn.Module):
+class SparseCodeAttn(nn.Module):
+    def __init__(self, vi_cfg: VariationalEncoderConfig, input_size: int, dict_size: int):
+        super(SparseCodeAttn, self).__init__()
+        self.vi_cfg = vi_cfg
+        self.dict_size = dict_size
+        feat_dim = vi_cfg.feature_dim
+
+        self.psi_extract = nn.Sequential(
+            nn.Linear(input_size**2, feat_dim * 4),
+            nn.LeakyReLU(),
+            nn.Linear(feat_dim * 4, feat_dim),
+        )
+
+        self.attn = nn.MultiheadAttention(
+            feat_dim, num_heads=8, dropout=0.1, batch_first=True
+        )
+        self.pre_norm = nn.LayerNorm(feat_dim)
+        self.mlp = nn.Sequential(
+            nn.Linear(feat_dim, feat_dim * 4),
+            nn.LeakyReLU(),
+            nn.Linear(feat_dim * 4, feat_dim),
+        )
+        self.post_norm = nn.LayerNorm(feat_dim)
+
+    def forward(self, z, psi):
+        # extract features for operators
+        psi_feat = self.psi_extract(psi.reshape(self.dict_size, -1))
+        psi_feat = psi_feat.unsqueeze(0).repeat(len(z), 1, 1)
+        # Run through attention layer
+        z_attn, _ = self.attn(z, psi_feat, psi_feat)
+        z = self.pre_norm(z + z_attn)
+        z_mlp = self.mlp(z)
+        z = self.post_norm(z + z_mlp)
+        return z
+
+
+class CoefficientEncoder(nn.Module):
     def __init__(
         self,
         vi_cfg: VariationalEncoderConfig,
         input_size: int,
         dictionary_size: int,
         lambda_prior: float,
-        full_size: int = 512,
     ):
-        super(VIEncoder, self).__init__()
+        super(CoefficientEncoder, self).__init__()
 
-        if vi_cfg.use_warmpup:
-            self.warmup = 0.01
-        else:
-            self.warmup = 1.0
         self.vi_cfg = vi_cfg
         feat_dim = self.vi_cfg.feature_dim
         self.dictionary_size = dictionary_size
         self.lambda_prior = lambda_prior
 
-        self.layer_norm = nn.LayerNorm(full_size)
         self.initialize_encoder_params(input_size, feat_dim, dictionary_size)
         self.initialize_prior_params(input_size, feat_dim, dictionary_size)
 
     def initialize_encoder_params(self, input_size, feat_dim, dict_size):
-        if self.vi_cfg.encoder_type == "MLP":
-            if self.vi_cfg.encode_position:
-                input_size += 1
-            if not self.vi_cfg.share_encoder:
-                input_size = (2 * input_size) + 1
-            self.enc_feat_extract = nn.Sequential(
-                nn.Linear(input_size, 4 * feat_dim),
-                # nn.BatchNorm1d(4 * feat_dim),
+        if self.vi_cfg.encode_point_pair:
+            enc_input = input_size * 2
+        else:
+            enc_input = input_size
+
+        self.enc_feat_extract = nn.Sequential(
+                nn.Linear(enc_input, 4 * feat_dim),
                 nn.LeakyReLU(),
                 nn.Linear(4 * feat_dim, 4 * feat_dim),
-                # nn.BatchNorm1d(4 * feat_dim),
                 nn.LeakyReLU(),
                 nn.Linear(4 * feat_dim, feat_dim),
             )
-        else:
-            raise NotImplementedError
+        self.enc_scale = nn.Linear(feat_dim, dict_size)
+        self.enc_shift = nn.Linear(feat_dim, dict_size)
 
-        if (
-            self.vi_cfg.distribution == "Laplacian"
-            or self.vi_cfg.distribution == "Laplacian+Gamma"
-            or self.vi_cfg.distribution == "Gaussian"
-            or self.vi_cfg.distribution == "Gaussian+Gamma"
-        ):
-            self.enc_scale = nn.Linear(feat_dim, dict_size)
-            self.enc_shift = nn.Linear(feat_dim, dict_size)
-
-        if self.vi_cfg.distribution == "Laplacian+Gamma" or self.vi_cfg.distribution == "Gaussian+Gamma":
-            # self.enc_gamma_a = nn.Linear(feat_dim, dict_size)
-            self.enc_gamma_b = nn.Linear(feat_dim, dict_size)
+        self.attn = None
+        if self.vi_cfg.enable_enc_attn:
+            self.attn = SparseCodeAttn(self.vi_cfg, input_size, dict_size)
 
     def initialize_prior_params(self, input_size, feat_dim, dict_size):
         self.prior_params = {}
-        if (
-            self.vi_cfg.distribution == "Laplacian"
-            or self.vi_cfg.distribution == "Laplacian+Gamma"
-            or self.vi_cfg.distribution == "Gaussian"
-            or self.vi_cfg.distribution == "Gaussian+Gamma"
-        ):
-            self.prior_params["logscale"] = torch.log(torch.tensor(self.vi_cfg.scale_prior))
-            self.prior_params["shift"] = 0.0
+        self.prior_params["logscale"] = torch.log(torch.tensor(self.vi_cfg.scale_prior))
+        self.prior_params["shift"] = 0.0
 
-        if self.vi_cfg.distribution == "Laplacian+Gamma" or self.vi_cfg.distribution == "Gaussian+Gamma":
-            self.prior_params["gamma_a"] = 2.0
-            self.prior_params["gamma_b"] = 2.0 / self.lambda_prior
-
-        if self.vi_cfg.prior_type == "Learned":
+        if self.vi_cfg.enable_learned_prior:
             self.prior_feat_extract = nn.Sequential(
                 nn.Linear(input_size, 4 * feat_dim),
-                nn.LayerNorm(4 * feat_dim),
-                # nn.BatchNorm1d(2 * input_size),
-                nn.GELU(),
+                nn.LeakyReLU(),
                 nn.Linear(4 * feat_dim, 2 * feat_dim),
-                nn.LayerNorm(2 * feat_dim),
-                # nn.BatchNorm1d(2 * input_size),
-                nn.GELU(),
+                nn.LeakyReLU(),
                 nn.Linear(2 * feat_dim, feat_dim),
             )
-
-            if (
-                self.vi_cfg.distribution == "Laplacian"
-                or self.vi_cfg.distribution == "Laplacian+Gamma"
-                or self.vi_cfg.distribution == "Gaussian"
-                or self.vi_cfg.distribution == "Gaussian+Gamma"
-            ):
-                self.prior_scale = nn.Linear(feat_dim, dict_size)
+            self.prior_scale = nn.Linear(feat_dim, dict_size)
+            if self.vi_cfg.enable_prior_shift:
                 self.prior_shift = nn.Linear(feat_dim, dict_size)
 
-            if self.vi_cfg.distribution == "Laplacian+Gamma" or self.vi_cfg.distribution == "Gaussian+Gamma":
-                # self.prior_gamma_a = nn.Linear(feat_dim, dict_size)
-                self.prior_gamma_b = nn.Linear(feat_dim, dict_size)
-
-    def sample_prior(self, z, distribution_data: DistributionData) -> torch.Tensor:
-        distr = distribution_data.prior_params
-        if len(distr["shift"]) == len(z):
-            distr_params = distr
-        else:
-            if self.vi_cfg.prior_type == "Fixed":
-                assert NotImplementedError
-                distr_params = self.prior_params
-            elif self.vi_cfg.prior_type == "Learned":
-                distr_params = {}
-                z_prior = self.prior_feat_extract(z)
-                distr_params["logscale"] = self.prior_scale(z_prior).clamp(max=2)
-                distr_params["logscale"] += torch.log(
-                    torch.ones_like(distr_params["logscale"]) * self.vi_cfg.scale_prior
-                )
-                distr_params["shift"] = self.prior_shift(z_prior).clamp(min=-2.0, max=2.0)
-
-                if self.vi_cfg.distribution == "Laplacian+Gamma" or self.vi_cfg.distribution == "Gaussian+Gamma":
-                    # prior_gamma_a = self.prior_gamma_a(z_prior).exp()
-                    prior_gamma_b = self.prior_gamma_b(z_prior).exp().clamp(min=1e-4, max=1e4) * (
-                        2 / self.lambda_prior
-                    )
-                    prior_gamma_a = torch.ones_like(prior_gamma_b) * 2.0
-                    distr_params["gamma_a"] = prior_gamma_a
-                    distr_params["gamma_b"] = prior_gamma_b
-
-        noise = draw_noise_samples(self.vi_cfg.distribution, distr_params["shift"].shape, z.device)
-        c = reparameterize(
-            self.vi_cfg.distribution,
-            distr_params,
-            noise,
-            self.lambda_prior,
-            self.warmup,
-            self.vi_cfg.normalize_coefficients,
-            self.vi_cfg.normalize_mag,
-        )
-        return c
-
-    def get_distribution_params(self, x0, x1) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+    # Return encoder, prior, and hyperprior params. In case where the prior is fixed and not learned,
+    # the hyperprior is equal to the pror.
+    def get_distribution_params(self, x0, x1, psi) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
         encoder_params = {}
-        if self.vi_cfg.encoder_type == "MLP":
-            if self.vi_cfg.share_encoder:
-                z0 = self.enc_feat_extract(x0)
-                z1 = self.enc_feat_extract(x1)
-                z_enc = torch.max(z0, z1)
-            else:
-                dist = (torch.linalg.norm(x0 - x1, dim=-1) ** 2).unsqueeze(-1)
-                z_enc = self.enc_feat_extract(torch.cat((x0, x1, dist), dim=1))
+        if self.vi_cfg.encode_point_pair:
+            enc_input = torch.cat((x0, x1), dim=-1)
         else:
-            raise NotImplementedError()
+            enc_input = x0
 
-        if (
-            self.vi_cfg.distribution == "Laplacian"
-            or self.vi_cfg.distribution == "Laplacian+Gamma"
-            or self.vi_cfg.distribution == "Gaussian"
-            or self.vi_cfg.distribution == "Gaussian+Gamma"
-        ):
-            encoder_params["logscale"] = self.enc_scale(z_enc).clamp(max=2)
-            encoder_params["logscale"] += torch.log(
-                torch.ones_like(encoder_params["logscale"]) * self.vi_cfg.scale_prior
-            )
-            encoder_params["shift"] = self.enc_shift(z_enc).clamp(min=-2.0, max=2.0)
+        z_enc = self.enc_feat_extract(enc_input)
+        if self.vi_cfg.enable_enc_attn:
+            z_enc = self.attn(z_enc, psi)
 
-        if self.vi_cfg.distribution == "Laplacian+Gamma" or self.vi_cfg.distribution == "Gaussian+Gamma":
-            # gamma_a = self.enc_gamma_a(z_enc).exp()
-            gamma_b = self.enc_gamma_b(z_enc).exp().clamp(min=1e-4, max=1e4) * (2 / self.lambda_prior)
-            gamma_a = 2 * torch.ones_like(gamma_b)
-            encoder_params["gamma_a"] = gamma_a
-            encoder_params["gamma_b"] = gamma_b
+        encoder_params["logscale"] = self.enc_scale(z_enc).clamp(min=-100, max=2)
+        encoder_params["logscale"] += torch.log(
+            torch.ones_like(encoder_params["logscale"]) * self.vi_cfg.scale_prior
+        )
+        encoder_params["shift"] = self.enc_shift(z_enc).clamp(min=-5.0, max=5.0)
 
         prior_params = {}
         hyperprior_params = {}
-        if (
-            self.vi_cfg.distribution == "Laplacian"
-            or self.vi_cfg.distribution == "Laplacian+Gamma"
-            or self.vi_cfg.distribution == "Gaussian"
-            or self.vi_cfg.distribution == "Gaussian+Gamma"
-        ):
-            hyperprior_params["logscale"] = torch.ones_like(encoder_params["logscale"]) * self.prior_params["logscale"]
-            hyperprior_params["shift"] = torch.zeros_like(encoder_params["shift"])
-        if self.vi_cfg.distribution == "Laplacian+Gamma" or self.vi_cfg.distribution == "Gaussian+Gamma":
-            hyperprior_params["gamma_a"] = torch.ones_like(encoder_params["gamma_a"]) * self.prior_params["gamma_a"]
-            hyperprior_params["gamma_b"] = torch.ones_like(encoder_params["gamma_b"]) * self.prior_params["gamma_b"]
-
-        if self.vi_cfg.prior_type == "Learned":
+        hyperprior_params["logscale"] = torch.ones_like(encoder_params["logscale"]) * self.prior_params["logscale"]
+        hyperprior_params["shift"] = torch.zeros_like(encoder_params["shift"])
+        if self.vi_cfg.enable_learned_prior:
             z_prior = self.prior_feat_extract(x0)
-            if (
-                self.vi_cfg.distribution == "Laplacian"
-                or self.vi_cfg.distribution == "Laplacian+Gamma"
-                or self.vi_cfg.distribution == "Gaussian"
-                or self.vi_cfg.distribution == "Gaussian+Gamma"
-            ):
-                prior_params["logscale"] = self.prior_scale(z_prior).clamp(max=2)
-                prior_params["logscale"] += torch.log(
-                    torch.ones_like(prior_params["logscale"]) * self.vi_cfg.scale_prior
-                )
+            prior_params["logscale"] = self.prior_scale(z_prior).clamp(max=2)
+            prior_params["logscale"] += torch.log(
+                torch.ones_like(prior_params["logscale"]) * self.vi_cfg.scale_prior
+            )
+            if self.vi_cfg.enable_prior_shift:
                 prior_params["shift"] = self.prior_shift(z_prior).clamp(min=-2.0, max=2.0)
-
-            if self.vi_cfg.distribution == "Laplacian+Gamma" or self.vi_cfg.distribution == "Gaussian+Gamma":
-                # prior_gamma_a = self.prior_gamma_a(z_prior).exp()
-                prior_gamma_b = self.prior_gamma_b(z_prior).exp().clamp(min=1e-4, max=1e4) * (2 / self.lambda_prior)
-                prior_gamma_a = torch.ones_like(prior_gamma_b) * 2.0
-                prior_params["gamma_a"] = prior_gamma_a
-                prior_params["gamma_b"] = prior_gamma_b
         else:
             prior_params = hyperprior_params.copy()
 
         return encoder_params, prior_params, hyperprior_params
 
-    def draw_samples(self, z0, z1, encoder_params, transop):
-        if self.vi_cfg.total_samples == 1:
-            noise = draw_noise_samples(self.vi_cfg.distribution, encoder_params["shift"].shape, z1.device)
+    def max_elbo_sample(self, encoder_params, psi, x0, x1) -> torch.Tensor:
+        logscale, shift = encoder_params['logscale'], encoder_params['shift']
+        with torch.no_grad():
+            noise_list = []
+            loss_list = []
+            l1_list = []
+            logscale_expanded = logscale.unsqueeze(0).repeat(self.vi_cfg.samples_per_iter, 1, 1, 1)
+            for _ in range(self.vi_cfg.total_num_samples // self.vi_cfg.samples_per_iter):
+                noise = draw_noise_samples(self.vi_cfg.distribution, logscale_expanded.shape, logscale_expanded.device)
+                c = reparameterize(self.vi_cfg.distribution, encoder_params, noise, self.lambda_prior)
+                T = torch.matrix_exp(torch.einsum("sblm,mpk->sblpk", c, psi))
+                x1_hat = (T @ x0.unsqueeze(0).unsqueeze(-1)).squeeze(-1)
+                transop_loss = torch.nn.functional.mse_loss(
+                    x1_hat, x1.unsqueeze(0).repeat(self.vi_cfg.samples_per_iter, 1, 1, 1), reduction="none"
+                ).mean(dim=-1)
+
+                noise_list.append(noise)
+                loss_list.append(transop_loss)
+                l1_list.append(c.abs().sum(dim=-1))
+
+            noise_list = torch.cat(noise_list, dim=0)
+            loss_list = torch.cat(loss_list, dim=0)
+            l1_list = torch.cat(l1_list, dim=0)
+            max_elbo = torch.argmin(loss_list + self.vi_cfg.max_sample_l1_penalty * l1_list, dim=0).detach()
+            # Pick out best noise sample for each batch entry for reparameterization
+            max_elbo = max_elbo.reshape(-1)
+            n_samples, n_batch, n_seq, n_feat = noise_list.shape
+            noise_list = noise_list.reshape(n_samples, -1, n_feat)
+            optimal_noise = noise_list[max_elbo, torch.arange(n_batch * n_seq)]
+            return optimal_noise.reshape(n_batch, n_seq, n_feat)
+
+    def forward(self, x0: torch.Tensor, x1: torch.Tensor, transop: nn.Module, curr_iter = 0):
+        encoder_params, prior_params, hyperprior_params = self.get_distribution_params(x0, x1, transop.psi)
+
+        if self.vi_cfg.enable_max_sampling and curr_iter > self.vi_cfg.max_sample_start_iter:
+            noise = self.max_elbo_sample(encoder_params, transop.psi.detach(), x0, x1)
         else:
-            # If using best of many loss, use this trick to only differentiate through
-            # the coefficient with the lowest L2 error.
-            with torch.no_grad():
-                noise_list = []
-                loss_list = []
-                l1_list = []
-                for _ in range(self.vi_cfg.total_samples // self.vi_cfg.per_iter_samples):
-                    # Generate a new noise sample
-                    shape = (
-                        self.vi_cfg.per_iter_samples,
-                        *encoder_params["shift"].shape,
-                    )
-                    u = draw_noise_samples(self.vi_cfg.distribution, shape, z1.device)
-                    c = reparameterize(
-                        self.vi_cfg.distribution,
-                        encoder_params,
-                        u,
-                        self.lambda_prior,
-                        self.warmup,
-                        self.vi_cfg.normalize_coefficients,
-                        self.vi_cfg.normalize_mag,
-                    )
-
-                    # Estimate z1 with transport operators
-                    with autocast(enabled=False):
-                        z1_hat = transop(z0.detach().float().unsqueeze(-1), c.detach()).squeeze(dim=-1)
-
-                    transop_loss = F.mse_loss(
-                        z1_hat,
-                        z1.repeat(len(z1_hat), *torch.ones(z1.dim(), dtype=int)).detach(),
-                        reduction="none",
-                    ).mean(dim=-1)
-                    noise_list.append(u)
-                    loss_list.append(transop_loss)
-                    l1_list.append(c.abs().sum(dim=-1))
-
-                # Pick the best sample
-                noise_list = torch.cat(noise_list, dim=0)
-                loss_list = torch.cat(loss_list, dim=0)
-                l1_list = torch.cat(l1_list, dim=0)
-                max_elbo = torch.argmin(loss_list + 5e-1*l1_list, dim=0).detach()
-
-                # Pick out best noise sample for each batch entry for reparameterization
-                noise = noise_list[max_elbo, torch.arange(len(z0))]
-        c = reparameterize(
-            self.vi_cfg.distribution,
-            encoder_params,
-            noise,
-            self.lambda_prior,
-            self.warmup,
-            self.vi_cfg.normalize_coefficients,
-            self.vi_cfg.normalize_mag,
-        )
-        return c
-
-    def forward(self, x0: torch.Tensor, x1: torch.Tensor, transop: nn.Module):
-        if self.training:
-            self.warmup += 2e-4
-            if self.warmup > 1.0:
-                self.warmup = 1.0
-
-        encoder_params, prior_params, hyperprior_params = self.get_distribution_params(x0, x1)
-        samples = self.draw_samples(x0, x1, encoder_params, transop)
+            noise = draw_noise_samples(self.vi_cfg.distribution, encoder_params['shift'].shape, x0.device)
+        samples = reparameterize(self.vi_cfg.distribution, encoder_params, noise, self.lambda_prior)
 
         return DistributionData(encoder_params, prior_params, hyperprior_params, samples)

@@ -24,10 +24,8 @@ class LossConfig:
 
     kl_loss_active: bool = False
     kl_loss_weight: float = 0.1
+    kl_detach_shift: bool = False
     kl_weight_warmup: str = "None"
-
-    hyperkl_loss_active: bool = False
-    hyperkl_loss_weight: float = 0.1
 
     real_eig_reg_active: bool = False
     real_eig_reg_weight: float = 1e-4
@@ -38,10 +36,13 @@ class LossConfig:
     memory_bank_size: int = 0
 
     c_refine_loss_active: bool = False
-    c_refine_loss_weight: float = 100.0
+    c_refine_loss_weight: float = 10.0
 
-    ce_loss_active: bool = False
-    ce_loss_weight: float = 1.0
+    c_l2_active: bool = False
+    c_l2_weight: float = 1.0e-2
+
+    shift_l2_active: bool = False
+    shift_l2_weight: float = 1.0e-2
 
 
 @dataclass
