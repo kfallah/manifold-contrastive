@@ -36,7 +36,7 @@ model_cfg:
     ntxent_loss_weight: 0.01
     kl_loss_active: true
     kl_loss_weight: 1.0e-4
-    kl_weight_warmup: None
+    kl_weight_warmup: Exponential
     transop_loss_active: true
     transop_loss_weight: 1.0
     transop_loss_fn: mse
