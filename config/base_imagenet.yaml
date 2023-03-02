@@ -1,0 +1,58 @@
+defaults:
+  - exp_cfg
+  - default_hydra
+  - dataloader/imagenet_simclr_strong@train_dataloader_cfg
+  - dataloader/imagenet_simclr_strong@eval_dataloader_cfg
+  - _self_
+
+exp_dir: results
+devices: [0, 1, 2, 3]
+enable_wandb: true
+seed: 0
+
+model_cfg:
+  backbone_cfg:
+    hub_model_name: torchhub:resnet50
+  loss_cfg:
+    ntxent_loss_active: true
+    ntxent_temp: 0.07
+
+trainer_cfg:
+  num_epochs: 300
+  use_amp: false
+  optimizer_cfg:
+    optimizer: SGD
+    initial_lr: 0.6
+    weight_decay: 1e-6
+    enable_nesterov: true
+  scheduler_cfg:
+    scheduler: LinearWarmupCosineAnnealingLR
+    warmup_epochs: 10
+  metric_logger_cfg:
+    enable_wandb_logging: true
+    enable_console_logging: true
+    enable_local_figure_saving: true
+    enable_optimizer_logging: true
+    enable_collapse_logging: true
+    enable_tsne_plot: true
+    enable_log_spectra_plot: true
+
+evaluator_cfg:
+  knn_eval_cfg:
+    use_for_best_checkpoint: true
+    enable_runner: true
+    eval_freq: 250
+  clustering_eval_cfg:
+    enable_runner: true
+    eval_freq: 250
+  linear_probe_eval_cfg:
+    enable_runner: true
+    eval_freq: 250
+    num_epochs: 100
+    use_amp: false
+eval_dataloader_cfg:
+  collate_fn_cfg:
+    collate_fn_type: NONE
+  train: false
+  shuffle: false
+  batch_size: 2048

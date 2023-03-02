@@ -20,25 +20,24 @@ def reparameterize(
     distribution_params: Dict[str, torch.Tensor],
     noise: torch.Tensor,
     lambda_prior: float,
-    warmup: float = 1.0,
-    normalize_coefficients: bool = False,
-    normalize_mag: float = 1.0,
 ):
     if distribution == "Laplacian" or distribution == "Laplacian+Gamma":
         assert "logscale" in distribution_params.keys() and "shift" in distribution_params.keys()
         logscale, shift = distribution_params["logscale"], distribution_params["shift"]
-        if len(noise.shape) >= 3:
-            logscale = logscale.view(1, *logscale.shape).expand(len(noise), -1, -1)
-            shift = shift.view(1, *shift.shape).expand(len(noise), -1, -1)
+        # NOTE: this is going to break if not using block diagonal constraint...
+        # may need to change just for that ablation
+        if len(noise.shape) >= 4:
+            logscale = logscale.view(1, *logscale.shape).expand(len(noise), -1, -1, -1)
+            shift = shift.view(1, *shift.shape).expand(len(noise), -1, -1, -1)
         scale = torch.exp(logscale)
         eps = -scale * torch.sign(noise) * torch.log((1.0 - 2.0 * torch.abs(noise)).clamp(min=1e-6, max=1e6))
         c = shift + eps
     if distribution == "Gaussian" or distribution == "Gaussian+Gamma":
         assert "logscale" in distribution_params.keys() and "shift" in distribution_params.keys()
         logscale, shift = distribution_params["logscale"], distribution_params["shift"]
-        if len(noise.shape) >= 3:
-            logscale = logscale.view(1, *logscale.shape).expand(len(noise), -1, -1)
-            shift = shift.view(1, *shift.shape).expand(len(noise), -1, -1)
+        if len(noise.shape) >= 4:
+            logscale = logscale.view(1, *logscale.shape).expand(len(noise), -1, -1, -1)
+            shift = shift.view(1, *shift.shape).expand(len(noise), -1, -1, -1)
         scale = torch.exp(0.5 * logscale)
         eps = scale * noise
         c = shift + eps
@@ -59,12 +58,10 @@ def reparameterize(
 
     # We do this weird detaching pattern because in certain cases we want gradient to flow through lambda_
     # In the case where lambda_ is constant, this is the same as c_thresh.detach() in the final line.
-    c_thresh = soft_threshold(eps.detach() * warmup, lambda_)
+    c_thresh = soft_threshold(eps.detach(), lambda_)
     non_zero = torch.nonzero(c_thresh, as_tuple=True)
-    c_thresh[non_zero] = (warmup * shift[non_zero].detach()) + c_thresh[non_zero]
+    c_thresh[non_zero] = (shift[non_zero].detach()) + c_thresh[non_zero]
     c = c + c_thresh - c.detach()
-    if normalize_coefficients:
-        c = torch.nn.functional.normalize(c, dim=-1) * normalize_mag
     return c
 
 
@@ -72,30 +69,27 @@ def compute_kl(
     distribution: str,
     encoder_params: Dict[str, torch.Tensor],
     prior_params: Dict[str, torch.Tensor],
+    detach_shift: bool = False
 ):
     kl_loss = 0.0
+    assert "shift" in encoder_params.keys() and "logscale" in encoder_params.keys()
+    assert "shift" in prior_params.keys() and "logscale" in prior_params.keys()
+    encoder_shift, encoder_logscale = (
+        encoder_params["shift"],
+        encoder_params["logscale"],
+    )
+    if detach_shift:
+        encoder_shift = encoder_shift.detach()
+    prior_shift, prior_logscale = prior_params["shift"], prior_params["logscale"]
+    encoder_scale, prior_scale = torch.exp(encoder_logscale), torch.exp(prior_logscale)
+
     if distribution == "Laplacian" or distribution == "Laplacian+Gamma":
-        assert "shift" in encoder_params.keys() and "logscale" in encoder_params.keys()
-        assert "shift" in prior_params.keys() and "logscale" in prior_params.keys()
-        encoder_shift, encoder_logscale = (
-            encoder_params["shift"],
-            encoder_params["logscale"],
-        )
-        prior_shift, prior_logscale = prior_params["shift"], prior_params["logscale"]
         encoder_scale, prior_scale = torch.exp(encoder_logscale), torch.exp(prior_logscale)
         laplace_kl = ((encoder_shift - prior_shift).abs() / prior_scale) + prior_logscale - encoder_logscale - 1
         laplace_kl += (encoder_scale / prior_scale) * (-((encoder_shift - prior_shift).abs() / encoder_scale)).exp()
         kl_loss += laplace_kl.sum(dim=-1).mean()
+
     if distribution == "Gaussian" or distribution == "Gaussian+Gamma":
-        assert "shift" in encoder_params.keys() and "logscale" in encoder_params.keys()
-        assert "shift" in prior_params.keys() and "logscale" in prior_params.keys()
-        encoder_shift, encoder_logscale = (
-            encoder_params["shift"],
-            encoder_params["logscale"],
-        )
-        prior_shift, prior_logscale = prior_params["shift"], prior_params["logscale"]
-        encoder_scale = torch.exp(encoder_logscale)
-        prior_scale = torch.exp(prior_logscale)
         gauss_kl = (encoder_scale + ((encoder_shift - prior_shift) ** 2)) / (2 * prior_scale)
         gauss_kl += 0.5 * (prior_logscale - encoder_logscale - 1)
         kl_loss += gauss_kl.sum(dim=-1).mean()

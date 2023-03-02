@@ -64,9 +64,9 @@ class Trainer(nn.Module):
             curr_iter = idx + (epoch * len(train_dataloader))
             pre_time = time.time()
             x_list = list(batch[0])
+            x_idx = list(batch[2])
             # Tensor of input images of shape [B x V x H x W x C]
             x_gpu = torch.stack([x.to(self.device) for x in x_list]).transpose(0, 1)
-            x_idx = torch.Tensor([int(idx) for idx in batch[2]])
 
             with autocast(enabled=self.trainer_cfg.use_amp):
                 # Send inputs through model
@@ -76,13 +76,22 @@ class Trainer(nn.Module):
             # Backpropagate loss
             self.scaler.scale(total_loss / self.trainer_cfg.grad_accumulation_iters).backward()
             if curr_iter % self.trainer_cfg.grad_accumulation_iters == 0:
+                # clip gradients if relevant
+                if self.trainer_cfg.enable_transop_grad_clip:
+                    torch.nn.utils.clip_grad_norm_(
+                            self.get_model().contrastive_header.transop_header.transop.parameters(), 
+                            self.trainer_cfg.transop_grad_clip
+                        )
+                if self.trainer_cfg.enable_coeffenc_grad_clip:
+                    torch.nn.utils.clip_grad_norm_(
+                            self.get_model().contrastive_header.transop_header.coefficient_encoder.parameters(), 
+                            self.trainer_cfg.coeffenc_grad_clip
+                        )
+
                 self.scaler.step(self.optimizer)
                 self.optimizer.zero_grad()
                 self.scaler.update()
                 self.scheduler.step()
-
-                # Update momentum networks if they are enabled
-                self.get_model().update_momentum_network()
 
             loss_metadata["iter_time"] = time.time() - pre_time
             self.metric_logger.log_metrics(

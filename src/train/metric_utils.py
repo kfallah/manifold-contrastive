@@ -112,7 +112,6 @@ def transop_plots(
     plt.xlabel("Real Components of Eigenvalues", fontsize=18)
     plt.ylabel("Imag Components of Eigenvalues", fontsize=18)
 
-    psi_sweep_sub1c_fig = sweep_psi_path_plot(psi.detach(), z0, 0.1)
     psi_sweep_1c_fig = sweep_psi_path_plot(psi.detach(), z0, 1)
     psi_sweep_5c_fig = sweep_psi_path_plot(psi.detach(), z0, 5)
 
@@ -121,7 +120,6 @@ def transop_plots(
         "coeff_use_iter": coeff_use_fig,
         "psi_use_iter": psi_use_fig,
         "psi_eig_plt": psi_eig_plt,
-        "psi_sweep_sub1c_fig": psi_sweep_sub1c_fig,
         "psi_sweep_1c": psi_sweep_1c_fig,
         "psi_sweep_5c": psi_sweep_5c_fig,
     }

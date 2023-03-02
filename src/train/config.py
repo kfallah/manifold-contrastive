@@ -54,3 +54,8 @@ class TrainerConfig:
     grad_accumulation_iters: int = 1
     save_interval: int = 50
     use_amp: bool = False
+
+    enable_transop_grad_clip: bool = False
+    transop_grad_clip: float = 0.1
+    enable_coeffenc_grad_clip: bool = False
+    coeffenc_grad_clip: float = 1.0

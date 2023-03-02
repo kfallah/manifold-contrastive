@@ -10,12 +10,13 @@ import omegaconf
 import torch
 import torch.distributions as distr
 import torch.nn as nn
+import wandb
 from hydra.core.config_store import ConfigStore
 from omegaconf import OmegaConf
 
-import wandb
 from dataloader.contrastive_dataloader import get_dataloader
-from model.manifold.l1_inference import infer_coefficients
+from model.manifold.l1_inference import (differentiable_infer_coefficients,
+                                         infer_coefficients)
 from model.manifold.transop import TransOp_expm
 from model.model import Model
 from model.public.linear_warmup_cos_anneal import LinearWarmupCosineAnnealingLR
@@ -25,7 +26,7 @@ warnings.filterwarnings("ignore")
 
 @dataclass
 class AttentionConfig:
-    feature_dim: int = 512
+    feature_dim: int = 256
     num_heads: int = 8
     psi_hidden_dim: int = 2048
     ff_hidden_dim: int = 2048
@@ -58,8 +59,19 @@ class CoeffEncoderConfig:
     weight_decay: float = 1.0e-6
     grad_acc_iter: int = 1
 
+    enable_c_kl: bool = False
+    c_kl_weight: float = 1.0e-4
+
+    enable_var_reg: bool = False
+    var_reg_weight: float = 1.0e-2
+    var_threshold: float = 2e-2
+
     enable_c_l2: bool = False
     c_l2_weight: float = 1.0e-3
+
+    enable_c_hinge: bool = False
+    c_hinge_weight: float = 1.0e-3
+    c_hinge_threshold: float = 5e-2
 
     enable_shift_l2: bool = False
     shift_l2_weight: float = 1.0e-2
@@ -68,6 +80,7 @@ class CoeffEncoderConfig:
     pred_loss_weight: float = 10.0
 
     enable_max_sample: bool = True
+    max_sample_start_iter: int = 1000
     max_sample_l1_penalty: float = 1.0e-3
     total_num_samples: int = 20
     samples_per_iter: int = 20
@@ -115,7 +128,6 @@ class SparseCodeAttn(nn.Module):
 
         self.psi_extract = nn.Sequential(
             nn.Linear(64**2, cfg.psi_hidden_dim),
-            nn.LayerNorm(cfg.psi_hidden_dim),
             nn.LeakyReLU(),
             nn.Dropout(cfg.dropout),
             nn.Linear(cfg.psi_hidden_dim, cfg.feature_dim),
@@ -168,6 +180,10 @@ class VIEncoder(nn.Module):
         if cfg.use_attn_lista:
             self.attn1 = SparseCodeAttn(cfg.attention_cfg, dict_size)
 
+            #self.r_transformer = nn.Transformer(d_model=64, batch_first=True)
+            #self.psi_proj = nn.Linear(64**2, 64)
+            #self.c_proj = nn.Linear(64, dict_size)
+
         self.cfg = cfg
         self.dict_size = dict_size
         if cfg.variational:
@@ -212,8 +228,39 @@ class VIEncoder(nn.Module):
         }
         wandb.log(distr, step=curr_iter)
 
-    def sample(self, x, curr_iter=0):
-        z = self.feat_extract(x)
+    def max_elbo_sample(self, log_scale, shift, psi, x0, x1):
+        with torch.no_grad():
+            noise_list = []
+            loss_list = []
+            l1_list = []
+            log_scale_expanded = log_scale.unsqueeze(0).repeat(self.cfg.samples_per_iter, 1, 1, 1)
+            shift_expanded = shift.unsqueeze(0).repeat(self.cfg.samples_per_iter, 1, 1, 1)
+            for _ in range(self.cfg.total_num_samples // self.cfg.samples_per_iter):
+                noise = torch.rand_like(log_scale_expanded) - 0.5
+                c = self.reparameterize(noise, log_scale_expanded, shift_expanded)
+                T = torch.matrix_exp(torch.einsum("sblm,mpk->sblpk", c, psi))
+                x1_hat = (T @ x0.unsqueeze(0).unsqueeze(-1)).squeeze(-1)
+                transop_loss = torch.nn.functional.mse_loss(
+                    x1_hat, x1.unsqueeze(0).repeat(self.cfg.samples_per_iter, 1, 1, 1), reduction="none"
+                ).mean(dim=-1)
+
+                noise_list.append(noise)
+                loss_list.append(transop_loss)
+                l1_list.append(c.abs().sum(dim=-1))
+
+            noise_list = torch.cat(noise_list, dim=0)
+            loss_list = torch.cat(loss_list, dim=0)
+            l1_list = torch.cat(l1_list, dim=0)
+            max_elbo = torch.argmin(loss_list + self.cfg.max_sample_l1_penalty * l1_list, dim=0).detach()
+            # Pick out best noise sample for each batch entry for reparameterization
+            max_elbo = max_elbo.reshape(-1)
+            n_samples, n_batch, n_seq, n_feat = noise_list.shape
+            noise_list = noise_list.reshape(n_samples, -1, n_feat)
+            optimal_noise = noise_list[max_elbo, torch.arange(n_batch * n_seq)]
+            return optimal_noise.reshape(n_batch, n_seq, n_feat)
+
+    def sample(self, psi, x0, x1, curr_iter=0):
+        z = self.feat_extract(x0)
 
         if not self.cfg.variational:
             shift = self.shift(z)
@@ -224,7 +271,10 @@ class VIEncoder(nn.Module):
         log_scale, shift = log_scale.clamp(min=-20, max=2), shift.clamp(min=-5, max=5)
 
         # Reparameterization
-        noise = torch.rand_like(log_scale) - 0.5
+        if self.cfg.enable_max_sample and curr_iter > self.cfg.max_sample_start_iter:
+            noise = self.max_elbo_sample(log_scale, shift, psi, x0, x1)
+        else:
+            noise = torch.rand_like(log_scale) - 0.5
         c = self.reparameterize(noise, log_scale, shift)
 
         # KL loss
@@ -237,22 +287,21 @@ class VIEncoder(nn.Module):
         return c, (kl, log_scale, shift)
 
     def forward(self, x0, x1, psi, curr_iter=0):
-        c, (kl, log_scale, shift) = self.sample(x0, curr_iter)
+        c, (kl, log_scale, shift) = self.sample(psi, x0, x1, curr_iter)
 
         # Refine distribution params with LISTA
         if self.cfg.use_attn_lista:
             c_final = c.clone()
-            r_list = []
             for i in range(1):
                 T = torch.matrix_exp(torch.einsum("bsm,mpk->bspk", c_final, psi))
                 r = x1 - (T @ x0.unsqueeze(-1)).squeeze(-1)
-                r_list.append((r**2).mean().item())
+                
                 c_update = self.attn1(r, psi)
                 # c_final = self.soft_threshold(c_final + c_update, 0.1)
 
                 # Straight through estimator
                 c_final = c + c_update
-                c_refine = self.soft_threshold(c_final.detach(), 0.1)
+                c_refine = self.soft_threshold(c_final.detach(), self.cfg.threshold)
                 c_final = c_final + c_refine - c_final.detach()
 
         if self.cfg.use_fista:
@@ -270,7 +319,7 @@ class VIEncoder(nn.Module):
                 c_init=c.clone().detach().reshape(1, -1, self.dict_size),
             )
             c_final = c_fista.reshape(c.shape).detach()
-            # c_final = c + (c_fista.reshape(c.shape) - c).detach()
+            c_final = c + (c_fista.reshape(c.shape) - c).detach()
 
         return c_final, kl, (log_scale, shift)
 
@@ -390,7 +439,11 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
             z0 = torch.stack(torch.split(z0, 64, dim=-1)).transpose(0, 1)
             z1 = torch.stack(torch.split(z1, 64, dim=-1)).transpose(0, 1)
 
-            c, kl_loss, (log_scale, shift) = encoder(z0, z1, psi.detach(), curr_iter)
+            if exp_cfg.vi_cfg.use_attn_lista and exp_cfg.vi_cfg.use_fista:
+                (c_lista, c), kl_loss, (log_scale, shift) = encoder(z0, z1, psi.detach(), curr_iter)
+            else:
+                c, kl_loss, (log_scale, shift) = encoder(z0, z1, psi.detach(), curr_iter)
+
             if exp_cfg.transop_cfg.train_transop and curr_iter < exp_cfg.transop_cfg.start_iter:
                 psi_use = psi.detach()
             else:
@@ -403,12 +456,35 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
             if exp_cfg.vi_cfg.enable_c_l2:
                 l2_reg = (c**2).sum(dim=-1).mean()
                 loss += exp_cfg.vi_cfg.c_l2_weight * l2_reg
+
+            if exp_cfg.vi_cfg.enable_c_hinge:
+                c_hinge_loss = c.abs() - exp_cfg.vi_cfg.c_hinge_threshold
+                c_hinge_loss = (torch.nn.functional.relu(c_hinge_loss)**2).sum()
+                loss += exp_cfg.vi_cfg.c_hinge_weight * c_hinge_loss     
+
             if exp_cfg.vi_cfg.enable_shift_l2:
                 l2_reg = (shift**2).sum(dim=-1).mean()
                 loss += exp_cfg.vi_cfg.shift_l2_weight * l2_reg
+
+            if exp_cfg.vi_cfg.enable_c_kl:
+                c_mean = c.reshape(-1, exp_cfg.transop_cfg.dict_size).mean(dim=0)
+                c_var = torch.sqrt(0.5*c.reshape(-1, exp_cfg.transop_cfg.dict_size).var(dim=0))
+                enc_distr = distr.Laplace(c_mean, c_var)
+                prior_distr = distr.Laplace(torch.zeros_like(c_mean), torch.ones_like(c_var)*exp_cfg.vi_cfg.scale_prior)
+                kl = distr.kl_divergence(enc_distr, prior_distr).sum()
+                loss += exp_cfg.vi_cfg.c_kl_weight * kl
+
             if exp_cfg.vi_cfg.enable_pred_loss:
-                pred_loss = torch.nn.functional.mse_loss(c, shift)
+                if exp_cfg.vi_cfg.use_attn_lista and exp_cfg.vi_cfg.use_fista:
+                    pred_loss = torch.nn.functional.mse_loss(c, c_lista)
+                else:
+                    pred_loss = torch.nn.functional.mse_loss(c, shift)
                 loss += exp_cfg.vi_cfg.pred_loss_weight * pred_loss
+
+            if exp_cfg.vi_cfg.enable_var_reg:
+                var_loss = torch.var(c.reshape(-1, exp_cfg.transop_cfg.dict_size), dim=0)
+                var_loss = (torch.nn.functional.relu(exp_cfg.vi_cfg.var_threshold - torch.sqrt(var_loss))**2).sum()
+                loss += exp_cfg.vi_cfg.var_reg_weight * var_loss
 
             (loss / exp_cfg.vi_cfg.grad_acc_iter).backward()
             if curr_iter % exp_cfg.vi_cfg.logging_interval == 0:
@@ -427,7 +503,7 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
 
             if curr_iter % exp_cfg.vi_cfg.grad_acc_iter == 0:
                 torch.nn.utils.clip_grad_norm_(psi, 0.1)
-                torch.nn.utils.clip_grad_norm_(encoder.parameters(), 0.1)
+                torch.nn.utils.clip_grad_norm_(encoder.parameters(), 10.0)
                 opt.step()
                 scheduler.step()
                 opt.zero_grad()
@@ -443,6 +519,7 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
                 last_c = torch.cat(c_save[-exp_cfg.vi_cfg.logging_interval :])
                 c_nz = torch.count_nonzero(last_c, dim=-1).float().mean()
                 c_mag = last_c[last_c.abs() > 0].abs().mean()
+                c_var = torch.sqrt(torch.var(c.reshape(-1, exp_cfg.transop_cfg.dict_size), dim=0))
                 log.info(
                     f"Iter {curr_iter:6n} -- TO loss: {np.mean(transop_loss_save[-exp_cfg.vi_cfg.logging_interval:]):.3E},"
                     + f" KL loss: {np.mean(kl_loss_save[-exp_cfg.vi_cfg.logging_interval:]):.3E},"
@@ -459,6 +536,7 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
                         "loss/dist_improve": np.mean(dw_loss_save[-exp_cfg.vi_cfg.logging_interval :]),
                         "meta/c_nonzero": c_nz,
                         "meta/c_mag": c_mag,
+                        "meta/c_var": c_var.mean(),
                         "meta/iter_time": np.mean(iter_time[-exp_cfg.vi_cfg.logging_interval :]),
                     },
                     step=curr_iter,

@@ -10,10 +10,10 @@ import omegaconf
 import torch
 import torch.distributions as distr
 import torch.nn as nn
+import wandb
 from hydra.core.config_store import ConfigStore
 from omegaconf import OmegaConf
 
-import wandb
 from dataloader.contrastive_dataloader import get_dataloader
 from model.config import ModelConfig
 from model.manifold.transop import TransOp_expm
