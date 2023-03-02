@@ -9,6 +9,7 @@ experiment tracker.
 
 import logging
 import os
+import warnings
 from dataclasses import MISSING, dataclass
 from typing import Tuple
 
@@ -29,6 +30,7 @@ from model.model import Model
 from train.config import TrainerConfig
 from train.trainer import Trainer
 
+warnings.filterwarnings("ignore")
 
 @dataclass
 class ExperimentConfig:

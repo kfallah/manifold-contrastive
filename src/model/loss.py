@@ -44,9 +44,9 @@ class Loss(nn.Module):
             return self.loss_cfg.kl_loss_weight * self.kl_warmup
         elif self.loss_cfg.kl_weight_warmup == "Exponential":
             self.kl_warmup += 1
-            if self.kl_warmup > 20000:
-                self.kl_warmup = 20000
-            ratio = self.kl_warmup / 20000
+            if self.kl_warmup > 10000:
+                self.kl_warmup = 10000
+            ratio = self.kl_warmup / 10000
             kl_weight = (5e-3)**(1-ratio)
             return self.loss_cfg.kl_loss_weight * kl_weight
         elif self.loss_cfg.kl_weight_warmup == "Cyclic":

@@ -13,20 +13,20 @@ model_cfg:
     enable_transop_header: true
     transop_header_cfg:
       batch_size: 128
-      start_iter: 1000
+      start_iter: 5000
       fine_tune_iter: 50000
       dictionary_size: 100
-      lambda_prior: 0.02
+      lambda_prior: 0.012
       transop_weight_decay: 1.0e-6
       transop_lr: 0.3
       enable_variational_inference: true
       vi_cfg:
-        max_sample_start_iter: 1000
+        max_sample_start_iter: 5000
         samples_per_iter: 20
         total_num_samples: 20
         max_sample_l1_penalty: 0.001
         feature_dim: 512
-        scale_prior: 0.02
+        scale_prior: 0.01
         variational_encoder_lr: 0.001
         variational_encoder_weight_decay: 1.0e-6
         enable_enc_attn: true

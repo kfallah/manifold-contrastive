@@ -147,14 +147,13 @@ class MetricLogger:
             }
             if self.cfg.enable_console_logging:
                 log.info(
-                    f"[Transport Operator iter {curr_iter}]: transop loss: {transop_loss:.3E}"
-                    + f", dist bw point pairs: {dist_bw_point_pairs:.3E}"
-                    + f", mean dist improve: {mean_dist_improvement:.3E}"
-                    + f", average transop mag: {psi_mag.mean():.3E}"
-                    + f", total # operators used: {nz_tot}/{len(psi)}"
-                    + f", avg # operators used: {total_nz.mean()}/{len(psi)}"
+                    f"[TO iter {curr_iter}]:"
+                    + f", dist improve: {mean_dist_improvement:.3E}"
+                    + f", avg # to used: {total_nz.mean():.2f}/{len(psi)}"
+                    + f", avg coeff mag: {to_metrics['transop/avg_coeff_mag']:.3f}"
+                    + f", dist bw pp: {dist_bw_point_pairs:.3E}"
+                    + f", average to mag: {psi_mag.mean():.3E}"
                     + f", avg feat norm: {avg_feat_norm:.2E}"
-                    + f", avg coeff mag: {to_metrics['transop/avg_coeff_mag']:.2f}"
                 )
                 if self.model.model_cfg.header_cfg.transop_header_cfg.enable_variational_inference:
                     distr_data = model_output.header_output.distribution_data
@@ -162,12 +161,12 @@ class MetricLogger:
                     shift = distr_data.encoder_params["shift"]
                     log.info(
                         f"[Encoder params]: "
-                        + f"min scale: {scale.abs().min():.3E}"
-                        + f", max scale: {scale.abs().max():.3E}"
-                        + f", mean scale: {scale.mean():.3E}"
-                        + f", min shift: {shift.abs().min():.3E}"
-                        + f", max shift: {shift.abs().max():.3E}"
-                        + f", mean shift: {shift.abs().mean():.3E}"
+                        + f"min scale: {scale.abs().min():.2E}"
+                        + f", max scale: {scale.abs().max():.2E}"
+                        + f", mean scale: {scale.mean():.2E}"
+                        + f", min shift: {shift.abs().min():.2E}"
+                        + f", max shift: {shift.abs().max():.2E}"
+                        + f", mean shift: {shift.abs().mean():.2E}"
                     )
                     if "Gamma" in self.model.model_cfg.header_cfg.transop_header_cfg.vi_cfg.distribution:
                         enc_gamma_a = distr_data.encoder_params["gamma_a"]

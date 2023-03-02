@@ -44,7 +44,7 @@ class CoeffEncoderConfig:
     hidden_dim2: int = 2048
     scale_prior: float = 0.01
     shift_prior: float = 0.0
-    threshold: float = 0.016
+    threshold: float = 0.01
 
     logging_interval: int = 500
     lr: float = 0.001
@@ -371,7 +371,15 @@ def init_models(exp_cfg):
     state_dict = torch.load(
         exp_cfg.run_dir + f"checkpoints/checkpoint_epoch{current_checkpoint}.pt", map_location=default_device
     )
-    model.load_state_dict(state_dict["model_state"])
+    own_state = model.backbone.state_dict()
+    for name, param in state_dict.items():
+        name = name.replace("backbone.", "")
+        if name not in own_state:
+            continue
+        if isinstance(param, nn.Parameter):
+            # backwards compatibility for serialized parameters
+            param = param.data
+        own_state[name].copy_(param)
     # Manually override directory for dataloaders
     cfg.train_dataloader_cfg.dataset_cfg.dataset_dir = "../../datasets"
     cfg.train_dataloader_cfg.batch_size = exp_cfg.vi_cfg.batch_size

@@ -10,3 +10,5 @@ model_cfg:
   backbone_cfg:
     load_backbone: simclr_mlp.pt
     freeze_backbone: true
+  loss_cfg:
+    ntxent_loss_active: false
