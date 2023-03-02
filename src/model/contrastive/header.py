@@ -23,7 +23,6 @@ class ContrastiveHeader(nn.Module):
         self,
         header_cfg: ContrastiveHeaderConfig,
         backbone_feature_dim: int,
-        enable_momentum: bool = False,
     ):
         super(ContrastiveHeader, self).__init__()
         self.header_cfg = header_cfg
@@ -31,7 +30,7 @@ class ContrastiveHeader(nn.Module):
         self.projection_header = None
         if self.header_cfg.enable_projection_header:
             self.projection_header = ProjectionHeader(
-                self.header_cfg.projection_header_cfg, backbone_feature_dim, enable_momentum
+                self.header_cfg.projection_header_cfg, backbone_feature_dim
             )
 
         self.transop_header = None
@@ -100,6 +99,5 @@ class ContrastiveHeader(nn.Module):
     def initialize_header(
         header_cfg: ContrastiveHeaderConfig,
         backbone_feature_dim: int,
-        enable_momentum: bool = False,
     ) -> "ContrastiveHeader":
-        return ContrastiveHeader(header_cfg, backbone_feature_dim, enable_momentum)
+        return ContrastiveHeader(header_cfg, backbone_feature_dim)

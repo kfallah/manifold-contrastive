@@ -15,8 +15,8 @@ import math
 
 import torch
 import torch.nn as nn
-from lightly.models.modules.heads import MoCoProjectionHead, SimCLRProjectionHead
-from lightly.models.utils import deactivate_requires_grad, update_momentum
+from lightly.models.modules.heads import (BarlowTwinsProjectionHead,
+                                          SimCLRProjectionHead)
 
 from model.contrastive.config import ProjectionHeaderConfig
 from model.type import HeaderInput, HeaderOutput
@@ -40,11 +40,9 @@ class ProjectionHeader(nn.Module):
         self,
         proj_cfg: ProjectionHeaderConfig,
         backbone_feature_dim: int,
-        enable_momentum: bool = False,
     ):
         super(ProjectionHeader, self).__init__()
         self.proj_cfg = proj_cfg
-        self.enable_momentum = enable_momentum
         self.projector = None
         if self.proj_cfg.projection_type == "MLP":
             if self.proj_cfg.header_name == "SimCLR":
@@ -53,11 +51,11 @@ class ProjectionHeader(nn.Module):
                     self.proj_cfg.hidden_dim,
                     self.proj_cfg.output_dim,
                 )
-            elif self.proj_cfg.header_name == "MoCo":
-                self.projector = MoCoProjectionHead(
+            elif self.proj_cfg.header_name == "VICReg":
+                self.projector = BarlowTwinsProjectionHead(
                     backbone_feature_dim,
                     self.proj_cfg.hidden_dim,
-                    self.proj_cfg.output_dim,
+                    self.proj_cfg.output_dim
                 )
             else:
                 raise NotImplementedError
@@ -70,22 +68,11 @@ class ProjectionHeader(nn.Module):
         else:
             raise NotImplementedError
 
-        if self.enable_momentum:
-            self.momentum_projector = copy.deepcopy(self.projector)
-            deactivate_requires_grad(self.momentum_projector)
-
-    def update_momentum_network(self, momentum_rate: float) -> None:
-        assert self.enable_momentum
-        update_momentum(self.projector, self.momentum_projector, momentum_rate)
 
     def forward(self, header_input: HeaderInput) -> HeaderOutput:
         header_out = {}
         proj_0 = self.projector(header_input.feature_0)
-
-        if self.enable_momentum:
-            proj_1 = self.momentum_projector(header_input.feature_1)
-        else:
-            proj_1 = self.projector(header_input.feature_1)
+        proj_1 = self.projector(header_input.feature_1)
 
         # For DirectCLR only use a subset of the features for prediction
         if self.proj_cfg.projection_type == "Direct":

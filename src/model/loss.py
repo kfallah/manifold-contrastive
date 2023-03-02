@@ -10,6 +10,7 @@ from typing import Dict, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from lightly.loss.vicreg_loss import VICRegLoss
 
 from model.config import ModelConfig
 from model.manifold.reparameterize import compute_kl
@@ -33,6 +34,12 @@ class Loss(nn.Module):
                 loss_type=self.loss_cfg.ntxent_logit,
                 detach_off_logit=self.loss_cfg.ntxent_detach_off_logit,
             )
+        
+        self.vicreg_loss = None
+        if self.loss_cfg.vicreg_loss_active:
+            self.vicreg_loss = VICRegLoss(lambda_param=self.loss_cfg.vicreg_inv_weight,
+                                          mu_param=self.loss_cfg.vicreg_var_weight,
+                                          nu_param=self.loss_cfg.vicreg_cov_weight)
 
     def get_kl_weight(self, curr_iter: int):
         if self.loss_cfg.kl_weight_warmup == "None":
@@ -80,6 +87,13 @@ class Loss(nn.Module):
                 )
             total_loss += self.loss_cfg.ntxent_loss_weight * ntxent_loss
             loss_meta["ntxent_loss"] = ntxent_loss.item()
+
+        # Self-supervised loss from vicreg
+        if self.loss_cfg.vicreg_loss_active:
+            z0, z1 = header_dict["proj_00"], header_dict["proj_01"]
+            vicreg_loss = self.vicreg_loss(z0, z1)
+            total_loss += self.loss_cfg.vicreg_loss_weight * vicreg_loss
+            loss_meta["vicreg_loss"] = vicreg_loss.item()
 
         # Transport operator loss terms
         if self.loss_cfg.transop_loss_active:

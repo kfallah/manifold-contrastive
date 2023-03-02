@@ -1,5 +1,5 @@
 defaults:
-  - transop_cifar10_nn_simclr_laplacian
+  - transop_cifar10_simclr_laplacian
   - _self_
 
 exp_name: vi_20s_pretrain

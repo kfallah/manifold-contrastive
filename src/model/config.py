@@ -22,6 +22,12 @@ class LossConfig:
     ntxent_detach_off_logit: bool = False
     ntxent_symmetric: bool = False
 
+    vicreg_loss_active: bool = True
+    vicreg_loss_weight: float = 1.0
+    vicreg_inv_weight: float = 25.0
+    vicreg_var_weight: float = 25.0
+    vicreg_cov_weight: float = 1.0
+
     kl_loss_active: bool = False
     kl_loss_weight: float = 0.1
     kl_detach_shift: bool = False
@@ -59,8 +65,3 @@ class ModelConfig:
     backbone_cfg: BackboneConfig = BackboneConfig()
     header_cfg: ContrastiveHeaderConfig = ContrastiveHeaderConfig()
     loss_cfg: LossConfig = LossConfig()
-    # Whether to use momentum networks
-    enable_backbone_momentum: bool = False
-    backbone_momentum_update_rate: float = 0.99
-    enable_header_momentum: bool = False
-    header_momentum_update_rate: float = 0.99

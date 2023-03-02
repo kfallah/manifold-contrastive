@@ -6,13 +6,10 @@ Main model wrapper that initializes the model used for training.
 @Created     08/31/22
 """
 
-import copy
 from typing import Dict, List, Tuple
 
 import torch
 import torch.nn as nn
-from lightly.models.utils import (batch_shuffle, batch_unshuffle,
-                                  deactivate_requires_grad, update_momentum)
 
 from model.backbone import Backbone
 from model.config import ModelConfig
@@ -73,7 +70,6 @@ class Model(nn.Module):
         contrastive_header = ContrastiveHeader.initialize_header(
             model_cfg.header_cfg,
             backbone_feature_dim,
-            model_cfg.enable_header_momentum,
         )
         if model_cfg.backbone_cfg.load_backbone:
             contrastive_header.load_model_state(model_cfg.backbone_cfg.load_backbone)
