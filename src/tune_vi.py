@@ -10,15 +10,16 @@ import omegaconf
 import torch
 import torch.distributions as distr
 import torch.nn as nn
+import wandb
 from hydra.core.config_store import ConfigStore
 from omegaconf import OmegaConf
 
-import wandb
 from dataloader.contrastive_dataloader import get_dataloader
 from model.config import ModelConfig
 from model.manifold.transop import TransOp_expm
 from model.model import Model
 from model.public.linear_warmup_cos_anneal import LinearWarmupCosineAnnealingLR
+from model.public.ntx_ent_loss import NTXentLoss
 
 warnings.filterwarnings("ignore")
 
@@ -35,14 +36,15 @@ class AttentionConfig:
 @dataclass
 class CoeffEncoderConfig:
     variational: bool = True
+    use_nn_point_pair: bool = False
     attention_cfg: AttentionConfig = AttentionConfig()
 
     feature_dim: int = 512
     hidden_dim1: int = 2048
     hidden_dim2: int = 2048
-    scale_prior: float = 0.02
+    scale_prior: float = 0.01
     shift_prior: float = 0.0
-    threshold: float = 0.02
+    threshold: float = 0.016
 
     logging_interval: int = 500
     lr: float = 0.001
@@ -63,7 +65,7 @@ class CoeffEncoderConfig:
 
     enable_max_sample: bool = True
     max_sample_start_iter: int = 2000
-    max_sample_l1_penalty: float = 5.0e-3
+    max_sample_l1_penalty: float = 1.0e-3
     total_num_samples: int = 20
     samples_per_iter: int = 20
 
@@ -72,6 +74,8 @@ class CoeffEncoderConfig:
 
     learn_prior: bool = False
     no_shift_prior: bool = False
+    enable_prior_infonce_loss: bool = False
+    prior_infonce_loss_weight: float = 10.0
 
 
 @dataclass
@@ -149,8 +153,7 @@ class VIEncoder(nn.Module):
             nn.Linear(cfg.hidden_dim2, cfg.feature_dim),
         )
 
-        self.attn1 = SparseCodeAttn(cfg.attention_cfg, dict_size)
-        # self.attn2 = SparseCodeAttn(cfg.attention_cfg, dict_size)
+        self.attn = SparseCodeAttn(cfg.attention_cfg, dict_size)
 
         self.cfg = cfg
         self.dict_size = dict_size
@@ -159,18 +162,21 @@ class VIEncoder(nn.Module):
         self.shift = nn.Linear(cfg.feature_dim, dict_size)
 
         if self.cfg.learn_prior:
-            self.prior_scale = nn.Sequential(
+            self.prior_feat = nn.Sequential(
                 nn.Linear(64, cfg.hidden_dim1),
                 nn.LeakyReLU(),
                 nn.Linear(cfg.hidden_dim1, cfg.hidden_dim2),
                 nn.LeakyReLU(),
-                nn.Linear(cfg.hidden_dim2, dict_size),
+                nn.Linear(cfg.hidden_dim2, cfg.feature_dim),
             )
+            self.prior_scale = nn.Linear(cfg.feature_dim, dict_size)
+            #self.prior_shift = nn.Linear(cfg.feature_dim, dict_size)
 
         if self.cfg.enable_thresh_warmup:
             self.thresh_warmup = 0.0
         else:
             self.thresh_warmup = 1.0
+        self.register_buffer("threshold", torch.ones(dict_size) * self.cfg.threshold)
 
     def soft_threshold(self, z: torch.Tensor, lambda_: torch.Tensor) -> torch.Tensor:
         return torch.nn.functional.relu(torch.abs(z) - lambda_) * torch.sign(z)
@@ -194,6 +200,16 @@ class VIEncoder(nn.Module):
         prior = distr.Laplace(prior_shift, prior_scale)
         return distr.kl_divergence(encoder, prior)
 
+    def sample(self, x0):
+        assert self.cfg.learn_prior
+        z_prior = self.prior_feat(x0)
+        log_scale = self.prior_scale(z_prior)
+        log_scale += torch.log(torch.ones_like(log_scale) * self.cfg.scale_prior)
+        log_scale = log_scale.clamp(min=-100, max=2)
+        noise = torch.rand_like(log_scale) - 0.5
+        shift = torch.zeros_like(log_scale)
+        return self.reparameterize(noise, log_scale, shift)
+
     def reparameterize(self, noise, log_scale, shift):
         # Reparameterize
         scale = torch.exp(log_scale)
@@ -201,7 +217,7 @@ class VIEncoder(nn.Module):
         c = shift + eps
 
         # Threshold
-        c_thresh = self.soft_threshold(eps.detach(), self.cfg.threshold * self.thresh_warmup)
+        c_thresh = self.soft_threshold(eps.detach(), self.threshold * self.thresh_warmup)
         non_zero = torch.nonzero(c_thresh, as_tuple=True)
         c_thresh[non_zero] = shift[non_zero].detach() + c_thresh[non_zero]
         c = c + c_thresh - c.detach()
@@ -238,7 +254,7 @@ class VIEncoder(nn.Module):
             optimal_noise = noise_list[max_elbo, torch.arange(n_batch * n_seq)]
             return optimal_noise.reshape(n_batch, n_seq, n_feat)
 
-    def log_distr(self, curr_iter, scale, shift, prior_scale):
+    def log_distr(self, curr_iter, scale, shift, prior_scale, prior_shift):
         distr = {
             "distr/avg_enc_scale": scale.mean(),
             "distr/min_enc_scale": scale.min(),
@@ -250,20 +266,22 @@ class VIEncoder(nn.Module):
         if self.cfg.learn_prior:
             distr.update(
                 {
-                    "distr/avg_prior_scale": prior_scale.mean(),
-                    "distr/min_prior_scale": prior_scale.min(),
-                    "distr/max_prior_scale": prior_scale.max(),
+                    "prior/avg_prior_scale": prior_scale.mean(),
+                    "prior/min_prior_scale": prior_scale.min(),
+                    "prior/max_prior_scale": prior_scale.max(),
+                    # "prior/avg_prior_mean": prior_shift.abs().mean(),
+                    # "prior/min_prior_mean": prior_shift.abs().min(),
+                    # "prior/max_prior_mean": prior_shift.abs().max(),
                 }
             )
 
         wandb.log(distr, step=curr_iter)
 
-    def forward(self, curr_iter, x0, x1, psi):
+    def forward(self, curr_iter, x0, x1, psi): 
         # Extract features for attention
         # z0, z1 = self.feat_extract(x0), self.feat_extract(x1)
         z = self.feat_extract(torch.cat((x0, x1), dim=-1))
-        z = self.attn1(z, psi)
-        # z = self.attn2(z, psi)
+        z = self.attn(z, psi)
 
         if self.cfg.enable_thresh_warmup:
             if not self.cfg.deterministic_pretrain or curr_iter > self.cfg.num_det_pretrain_iters:
@@ -291,19 +309,27 @@ class VIEncoder(nn.Module):
 
         # Compute KL and find prior params if needed
         prior_scale = None
+        prior_shift = None
         kl_scale = None
         # psi_mag = (psi.reshape(-1, self.dict_size) ** 2).sum(dim=0)
         # psi_median = torch.median(psi_mag)
         # kl_scale = torch.exp(5 * torch.log((psi_median / psi_mag))).detach().clamp(min=0.1, max=10)
         if self.cfg.learn_prior:
-            prior_log_scale = self.prior_scale(x0)
-            prior_log_scale += torch.log(torch.ones_like(prior_log_scale) * self.cfg.scale_prior)
-            prior_scale = prior_log_scale.clamp(min=-100, max=2).exp()
-        kl = self.kl_loss(log_scale.exp(), shift, prior_scale, None, kl_scale).sum(dim=-1).mean()
+            z_prior = self.prior_feat(x0)
+            prior_log_scale = self.prior_scale(z_prior)
+            prior_log_scale += torch.log(torch.ones_like(log_scale) * self.cfg.scale_prior)
+            prior_log_scale = prior_log_scale.clamp(min=-100, max=2)
+            prior_scale = prior_log_scale.exp()
+            if curr_iter > self.cfg.max_sample_start_iter:
+                prior_avg_scale = prior_log_scale.exp().reshape(-1, self.dict_size).mean(dim=0)
+                self.threshold = (0.999 * self.threshold) + (
+                    0.001 * self.cfg.threshold * (prior_avg_scale.detach() / self.cfg.scale_prior)
+                )
+        kl = self.kl_loss(log_scale.exp(), shift, prior_scale, prior_shift, kl_scale).sum(dim=-1).mean()
 
         # Log distribution params
         if curr_iter % self.cfg.logging_interval == 0:
-            self.log_distr(curr_iter, log_scale.exp(), shift, prior_scale)
+            self.log_distr(curr_iter, log_scale.exp(), shift, prior_scale, prior_shift)
 
         return c, kl, (log_scale, shift)
 
@@ -365,6 +391,7 @@ def init_models(exp_cfg):
     else:
         psi = model.contrastive_header.transop_header.transop.get_psi()
     backbone = model.backbone.to(default_device)
+    projection = model.contrastive_header.projection_header.projector.to(default_device)
     nn_bank = model.contrastive_header.transop_header.nn_memory_bank
     encoder = VIEncoder(exp_cfg.vi_cfg, exp_cfg.transop_cfg.dict_size).to(default_device)
 
@@ -373,10 +400,10 @@ def init_models(exp_cfg):
         encoder.load_state_dict(state["encoder"])
         psi = state["psi"].to(default_device)
 
-    return train_dataloader, backbone, nn_bank, psi, encoder
+    return train_dataloader, backbone, nn_bank, psi, encoder, projection
 
 
-def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
+def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder, projector):
     param_list = [
         {
             "params": encoder.parameters(),
@@ -404,6 +431,7 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
         opt = torch.optim.AdamW(param_list, lr=exp_cfg.vi_cfg.lr, weight_decay=exp_cfg.vi_cfg.weight_decay)
     else:
         raise NotImplementedError()
+    info_nce = NTXentLoss(0.5, 0)
     iters_per_epoch = len(train_dataloader)
     n_epochs = exp_cfg.num_epochs + (exp_cfg.vi_cfg.num_det_pretrain_iters // iters_per_epoch)
     scheduler = LinearWarmupCosineAnnealingLR(
@@ -424,7 +452,8 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
 
             with torch.no_grad():
                 z0, z1 = backbone(x0), backbone(x1)
-            z1 = nn_bank(z1.detach(), update=True).detach()
+            if exp_cfg.vi_cfg.use_nn_point_pair:
+                z1 = nn_bank(z1.detach(), update=True).detach()
 
             z0 = torch.stack(torch.split(z0, 64, dim=-1)).transpose(0, 1)
             z1 = torch.stack(torch.split(z1, 64, dim=-1)).transpose(0, 1)
@@ -445,6 +474,22 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
             if exp_cfg.vi_cfg.enable_shift_l2:
                 l2_reg = (shift**2).sum(dim=-1).mean()
                 loss += exp_cfg.vi_cfg.shift_l2_weight * l2_reg
+            if exp_cfg.vi_cfg.enable_prior_infonce_loss:
+                c_prior = encoder.sample(z0.detach())
+                T = torch.matrix_exp(torch.einsum("bsm,mpk->bspk", c_prior, psi.detach()))
+                z0_inv = (T @ z0.unsqueeze(-1)).squeeze(-1)
+                h0, h0_inv = projector(z0.detach().reshape(-1, 512)), projector(z0_inv.reshape(-1, 512))
+                prior_inv_loss = info_nce(h0, h0_inv)
+                loss += exp_cfg.vi_cfg.prior_infonce_loss_weight * prior_inv_loss
+                if curr_iter % exp_cfg.vi_cfg.logging_interval == 0:
+                    wandb.log(
+                        {
+                            "loss/prior_inv_loss": prior_inv_loss
+                        },
+                        step=curr_iter,
+                    )
+                    log.info(f"Iter {curr_iter:6n} -- Prior loss: {prior_inv_loss.item():.3E}")
+
             (loss / exp_cfg.vi_cfg.grad_acc_iter).backward()
             if curr_iter % exp_cfg.vi_cfg.logging_interval == 0:
                 enc_grad = torch.cat([param.grad.data.reshape(-1).detach().cpu() for param in encoder.parameters()])
@@ -462,7 +507,7 @@ def train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder):
 
             if curr_iter % exp_cfg.vi_cfg.grad_acc_iter == 0:
                 torch.nn.utils.clip_grad_norm_(psi, 0.1)
-                torch.nn.utils.clip_grad_norm_(encoder.parameters(), 10.0)
+                torch.nn.utils.clip_grad_norm_(encoder.parameters(), 1.0)
                 opt.step()
                 scheduler.step()
                 opt.zero_grad()
@@ -534,14 +579,13 @@ def main(exp_cfg: ExperimentConfig) -> None:
     np.random.seed(exp_cfg.seed)
 
     log.info("Initializing Models...")
-    train_dataloader, backbone, nn_bank, psi, encoder = init_models(exp_cfg)
+    train_dataloader, backbone, nn_bank, psi, encoder, projector = init_models(exp_cfg)
     log.info("Training Variational Encoder...")
-    train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder)
+    train(exp_cfg, train_dataloader, backbone, nn_bank, psi, encoder, projector)
 
 
 if __name__ == "__main__":
     log = logging.getLogger(__name__)
     cs = ConfigStore.instance()
     register_configs()
-
     main()
