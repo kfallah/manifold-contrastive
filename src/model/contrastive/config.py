@@ -83,7 +83,7 @@ class TransportOperatorConfig:
     alternating_min_step: int = 200
 
     # Option to use NN to find point pairs
-    enable_nn_point_pair: bool = True
+    enable_nn_point_pair: bool = False
     nn_memory_bank_size: int = 65536
 
     # Config for variational network

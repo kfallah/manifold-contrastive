@@ -2,10 +2,11 @@ defaults:
   - transop_cifar10_nn_simclr_laplacian
   - _self_
 
-exp_name: TransOp_NN_CIFAR10
+exp_name: vi_20s_pretrain
 
 trainer_cfg:
   num_epochs: 1000
 model_cfg:
   backbone_cfg:
     load_backbone: simclr_mlp.pt
+    freeze_backbone: true
