@@ -1,0 +1,13 @@
+defaults:
+  - transop_cifar10_simclr_laplacian_pretrain
+  - _self_
+
+exp_name: vi_20s_gaussian
+
+model_cfg:
+  header_cfg:
+    transop_header_cfg:
+      lambda_prior: 0.01
+      vi_cfg:
+        distribution: Gaussian
+        scale_prior: 0.0001
