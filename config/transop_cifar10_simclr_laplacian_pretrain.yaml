@@ -12,3 +12,11 @@ model_cfg:
     freeze_backbone: true
   loss_cfg:
     ntxent_loss_active: false
+
+evaluator_cfg:
+  knn_eval_cfg:
+    enable_runner: false
+  clustering_eval_cfg:
+    enable_runner: false
+  linear_probe_eval_cfg:
+    enable_runner: false

@@ -22,7 +22,7 @@ class LossConfig:
     ntxent_detach_off_logit: bool = False
     ntxent_symmetric: bool = False
 
-    vicreg_loss_active: bool = True
+    vicreg_loss_active: bool = False
     vicreg_loss_weight: float = 1.0
     vicreg_inv_weight: float = 25.0
     vicreg_var_weight: float = 25.0
