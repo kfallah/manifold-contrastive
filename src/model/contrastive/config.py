@@ -37,6 +37,7 @@ class VariationalEncoderConfig:
 
     distribution: str = "Laplacian"
     scale_prior: float = 0.02
+    shift_prior: float = 0.0
     feature_dim: int = 512
     encode_point_pair: bool = True
 
@@ -46,8 +47,13 @@ class VariationalEncoderConfig:
     total_num_samples: int = 20
     samples_per_iter: int = 20
 
+    # warmup the threshold parameter -- start with dense coefficients and anneal to sparse
+    enable_thresh_warmup: bool = False
+
     enable_learned_prior: bool = False
     enable_prior_shift: bool = False
+    # Use a deterministic prior for shift
+    enable_det_prior: bool = False
 
     # Use attention layer to refine features before drawing samples
     enable_enc_attn: bool = False

@@ -162,5 +162,14 @@ class TransportOperatorHeader(nn.Module):
         header_out["transop_z0"] = z0
         header_out["transop_z1"] = z1_use
         header_out["transop_z1hat"] = z1_hat
+        
+        if self.cfg.vi_cfg.enable_det_prior:
+            prior_c = distribution_data.prior_params["shift"]
+            z1_det_hat = (
+                self.transop(
+                    z0.detach().float().unsqueeze(-1), prior_c, transop_grad=False
+                ).squeeze(dim=-1)
+            )    
+            header_out["transop_z1_det_hat"] = z1_det_hat     
 
         return HeaderOutput(header_out, distribution_data=distribution_data)

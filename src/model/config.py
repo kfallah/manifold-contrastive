@@ -47,8 +47,11 @@ class LossConfig:
     c_l2_active: bool = False
     c_l2_weight: float = 1.0e-2
 
-    shift_l2_active: bool = False
+    enable_shift_l2: bool = False
     shift_l2_weight: float = 1.0e-2
+
+    det_prior_loss_active: bool = False
+    det_prior_l2_weight: float = 1.0e-3
 
 
 @dataclass

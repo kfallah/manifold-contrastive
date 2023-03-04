@@ -168,45 +168,18 @@ class MetricLogger:
                         + f", max shift: {shift.abs().max():.2E}"
                         + f", mean shift: {shift.abs().mean():.2E}"
                     )
-                    if "Gamma" in self.model.model_cfg.header_cfg.transop_header_cfg.vi_cfg.distribution:
-                        enc_gamma_a = distr_data.encoder_params["gamma_a"]
-                        enc_gamma_b = distr_data.encoder_params["gamma_b"]
-                        enc_lambda_ev = enc_gamma_a / enc_gamma_b
+                    if self.model.model_cfg.header_cfg.transop_header_cfg.vi_cfg.enable_learned_prior:
+                        prior_scale = torch.exp(distr_data.prior_params["logscale"])
+                        prior_shift = distr_data.prior_params["shift"]
                         log.info(
-                            "[Encoder Gamma]: "
-                            + f"min gamma_a: {enc_gamma_a.abs().min():.3E}"
-                            + f", max gamma_a: {enc_gamma_a.abs().max():.3E}"
-                            + f", mean gamma_a: {enc_gamma_a.mean():.3E}"
-                            + f", min gamma_b: {enc_gamma_b.abs().min():.3E}"
-                            + f", max gamma_b: {enc_gamma_b.abs().max():.3E}"
-                            + f", mean gamma_b: {enc_gamma_b.mean():.3E}"
-                            + f", mean lambda ev: {enc_lambda_ev.mean():.3E}"
+                            f"[Prior params]: "
+                            + f"min scale: {prior_scale.abs().min():.3E}"
+                            + f", max scale: {prior_scale.abs().max():.3E}"
+                            + f", mean scale: {prior_scale.mean():.3E}"
+                            + f", min shift: {prior_shift.abs().min():.3E}"
+                            + f", max shift: {prior_shift.abs().max():.3E}"
+                            + f", mean shift: {prior_shift.abs().mean():.3E}"
                         )
-                        if self.model.model_cfg.header_cfg.transop_header_cfg.vi_cfg.prior_type == "Learned":
-                            prior_scale = torch.exp(distr_data.prior_params["logscale"])
-                            prior_shift = distr_data.prior_params["shift"]
-                            prior_gamma_a = distr_data.prior_params["gamma_a"]
-                            prior_gamma_b = distr_data.prior_params["gamma_b"]
-                            prior_lambda_ev = prior_gamma_a / prior_gamma_b
-                            log.info(
-                                f"[Prior params]: "
-                                + f"min scale: {prior_scale.abs().min():.3E}"
-                                + f", max scale: {prior_scale.abs().max():.3E}"
-                                + f", mean scale: {prior_scale.mean():.3E}"
-                                + f", min shift: {prior_shift.abs().min():.3E}"
-                                + f", max shift: {prior_shift.abs().max():.3E}"
-                                + f", mean shift: {prior_shift.mean():.3E}"
-                            )
-                            log.info(
-                                "[Prior Gamma]: "
-                                + f"min gamma_a: {prior_gamma_a.abs().min():.3E}"
-                                + f", max gamma_a: {prior_gamma_a.abs().max():.3E}"
-                                + f", mean gamma_a: {prior_gamma_a.mean():.3E}"
-                                + f", min gamma_b: {prior_gamma_b.abs().min():.3E}"
-                                + f", max gamma_b: {prior_gamma_b.abs().max():.3E}"
-                                + f", mean gamma_b: {prior_gamma_b.mean():.3E}"
-                                + f", mean lambda ev: {prior_lambda_ev.mean():.3E}"
-                            )
 
             # Generate transport operator plots
             fig_dict = transop_plots(c, psi, self.feature_cache[-1])

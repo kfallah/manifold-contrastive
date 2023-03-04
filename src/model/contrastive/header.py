@@ -44,7 +44,7 @@ class ContrastiveHeader(nn.Module):
             )
 
     def load_model_state(self, state_path: str) -> None:
-        header_weights = torch.load(f"../../model_zoo/{state_path}", map_location="cuda:0")["model_state"]
+        header_weights = torch.load(state_path, map_location="cuda:0")["model_state"]
         for name, param in header_weights.items():
             if self.projection_header is not None:
                 proj_name = name.replace("contrastive_header.projection_header.", "")
@@ -53,6 +53,15 @@ class ContrastiveHeader(nn.Module):
                         # backwards compatibility for serialized parameters
                         param = param.data
                     self.projection_header.state_dict()[proj_name].copy_(param)
+
+            if self.transop_header is not None:
+                to_name = name.replace("contrastive_header.transop_header.", "")
+                if to_name in self.transop_header.state_dict():
+                    if isinstance(param, nn.Parameter):
+                        # backwards compatibility for serialized parameters
+                        param = param.data
+                    self.transop_header.state_dict()[to_name].copy_(param)
+
 
     def unshuffle_outputs(self, shuffle_idx, header_out: HeaderOutput) -> HeaderOutput:
         if self.projection_header is not None:

@@ -123,11 +123,22 @@ class Loss(nn.Module):
             c_l2 = (c**2).sum(dim=-1).mean()
             loss_meta['c_l2'] = self.loss_cfg.c_l2_weight * c_l2
 
-        if self.loss_cfg.shift_l2_active:
-            shift = header_out.distribution_data.encoder_params['shift']
-            #shift_l2 = (shift**2).sum(dim=-1).mean()
-            shift_l2 = F.relu(shift.abs() - 0.08).sum()
-            loss_meta['shift_l2'] = self.loss_cfg.shift_l2_weight * shift_l2
+        if self.loss_cfg.enable_shift_l2:
+            enc_shift = header_out.distribution_data.encoder_params["shift"]
+            enc_shift_l2 = (enc_shift**2).sum(dim=-1).mean()
+            total_loss += self.loss_cfg.shift_l2_weight * enc_shift_l2
+            loss_meta["shift_l2"] = enc_shift_l2.item()
+
+        if self.loss_cfg.det_prior_loss_active:
+            z1_det_hat, z1 = header_dict["transop_z1_det_hat"], header_dict["transop_z1"].detach()
+            det_transop_loss = F.mse_loss(z1_det_hat, z1, reduction="none").mean()
+            total_loss += self.loss_cfg.transop_loss_weight * det_transop_loss
+            loss_meta["det_transop_loss"] = det_transop_loss.item()
+
+            prior_shift = header_out.distribution_data.prior_params["shift"]
+            det_shift_l2 = (prior_shift**2).sum(dim=-1).mean()
+            total_loss += self.loss_cfg.det_prior_l2_weight * det_shift_l2
+            loss_meta["det_l2_loss"] = det_shift_l2.item()
 
         if self.loss_cfg.real_eig_reg_active:
             assert "psi" in args_dict.keys()

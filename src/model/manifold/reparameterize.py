@@ -80,7 +80,7 @@ def compute_kl(
     )
     if detach_shift:
         encoder_shift = encoder_shift.detach()
-    prior_shift, prior_logscale = prior_params["shift"], prior_params["logscale"]
+    prior_shift, prior_logscale = prior_params["shift"].detach(), prior_params["logscale"]
     encoder_scale, prior_scale = torch.exp(encoder_logscale), torch.exp(prior_logscale)
 
     if distribution == "Laplacian" or distribution == "Laplacian+Gamma":

@@ -6,6 +6,8 @@ Backbone network whose feature space will be used for self-supervised learning.
 @Created     08/31/22
 """
 
+import os
+
 import torch
 import torch.nn as nn
 from lightly.models.utils import deactivate_requires_grad
@@ -37,7 +39,7 @@ class Backbone(nn.Module):
         network = Backbone(backbone_cfg, backbone_network)
 
         if backbone_cfg.load_backbone:
-            backbone_weights = torch.load(f"../../model_zoo/{backbone_cfg.load_backbone}", map_location="cuda:0")["model_state"]
+            backbone_weights = torch.load(backbone_cfg.load_backbone, map_location="cuda:0")["model_state"]
             own_state = network.state_dict()
             for name, param in backbone_weights.items():
                 name = name.replace("backbone.", "")
