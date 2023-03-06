@@ -39,7 +39,12 @@ class VariationalEncoderConfig:
     scale_prior: float = 0.02
     shift_prior: float = 0.0
     feature_dim: int = 512
+    # Whether the encoder should use x0 and x1 or just x0
     encode_point_pair: bool = True
+    # warmup the threshold parameter -- start with dense coefficients and anneal to sparse
+    enable_thresh_warmup: bool = False
+    # Use attention layer to refine features before drawing samples
+    enable_enc_attn: bool = False
 
     enable_max_sampling: bool = True
     max_sample_l1_penalty: float = 1.0e-2
@@ -47,16 +52,15 @@ class VariationalEncoderConfig:
     total_num_samples: int = 20
     samples_per_iter: int = 20
 
-    # warmup the threshold parameter -- start with dense coefficients and anneal to sparse
-    enable_thresh_warmup: bool = False
-
     enable_learned_prior: bool = False
     enable_prior_shift: bool = False
     # Use a deterministic prior for shift
     enable_det_prior: bool = False
 
-    # Use attention layer to refine features before drawing samples
-    enable_enc_attn: bool = False
+    # whether to use FISTA for the encoder instead of a DNN.
+    enable_fista_enc: bool = False
+    fista_lambda: float = 0.1
+    fista_num_iters: int = 40
 
 
 @dataclass
@@ -95,8 +99,6 @@ class TransportOperatorConfig:
     # Config for variational network
     enable_variational_inference: bool = True
     vi_cfg: VariationalEncoderConfig = VariationalEncoderConfig()
-    enable_vi_refinement: bool = False
-    vi_refinement_lambda: float = 0.1
     # Config for exact inference
     fista_num_iterations: int = 20
     # Enable variance regularization to prevent L1 collapse with FISTA
