@@ -24,9 +24,7 @@ class SparseCodeAttn(nn.Module):
             nn.Linear(feat_dim * 4, feat_dim),
         )
 
-        self.attn = nn.MultiheadAttention(
-            feat_dim, num_heads=8, dropout=0.1, batch_first=True
-        )
+        self.attn = nn.MultiheadAttention(feat_dim, num_heads=8, dropout=0.1, batch_first=True)
         self.pre_norm = nn.LayerNorm(feat_dim)
         self.mlp = nn.Sequential(
             nn.Linear(feat_dim, feat_dim * 4),
@@ -81,12 +79,12 @@ class CoefficientEncoder(nn.Module):
             enc_input = input_size
 
         self.enc_feat_extract = nn.Sequential(
-                nn.Linear(enc_input, 4 * feat_dim),
-                nn.LeakyReLU(),
-                nn.Linear(4 * feat_dim, 4 * feat_dim),
-                nn.LeakyReLU(),
-                nn.Linear(4 * feat_dim, feat_dim),
-            )
+            nn.Linear(enc_input, 4 * feat_dim),
+            nn.LeakyReLU(),
+            nn.Linear(4 * feat_dim, 4 * feat_dim),
+            nn.LeakyReLU(),
+            nn.Linear(4 * feat_dim, feat_dim),
+        )
         self.enc_scale = nn.Linear(feat_dim, dict_size)
         self.enc_shift = nn.Linear(feat_dim, dict_size)
 
@@ -100,7 +98,7 @@ class CoefficientEncoder(nn.Module):
         self.prior_params["shift"] = torch.tensor(self.vi_cfg.shift_prior)
 
         if self.vi_cfg.enable_learned_prior:
-            input_dim = 2*input_size if self.vi_cfg.enable_det_prior else input_size
+            input_dim = 2 * input_size if self.vi_cfg.enable_det_prior else input_size
             final_dim = dict_size if self.vi_cfg.enable_det_prior else feat_dim
             self.prior_feat_extract = nn.Sequential(
                 nn.Linear(input_dim, 4 * feat_dim),
@@ -118,7 +116,7 @@ class CoefficientEncoder(nn.Module):
         if self.vi_cfg.enable_max_sampling and curr_iter > self.vi_cfg.max_sample_start_iter:
             noise = self.max_elbo_sample(prior_params, psi.detach(), x0, x1)
         else:
-            noise = draw_noise_samples(self.vi_cfg.distribution, prior_params['shift'].shape, x0.device)
+            noise = draw_noise_samples(self.vi_cfg.distribution, prior_params["shift"].shape, x0.device)
         c = reparameterize(self.vi_cfg.distribution, prior_params, noise, self.thresh_warmup * self.lambda_prior)
 
         x0_flat, x1_flat = x0.reshape(-1, x0.shape[-1]), x1.reshape(-1, x1.shape[-1])
@@ -134,7 +132,8 @@ class CoefficientEncoder(nn.Module):
                 decay=0.99,
                 device=x0.device,
                 c_init=c.clone().detach().reshape(1, -1, self.dictionary_size),
-                c_scale=None
+                c_scale=self.vi_cfg.fista_var_reg_scale if self.vi_cfg.enable_fista_var_reg else None,
+                c_scale_weight=self.vi_cfg.fista_var_reg_weight,
             )
 
         # Sometimes FISTA can result in NaN values in inference, handle them here.
@@ -143,11 +142,17 @@ class CoefficientEncoder(nn.Module):
 
     # Return encoder, prior, and hyperprior params. In case where the prior is fixed and not learned,
     # the hyperprior is equal to the pror.
-    def get_distribution_params(self, x0, x1, psi, curr_iter) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+    def get_distribution_params(
+        self, x0, x1, psi, curr_iter
+    ) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
         prior_params = {}
         hyperprior_params = {}
-        hyperprior_params["logscale"] = torch.ones_like((*x0.shape[:1], self.dictionary_size)) * self.prior_params["logscale"]
-        hyperprior_params["shift"] = torch.ones_like((*x0.shape[:1], self.dictionary_size)) * self.prior_params["shift"]
+        hyperprior_params["logscale"] = (
+            torch.ones((*x0.shape[:2], self.dictionary_size), device=x0.device) * self.prior_params["logscale"]
+        )
+        hyperprior_params["shift"] = (
+            torch.ones((*x0.shape[:2], self.dictionary_size), device=x0.device) * self.prior_params["shift"]
+        )
         if self.vi_cfg.enable_learned_prior:
             if self.vi_cfg.enable_det_prior:
                 c_det = self.prior_feat_extract(torch.cat((x0.detach(), x1.detach()), dim=-1))
@@ -186,7 +191,7 @@ class CoefficientEncoder(nn.Module):
         return encoder_params, prior_params, hyperprior_params
 
     def max_elbo_sample(self, encoder_params, psi, x0, x1) -> torch.Tensor:
-        logscale, shift = encoder_params['logscale'], encoder_params['shift']
+        logscale, shift = encoder_params["logscale"], encoder_params["shift"]
         with torch.no_grad():
             noise_list = []
             loss_list = []
@@ -194,7 +199,9 @@ class CoefficientEncoder(nn.Module):
             logscale_expanded = logscale.unsqueeze(0).repeat(self.vi_cfg.samples_per_iter, 1, 1, 1)
             for _ in range(self.vi_cfg.total_num_samples // self.vi_cfg.samples_per_iter):
                 noise = draw_noise_samples(self.vi_cfg.distribution, logscale_expanded.shape, logscale_expanded.device)
-                c = reparameterize(self.vi_cfg.distribution, encoder_params, noise, self.thresh_warmup * self.lambda_prior)
+                c = reparameterize(
+                    self.vi_cfg.distribution, encoder_params, noise, self.thresh_warmup * self.lambda_prior
+                )
                 T = torch.matrix_exp(torch.einsum("sblm,mpk->sblpk", c, psi))
                 x1_hat = (T @ x0.unsqueeze(0).unsqueeze(-1)).squeeze(-1)
                 transop_loss = torch.nn.functional.mse_loss(
@@ -216,7 +223,7 @@ class CoefficientEncoder(nn.Module):
             optimal_noise = noise_list[max_elbo, torch.arange(n_batch * n_seq)]
             return optimal_noise.reshape(n_batch, n_seq, n_feat)
 
-    def forward(self, x0: torch.Tensor, x1: torch.Tensor, transop: nn.Module, curr_iter = 0):
+    def forward(self, x0: torch.Tensor, x1: torch.Tensor, transop: nn.Module, curr_iter=0):
         if self.training:
             self.thresh_warmup += 5.0e-5
             if self.thresh_warmup > 1.0:
@@ -230,7 +237,9 @@ class CoefficientEncoder(nn.Module):
             if self.vi_cfg.enable_max_sampling and curr_iter > self.vi_cfg.max_sample_start_iter:
                 noise = self.max_elbo_sample(encoder_params, transop.psi.detach(), x0, x1)
             else:
-                noise = draw_noise_samples(self.vi_cfg.distribution, encoder_params['shift'].shape, x0.device)
-            samples = reparameterize(self.vi_cfg.distribution, encoder_params, noise, self.thresh_warmup * self.lambda_prior)
+                noise = draw_noise_samples(self.vi_cfg.distribution, encoder_params["shift"].shape, x0.device)
+            samples = reparameterize(
+                self.vi_cfg.distribution, encoder_params, noise, self.thresh_warmup * self.lambda_prior
+            )
 
         return DistributionData(encoder_params, prior_params, hyperprior_params, samples)

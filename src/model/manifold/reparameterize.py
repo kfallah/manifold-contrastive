@@ -69,7 +69,7 @@ def compute_kl(
     distribution: str,
     encoder_params: Dict[str, torch.Tensor],
     prior_params: Dict[str, torch.Tensor],
-    detach_shift: bool = False
+    detach_shift: bool = False,
 ):
     kl_loss = 0.0
     assert "shift" in encoder_params.keys() and "logscale" in encoder_params.keys()
@@ -80,7 +80,7 @@ def compute_kl(
     )
     if detach_shift:
         encoder_shift = encoder_shift.detach()
-    prior_shift, prior_logscale = prior_params["shift"].detach(), prior_params["logscale"]
+    prior_shift, prior_logscale = prior_params["shift"], prior_params["logscale"]
     encoder_scale, prior_scale = torch.exp(encoder_logscale), torch.exp(prior_logscale)
 
     if distribution == "Laplacian" or distribution == "Laplacian+Gamma":

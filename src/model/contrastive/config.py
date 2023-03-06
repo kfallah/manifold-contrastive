@@ -61,6 +61,10 @@ class VariationalEncoderConfig:
     enable_fista_enc: bool = False
     fista_lambda: float = 0.1
     fista_num_iters: int = 40
+    # Enable variance regularization to prevent L1 collapse with FISTA
+    enable_fista_var_reg: bool = False
+    fista_var_reg_scale: float = 0.01
+    fista_var_reg_weight: float = 0.1
 
 
 @dataclass
@@ -101,10 +105,6 @@ class TransportOperatorConfig:
     vi_cfg: VariationalEncoderConfig = VariationalEncoderConfig()
     # Config for exact inference
     fista_num_iterations: int = 20
-    # Enable variance regularization to prevent L1 collapse with FISTA
-    enable_fista_var_reg: bool = False
-    fista_var_reg_scale: float = 0.02
-    fista_var_reg_weight: float = 0.5
 
 
 @dataclass
