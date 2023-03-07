@@ -121,28 +121,6 @@ class TransportOperatorHeader(nn.Module):
             distribution_data = self.coefficient_encoder(z0.detach(), z1_use.detach(), self.transop, curr_iter)
             c = distribution_data.samples
 
-            if self.cfg.enable_vi_refinement:
-                z0_flat, z1_flat = z0.reshape(-1, z0.shape[-1]), z1_use.reshape(-1, z1_use.shape[-1])
-                with autocast(enabled=False):
-                    _, c_refine = infer_coefficients(
-                        z0_flat.float().detach(),
-                        z1_flat.float().detach(),
-                        self.transop.get_psi().float(),
-                        self.cfg.vi_refinement_lambda,
-                        max_iter=self.cfg.fista_num_iterations,
-                        num_trials=1,
-                        lr=1e-2,
-                        decay=0.99,
-                        device=z0.device,
-                        c_init=c.clone().detach().reshape(1, -1, self.cfg.dictionary_size),
-                        c_scale=self.cfg.fista_var_reg_scale if self.cfg.enable_fista_var_reg else None,
-                        c_scale_weight=self.cfg.fista_var_reg_weight,
-                    )
-
-                # Sometimes FISTA can result in NaN values in inference, handle them here.
-                c = c_refine.detach().clamp(min=-2.0, max=2.0).nan_to_num(nan=0.01).reshape(c.shape)
-                distribution_data = DistributionData(*distribution_data[:-1], c)
-
         # Whether or not to compute gradient through the transport operator
         transop_grad = (
             not (

@@ -8,7 +8,7 @@ trainer_cfg:
   num_epochs: 1000
 model_cfg:
   backbone_cfg:
-    load_backbone: simclr_mlp.pt
+    load_backbone: /storage/home/hcoda1/0/kfallah3/scratch/manifold-contrastive/model_zoo/simclr_mlp.pt
     freeze_backbone: true
   loss_cfg:
     ntxent_loss_active: false

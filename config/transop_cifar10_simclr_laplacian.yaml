@@ -29,6 +29,7 @@ model_cfg:
         scale_prior: 0.01
         variational_encoder_lr: 0.001
         variational_encoder_weight_decay: 1.0e-6
+        enable_thresh_warmup: true
         enable_enc_attn: true
         enable_thresh_warmup: true
 
