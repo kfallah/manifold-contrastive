@@ -46,7 +46,7 @@ def sweep_psi_path_plot(psi: torch.tensor, z0: np.array, c_mag: int) -> Figure:
     psi_idx = torch.argsort(psi_norm)
     latent_dim = len(z)
 
-    fig, ax = plt.subplots(nrows=3, ncols=4, figsize=(16, 35))
+    fig, ax = plt.subplots(nrows=4, ncols=3, figsize=(20, 12))
     plt.subplots_adjust(hspace=0.4, top=0.9)
 
     for i in range(ax.size):

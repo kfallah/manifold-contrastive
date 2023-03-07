@@ -184,11 +184,11 @@ class CoefficientEncoder(nn.Module):
 
     def forward(self, x0: torch.Tensor, x1: torch.Tensor, transop: nn.Module, curr_iter = 0):
         if self.training:
-            self.thresh_warmup += 1.0e-4
+            self.thresh_warmup += 5.0e-5
             if self.thresh_warmup > 1.0:
                 self.thresh_warmup = 1.0
 
-        encoder_params, prior_params, hyperprior_params = self.get_distribution_params(x0, x1, transop.psi)
+        encoder_params, prior_params, hyperprior_params = self.get_distribution_params(x0, x1, transop.psi.detach())
 
         if self.vi_cfg.enable_max_sampling and curr_iter > self.vi_cfg.max_sample_start_iter:
             noise = self.max_elbo_sample(encoder_params, transop.psi.detach(), x0, x1)

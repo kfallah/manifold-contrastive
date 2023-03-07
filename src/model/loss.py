@@ -102,11 +102,13 @@ class Loss(nn.Module):
                 transop_loss = F.mse_loss(z1_hat, z1, reduction="none").mean()
             elif self.loss_cfg.transop_loss_fn == "huber":
                 transop_loss = F.huber_loss(z1_hat, z1, reduction="none", delta=0.5).mean()
-            elif self.loss_cfg.transop_loss_fn == "ratio":
+            elif self.loss_cfg.transop_loss_fn == "ratio" or self.loss_cfg.transop_loss_fn == "ratio_exp":
                 z0 = header_dict["transop_z0"]
                 transop_loss = F.mse_loss(z1_hat, z1, reduction="none").mean(dim=-1)
                 # To detach, or not to detach, that is the question
-                transop_loss /= F.mse_loss(z0.detach(), z1.detach(), reduction="none").mean(dim=-1) + 1.0
+                transop_loss /= F.mse_loss(z0, z1, reduction="none").mean(dim=-1) + 1.0e-4
+                if self.loss_cfg.transop_loss_fn == "ratio_exp":
+                    transop_loss = torch.exp(transop_loss / .05)
                 transop_loss = transop_loss.mean()
             else:
                 raise NotImplementedError

@@ -1,0 +1,37 @@
+defaults:
+  - transop_cifar10_simclr_laplacian
+  - _self_
+
+exp_name: vi_20s_finetune
+
+trainer_cfg:
+  optimizer_cfg:
+    initial_lr: 0.03
+  num_epochs: 1000
+model_cfg:
+  backbone_cfg:
+    load_backbone: /home/kfallah/manifold-contrastive/model_zoo/transop_simclr_40dict.pt
+    freeze_backbone: false
+  loss_cfg:
+    ntxent_loss_active: true
+    kl_loss_weight: 1.0e-5
+    kl_weight_warmup: None
+    transop_loss_fn: ratio
+  header_cfg:
+    transop_header_cfg:
+      transop_lr: 0.03
+      start_iter: 0
+      fine_tune_iter: 0
+      vi_cfg:
+        max_sample_start_iter: 0
+        variational_encoder_lr: 0.001
+        enable_thresh_warmup: false
+        enable_max_sampling: false
+
+evaluator_cfg:
+  knn_eval_cfg:
+    enable_runner: true
+  clustering_eval_cfg:
+    enable_runner: true
+  linear_probe_eval_cfg:
+    enable_runner: true

@@ -15,9 +15,9 @@ model_cfg:
       batch_size: 128
       start_iter: 5000
       fine_tune_iter: 50000
-      dictionary_size: 100
-      lambda_prior: 0.012
-      transop_weight_decay: 1.0e-6
+      dictionary_size: 40
+      lambda_prior: 0.005
+      transop_weight_decay: 5.0e-6
       transop_lr: 0.3
       enable_variational_inference: true
       vi_cfg:
@@ -30,10 +30,11 @@ model_cfg:
         variational_encoder_lr: 0.001
         variational_encoder_weight_decay: 1.0e-6
         enable_enc_attn: true
+        enable_thresh_warmup: true
 
   loss_cfg:
     ntxent_loss_active: true
-    ntxent_loss_weight: 0.01
+    ntxent_loss_weight: 0.1
     kl_loss_active: true
     kl_loss_weight: 1.0e-4
     kl_weight_warmup: Exponential

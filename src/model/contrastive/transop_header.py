@@ -118,7 +118,7 @@ class TransportOperatorHeader(nn.Module):
                 )
             distribution_data = DistributionData(None, None, None, c)
         else:
-            distribution_data = self.coefficient_encoder(z0, z1_use, self.transop, curr_iter)
+            distribution_data = self.coefficient_encoder(z0.detach(), z1_use.detach(), self.transop, curr_iter)
             c = distribution_data.samples
 
             if self.cfg.enable_vi_refinement:
