@@ -29,4 +29,4 @@ model_cfg:
         enable_fista_enc: true
         fista_lambda: 0.15
         enable_fista_var_reg: true
-        fista_num_iters: 40
+        fista_num_iters: 50

@@ -145,7 +145,7 @@ class TransportOperatorHeader(nn.Module):
             prior_c = distribution_data.prior_params["shift"]
             z1_det_hat = (
                 self.transop(
-                    z0.detach().float().unsqueeze(-1), prior_c, transop_grad=False
+                    z0.float().unsqueeze(-1), prior_c, transop_grad=False
                 ).squeeze(dim=-1)
             )    
             header_out["transop_z1_det_hat"] = z1_det_hat     

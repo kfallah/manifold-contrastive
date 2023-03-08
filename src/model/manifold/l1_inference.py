@@ -90,6 +90,8 @@ def infer_coefficients(
             c_std_hinge = F.relu(c_scale - c_std) ** 2
             loss += c_scale_weight * c_std_hinge.sum()
         (loss.mean(dim=(-1)) * change_idx).sum().backward()
+        for p in range(len(psi)):
+            torch.nn.utils.clip_grad_norm_(c[:, p], 1)
         c_opt.step()
         opt_scheduler.step()
 

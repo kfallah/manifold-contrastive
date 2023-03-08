@@ -16,7 +16,7 @@ model_cfg:
       start_iter: 5000
       fine_tune_iter: 50000
       dictionary_size: 40
-      lambda_prior: 0.005
+      lambda_prior: 0.01
       transop_weight_decay: 5.0e-6
       transop_lr: 0.3
       enable_variational_inference: true
@@ -31,8 +31,6 @@ model_cfg:
         variational_encoder_weight_decay: 1.0e-6
         enable_thresh_warmup: true
         enable_enc_attn: true
-        enable_thresh_warmup: true
-
   loss_cfg:
     ntxent_loss_active: true
     ntxent_loss_weight: 0.1
@@ -55,3 +53,4 @@ trainer_cfg:
   save_interval: 200
   enable_transop_grad_clip: true
   enable_coeffenc_grad_clip: true
+  enable_backbone_grad_clip: true

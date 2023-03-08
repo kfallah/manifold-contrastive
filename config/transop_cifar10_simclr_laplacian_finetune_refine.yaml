@@ -1,33 +1,31 @@
 defaults:
-  - transop_cifar10_simclr_laplacian
+  - transop_cifar10_simclr_laplacian_pretrain_refine
   - _self_
 
-exp_name: vi_20s_finetune
+exp_name: ft_vi_50fista
 
 trainer_cfg:
   optimizer_cfg:
-    initial_lr: 0.03
+    initial_lr: 0.003
   num_epochs: 1000
 model_cfg:
   backbone_cfg:
-    load_backbone: /home/kfallah/manifold-contrastive/model_zoo/transop_simclr_40dict.pt
+    load_backbone: /home/kfallah/manifold-contrastive/model_zoo/transop_40dict_fista-enc_simclr.pt
     freeze_backbone: false
   loss_cfg:
     ntxent_loss_active: true
-    kl_loss_weight: 1.0e-5
     kl_weight_warmup: None
     transop_loss_fn: ratio
   header_cfg:
     transop_header_cfg:
-      transop_lr: 0.03
+      transop_lr: 0.003
       start_iter: 0
       fine_tune_iter: 0
       vi_cfg:
         max_sample_start_iter: 0
-        variational_encoder_lr: 0.001
+        variational_encoder_lr: 0.003
         enable_thresh_warmup: false
         enable_max_sampling: false
-
 evaluator_cfg:
   knn_eval_cfg:
     enable_runner: true

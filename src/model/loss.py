@@ -99,21 +99,21 @@ class Loss(nn.Module):
         if self.loss_cfg.transop_loss_active:
             z1_hat, z1 = header_dict["transop_z1hat"], header_dict["transop_z1"]
             if self.loss_cfg.transop_loss_fn == "mse":
-                transop_loss = F.mse_loss(z1_hat, z1, reduction="none").mean()
+                transop_loss = F.mse_loss(z1_hat, z1.detach(), reduction="none").mean()
+                loss_meta["transop_loss"] = transop_loss.item()
             elif self.loss_cfg.transop_loss_fn == "huber":
                 transop_loss = F.huber_loss(z1_hat, z1, reduction="none", delta=0.5).mean()
-            elif self.loss_cfg.transop_loss_fn == "ratio" or self.loss_cfg.transop_loss_fn == "ratio_exp":
+                loss_meta["transop_huber"] = transop_loss.item()
+            elif self.loss_cfg.transop_loss_fn == "ratio":
                 z0 = header_dict["transop_z0"]
-                transop_loss = F.mse_loss(z1_hat, z1, reduction="none").mean(dim=-1)
-                # To detach, or not to detach, that is the question
-                transop_loss /= F.mse_loss(z0, z1, reduction="none").mean(dim=-1) + 1.0e-4
-                if self.loss_cfg.transop_loss_fn == "ratio_exp":
-                    transop_loss = torch.exp(transop_loss / .05)
+                transop_loss = F.mse_loss(z1_hat, z1.detach(), reduction="none").mean(dim=-1)
+                loss_meta["transop_loss"] = transop_loss.mean().item()
+                transop_loss /= F.mse_loss(z0, z1.detach(), reduction="none").mean(dim=-1) + 1.0e-4
                 transop_loss = transop_loss.mean()
+                loss_meta["transop_ratio"] = transop_loss.item()    
             else:
                 raise NotImplementedError
             total_loss += self.loss_cfg.transop_loss_weight * transop_loss
-            loss_meta["transop_loss"] = transop_loss.item()
 
         if self.loss_cfg.c_refine_loss_active:
             c_vi = header_out.distribution_data.encoder_params["shift"]
