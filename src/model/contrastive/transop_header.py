@@ -82,12 +82,8 @@ class TransportOperatorHeader(nn.Module):
         # Detach the predictions in the case where we dont want gradient going to the backbone
         # or when we do alternating minimization.
         if (
-            (
-                self.cfg.enable_alternating_min
-                and (header_input.curr_iter // self.cfg.alternating_min_step) % 2 == 0
-            )
-            or curr_iter < self.cfg.fine_tune_iter
-        ):
+            self.cfg.enable_alternating_min and (header_input.curr_iter // self.cfg.alternating_min_step) % 2 == 0
+        ) or curr_iter < self.cfg.fine_tune_iter:
             z0, z1 = z0.detach(), z1.detach()
 
         # either use the nearnest neighbor bank or the projected feature to make the prediction
@@ -124,30 +120,21 @@ class TransportOperatorHeader(nn.Module):
         # Whether or not to compute gradient through the transport operator
         transop_grad = (
             not (
-                self.cfg.enable_alternating_min
-                and (header_input.curr_iter // self.cfg.alternating_min_step) % 2 != 0
+                self.cfg.enable_alternating_min and (header_input.curr_iter // self.cfg.alternating_min_step) % 2 != 0
             )
             and curr_iter > self.cfg.start_iter
         )
         # Matrix exponential not supported with float16
         with autocast(enabled=False):
-            z1_hat = (
-                self.transop(
-                    z0.float().unsqueeze(-1), c, transop_grad=transop_grad
-                ).squeeze(dim=-1)
-            )
+            z1_hat = self.transop(z0.float().unsqueeze(-1), c, transop_grad=transop_grad).squeeze(dim=-1)
 
         header_out["transop_z0"] = z0
         header_out["transop_z1"] = z1_use
         header_out["transop_z1hat"] = z1_hat
-        
+
         if self.cfg.vi_cfg.enable_det_prior:
             prior_c = distribution_data.prior_params["shift"]
-            z1_det_hat = (
-                self.transop(
-                    z0.float().unsqueeze(-1), prior_c, transop_grad=False
-                ).squeeze(dim=-1)
-            )    
-            header_out["transop_z1_det_hat"] = z1_det_hat     
+            z1_det_hat = self.transop(z0.float().unsqueeze(-1), prior_c, transop_grad=False).squeeze(dim=-1)
+            header_out["transop_z1_det_hat"] = z1_det_hat
 
         return HeaderOutput(header_out, distribution_data=distribution_data)

@@ -1,8 +1,8 @@
 defaults:
-  - transop_cifar10_simclr_laplacian_pretrain_refine
+  - transop_cifar10_simclr_laplacian
   - _self_
 
-exp_name: ft_vi_50fista
+exp_name: ft_vi_20s
 
 trainer_cfg:
   optimizer_cfg:
@@ -10,11 +10,14 @@ trainer_cfg:
   num_epochs: 1000
 model_cfg:
   backbone_cfg:
-    load_backbone: /home/kion/manifold-contrastive/model_zoo/transop_40dict_fista_simclr.pt
+    load_backbone: /home/kion/manifold-contrastive/model_zoo/transop_40dict_vi_simclr.pt
     freeze_backbone: false
   loss_cfg:
     ntxent_loss_active: true
     kl_weight_warmup: None
+    kl_loss_weight: 1.0e-5
+    kl_detach_shift: true
+    enable_shift_l2: true
     transop_loss_fn: mse
   header_cfg:
     transop_header_cfg:
@@ -25,7 +28,9 @@ model_cfg:
         max_sample_start_iter: 0
         variational_encoder_lr: 0.01
         enable_thresh_warmup: false
-        enable_max_sampling: false
+        enable_max_sampling: true
+        shift_prior: 0.05
+
 evaluator_cfg:
   knn_eval_cfg:
     enable_runner: true

@@ -34,12 +34,14 @@ class Loss(nn.Module):
                 loss_type=self.loss_cfg.ntxent_logit,
                 detach_off_logit=self.loss_cfg.ntxent_detach_off_logit,
             )
-        
+
         self.vicreg_loss = None
         if self.loss_cfg.vicreg_loss_active:
-            self.vicreg_loss = VICRegLoss(lambda_param=self.loss_cfg.vicreg_inv_weight,
-                                          mu_param=self.loss_cfg.vicreg_var_weight,
-                                          nu_param=self.loss_cfg.vicreg_cov_weight)
+            self.vicreg_loss = VICRegLoss(
+                lambda_param=self.loss_cfg.vicreg_inv_weight,
+                mu_param=self.loss_cfg.vicreg_var_weight,
+                nu_param=self.loss_cfg.vicreg_cov_weight,
+            )
 
     def get_kl_weight(self, curr_iter: int):
         if self.loss_cfg.kl_weight_warmup == "None":
@@ -54,7 +56,7 @@ class Loss(nn.Module):
             if self.kl_warmup > 10000:
                 self.kl_warmup = 10000
             ratio = self.kl_warmup / 10000
-            kl_weight = (5e-3)**(1-ratio)
+            kl_weight = (5e-3) ** (1 - ratio)
             return self.loss_cfg.kl_loss_weight * kl_weight
         elif self.loss_cfg.kl_weight_warmup == "Cyclic":
             total_iters = 100000
@@ -110,7 +112,14 @@ class Loss(nn.Module):
                 loss_meta["transop_loss"] = transop_loss.mean().item()
                 transop_loss /= F.mse_loss(z0, z1.detach(), reduction="none").mean(dim=-1) + 1.0e-4
                 transop_loss = transop_loss.mean()
-                loss_meta["transop_ratio"] = transop_loss.item()    
+                loss_meta["transop_ratio"] = transop_loss.item()
+            elif self.loss_cfg.transop_loss_fn == "diff":
+                z0 = header_dict["transop_z0"]
+                transop_loss = F.mse_loss(z1_hat, z1, reduction="none").mean(dim=-1)
+                loss_meta["transop_loss"] = transop_loss.mean().item()
+                transop_loss -= 0.01 * F.mse_loss(z0, z1, reduction="none").mean(dim=-1)
+                transop_loss = transop_loss.mean()
+                loss_meta["transop_diff"] = transop_loss.item()
             else:
                 raise NotImplementedError
             total_loss += self.loss_cfg.transop_loss_weight * transop_loss
@@ -123,7 +132,7 @@ class Loss(nn.Module):
         if self.loss_cfg.c_l2_active:
             c = header_out.distribution_data.samples
             c_l2 = (c**2).sum(dim=-1).mean()
-            loss_meta['c_l2'] = self.loss_cfg.c_l2_weight * c_l2
+            loss_meta["c_l2"] = self.loss_cfg.c_l2_weight * c_l2
 
         if self.loss_cfg.enable_shift_l2:
             enc_shift = header_out.distribution_data.encoder_params["shift"]
@@ -156,7 +165,7 @@ class Loss(nn.Module):
                 self.model_cfg.header_cfg.transop_header_cfg.vi_cfg.distribution,
                 header_out.distribution_data.encoder_params,
                 header_out.distribution_data.prior_params,
-                self.loss_cfg.kl_detach_shift
+                self.loss_cfg.kl_detach_shift,
             )
             kl_weight = self.get_kl_weight(curr_iter)
             total_loss += kl_weight * kl_loss
