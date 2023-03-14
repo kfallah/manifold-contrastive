@@ -87,12 +87,12 @@ def compute_kl(
         encoder_scale, prior_scale = torch.exp(encoder_logscale), torch.exp(prior_logscale)
         laplace_kl = ((encoder_shift - prior_shift).abs() / prior_scale) + prior_logscale - encoder_logscale - 1
         laplace_kl += (encoder_scale / prior_scale) * (-((encoder_shift - prior_shift).abs() / encoder_scale)).exp()
-        kl_loss += laplace_kl.sum(dim=-1).mean()
+        kl_loss += laplace_kl.sum(dim=-1)
 
     if distribution == "Gaussian" or distribution == "Gaussian+Gamma":
         gauss_kl = (encoder_scale + ((encoder_shift - prior_shift) ** 2)) / (2 * prior_scale)
         gauss_kl += 0.5 * (prior_logscale - encoder_logscale - 1)
-        kl_loss += gauss_kl.sum(dim=-1).mean()
+        kl_loss += gauss_kl.sum(dim=-1)
 
     if distribution == "Laplacian+Gamma" or distribution == "Gaussian+Gamma":
         assert "gamma_a" in encoder_params.keys() and "gamma_b" in encoder_params.keys()
@@ -101,7 +101,7 @@ def compute_kl(
         prior_gamma_a, prior_gamma_b = prior_params["gamma_a"], prior_params["gamma_b"]
         gamma_enc = gamma.Gamma(enc_gamma_a, enc_gamma_b)
         gamma_prior = gamma.Gamma(prior_gamma_a, prior_gamma_b)
-        gamma_kl = torch.distributions.kl.kl_divergence(gamma_enc, gamma_prior).mean()
+        gamma_kl = torch.distributions.kl.kl_divergence(gamma_enc, gamma_prior)
         kl_loss += 5 * gamma_kl
 
     return kl_loss

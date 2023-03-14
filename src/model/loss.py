@@ -166,7 +166,7 @@ class Loss(nn.Module):
                 header_out.distribution_data.encoder_params,
                 header_out.distribution_data.prior_params,
                 self.loss_cfg.kl_detach_shift,
-            )
+            ).mean()
             kl_weight = self.get_kl_weight(curr_iter)
             total_loss += kl_weight * kl_loss
             loss_meta["kl_loss"] = kl_loss.item()
