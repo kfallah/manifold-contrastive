@@ -1,0 +1,13 @@
+defaults:
+  - base_cifar10
+  - dataloader/cifar10_nnclr@train_dataloader_cfg
+  - _self_
+
+exp_name: NNCLR_CIFAR10
+model_cfg:
+  header_cfg:
+    enable_proj_pred_header: true
+    proj_pred_header_cfg:
+      enable_nn_bank: true
+  loss_cfg:
+    ntxent_symmetric: true

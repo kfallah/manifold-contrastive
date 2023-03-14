@@ -128,6 +128,10 @@ class TransportOperatorHeader(nn.Module):
         with autocast(enabled=False):
             z1_hat = self.transop(z0.float().unsqueeze(-1), c, transop_grad=transop_grad).squeeze(dim=-1)
 
+            if self.cfg.symmmetric_transport:
+                z0_hat = self.transop(z1_use.float().unsqueeze(-1), -c, transop_grad=transop_grad).squeeze(dim=-1)
+                header_out["transop_z0hat"] = z0_hat
+
         header_out["transop_z0"] = z0
         header_out["transop_z1"] = z1_use
         header_out["transop_z1hat"] = z1_hat

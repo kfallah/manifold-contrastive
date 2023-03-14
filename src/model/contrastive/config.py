@@ -79,7 +79,10 @@ class TransportOperatorConfig:
     lambda_prior: float = 0.02
     # Learning rate for operators
     transop_lr: float = 0.1
-    transop_weight_decay: float = 1e-5
+    transop_weight_decay: float = 1e-6
+    # Use the negative coefficients from z0 to z1
+    # to transport from z1 to z0
+    symmmetric_transport: bool = False
 
     stable_operator_initialization: bool = True
     real_range_initialization: float = 0.0001
