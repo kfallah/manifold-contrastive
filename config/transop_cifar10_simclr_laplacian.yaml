@@ -13,21 +13,22 @@ model_cfg:
     enable_transop_header: true
     transop_header_cfg:
       batch_size: 128
-      start_iter: 5000
+      start_iter: 2000
       fine_tune_iter: 50000
       dictionary_size: 40
-      lambda_prior: 0.005
+      lambda_prior: 0.01
       transop_weight_decay: 5.0e-6
       transop_lr: 0.3
       enable_variational_inference: true
       vi_cfg:
-        max_sample_start_iter: 5000
+        max_sample_start_iter: 2000
         samples_per_iter: 20
         total_num_samples: 20
         max_sample_l1_penalty: 0.001
         feature_dim: 512
         scale_prior: 0.01
-        variational_encoder_lr: 0.001
+        shift_prior: 0.05
+        variational_encoder_lr: 0.01
         variational_encoder_weight_decay: 1.0e-6
         enable_thresh_warmup: true
         enable_enc_attn: false
@@ -35,8 +36,10 @@ model_cfg:
     ntxent_loss_active: true
     ntxent_loss_weight: 0.01
     kl_loss_active: true
-    kl_loss_weight: 1.0e-4
+    kl_loss_weight: 1.0e-5
+    kl_detach_shift: true
     kl_weight_warmup: Exponential
+    enable_shift_l2: true
     transop_loss_active: true
     transop_loss_weight: 1.0
     transop_loss_fn: mse

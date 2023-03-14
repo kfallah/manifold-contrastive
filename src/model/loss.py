@@ -102,7 +102,13 @@ class Loss(nn.Module):
             z1_hat, z1 = header_dict["transop_z1hat"], header_dict["transop_z1"]
             if self.loss_cfg.transop_loss_fn == "mse":
                 transop_loss = F.mse_loss(z1_hat, z1.detach(), reduction="none").mean()
-                loss_meta["transop_loss"] = transop_loss.item()
+                if self.loss_cfg.transop_symmetric:
+                    z0_hat, z0 = header_dict["transop_z0hat"], header_dict["transop_z0"]
+                    transop_loss = 0.5*transop_loss + 0.5*F.mse_loss(z0_hat, z0.detach(), reduction="none").mean()
+                loss_meta["transop_loss"] = transop_loss.item()     
+            elif self.loss_cfg.transop_loss_fn == "cos":
+                transop_loss = (-(F.cosine_similarity(z1, z1_hat, dim=-1)**2)).exp().mean()
+                loss_meta["transop_cos"] = transop_loss.item()      
             elif self.loss_cfg.transop_loss_fn == "huber":
                 transop_loss = F.huber_loss(z1_hat, z1, reduction="none", delta=0.5).mean()
                 loss_meta["transop_huber"] = transop_loss.item()
