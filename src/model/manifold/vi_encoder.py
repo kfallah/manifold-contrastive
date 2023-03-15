@@ -78,15 +78,23 @@ class CoefficientEncoder(nn.Module):
         else:
             enc_input = input_size
 
+        enc_out = feat_dim
+        if self.vi_cfg.enable_det_enc:
+            enc_out = dict_size
+
         self.enc_feat_extract = nn.Sequential(
             nn.Linear(enc_input, 4 * feat_dim),
             nn.LeakyReLU(),
             nn.Linear(4 * feat_dim, 4 * feat_dim),
             nn.LeakyReLU(),
-            nn.Linear(4 * feat_dim, feat_dim),
+            nn.Linear(4 * feat_dim, enc_out),
         )
-        self.enc_scale = nn.Linear(feat_dim, dict_size)
-        self.enc_shift = nn.Linear(feat_dim, dict_size)
+        
+        self.enc_scale = None
+        self.enc_shift = None
+        if not self.vi_cfg.enable_det_enc:
+            self.enc_scale = nn.Linear(feat_dim, dict_size)
+            self.enc_shift = nn.Linear(feat_dim, dict_size)
 
         self.attn = None
         if self.vi_cfg.enable_enc_attn:
@@ -169,10 +177,19 @@ class CoefficientEncoder(nn.Module):
         else:
             prior_params = hyperprior_params.copy()
 
+        encoder_params = {}
         if self.vi_cfg.enable_fista_enc:
             encoder_params = self.fista_encoder(x0, x1, psi, prior_params, curr_iter)
+        elif self.vi_cfg.enable_det_enc:
+            encoder_params["logscale"] = torch.log(
+                torch.ones_like(prior_params["logscale"]) * self.vi_cfg.scale_prior
+            )
+            if self.vi_cfg.encode_point_pair:
+                enc_input = torch.cat((x0, x1), dim=-1)
+            else:
+                enc_input = x0
+            encoder_params["shift"] = self.enc_feat_extract(enc_input).clamp(min=-5.0, max=5.0)
         else:
-            encoder_params = {}
             if self.vi_cfg.encode_point_pair:
                 enc_input = torch.cat((x0, x1), dim=-1)
             else:
@@ -231,7 +248,7 @@ class CoefficientEncoder(nn.Module):
 
         encoder_params, prior_params, hyperprior_params = self.get_distribution_params(x0, x1, transop.psi.detach(), curr_iter)
 
-        if self.vi_cfg.enable_fista_enc:
+        if self.vi_cfg.enable_fista_enc or self.vi_cfg.enable_det_enc:
             samples = encoder_params["shift"]
         else:
             if self.vi_cfg.enable_max_sampling and curr_iter > self.vi_cfg.max_sample_start_iter:

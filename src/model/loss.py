@@ -14,7 +14,7 @@ from lightly.loss.vicreg_loss import VICRegLoss
 
 from model.config import ModelConfig
 from model.manifold.reparameterize import compute_kl
-from model.public.ntx_ent_loss import NTXentLoss
+from model.public.ntx_ent_loss import NTXentLoss, lie_nt_xent_loss
 from model.type import ModelOutput
 
 
@@ -97,6 +97,21 @@ class Loss(nn.Module):
             total_loss += self.loss_cfg.vicreg_loss_weight * vicreg_loss
             loss_meta["vicreg_loss"] = vicreg_loss.item()
 
+        # InfoNCE Lie Loss on transport operator estimates
+        if self.loss_cfg.ntxent_lie_loss_active and curr_iter > self.loss_cfg.ntxent_lie_loss_start_iter:
+            z0, z1, z1hat = header_dict["transop_z0"], header_dict["transop_z1"], header_dict["transop_z1"]
+            z0, z1, z1hat = z1.reshape(len(z1), -1), z1_hat.reshape(len(z1), -1), z0.reshape(len(z1), -1)
+            proj = args_dict["proj"]
+            z0_proj, z1_proj, z1hat_proj= proj(z0), proj(z1), proj(z1hat)
+            lie_loss = lie_nt_xent_loss(
+                F.normalize(z0_proj, dim=-1),
+                F.normalize(z1_proj, dim=-1),
+                F.normalize(z1hat_proj, dim=-1),
+                temperature=self.loss_cfg.ntxent_lie_temp
+            )
+            loss_meta["infonce_lie_loss"] = lie_loss.item()     
+            total_loss += self.loss_cfg.ntxent_lie_loss_weight * lie_loss
+
         # Transport operator loss terms
         if self.loss_cfg.transop_loss_active:
             z1_hat, z1 = header_dict["transop_z1hat"], header_dict["transop_z1"]
@@ -137,7 +152,7 @@ class Loss(nn.Module):
 
         if self.loss_cfg.c_l2_active:
             c = header_out.distribution_data.samples
-            c_l2 = (c**2).sum(dim=-1).mean()
+            c_l2 = (c**2).mean()
             loss_meta["c_l2"] = self.loss_cfg.c_l2_weight * c_l2
 
         if self.loss_cfg.enable_shift_l2:

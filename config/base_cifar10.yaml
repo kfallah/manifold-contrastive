@@ -47,7 +47,7 @@ evaluator_cfg:
     eval_freq: 100
   linear_probe_eval_cfg:
     enable_runner: true
-    eval_freq: 200
+    eval_freq: 100
     num_epochs: 100
     use_amp: false
 eval_dataloader_cfg:

@@ -32,7 +32,8 @@ class LinearProbeEval(EvalRunner):
         num_classes: int = 10,
     ) -> None:
         self.model = deepcopy(model)
-        self.linear_head = nn.Linear(512, num_classes).to(device)
+        backbone_feat_dim = model.backbone_feat_dim
+        self.linear_head = nn.Linear(backbone_feat_dim, num_classes).to(device)
         num_epoch_iters = len(train_loader)
 
         self.optimizer = initialize_optimizer(self.get_config().optimizer_cfg, self.linear_head.parameters())

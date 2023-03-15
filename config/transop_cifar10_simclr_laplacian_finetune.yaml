@@ -14,13 +14,13 @@ model_cfg:
     freeze_backbone: false
   loss_cfg:
     ntxent_loss_active: true
-    ntxent_loss_weight: 0.1
+    ntxent_loss_weight: 1.0
     kl_weight_warmup: Exponential
     kl_loss_weight: 1.0e-5
     kl_detach_shift: true
     enable_shift_l2: true
     transop_loss_active: true
-    transop_loss_weight: 1.0
+    transop_loss_weight: 0.1
   header_cfg:
     transop_header_cfg:
       transop_lr: 0.3

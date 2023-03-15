@@ -54,6 +54,8 @@ class VariationalEncoderConfig:
 
     enable_learned_prior: bool = False
     enable_prior_shift: bool = False
+    # Use deterministic encoder
+    enable_det_enc: bool = False
     # Use a deterministic prior for shift
     enable_det_prior: bool = False
 

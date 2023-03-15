@@ -13,6 +13,7 @@ import torch.nn as nn
 from lightly.models.utils import deactivate_requires_grad
 
 from model.config import BackboneConfig
+from model.public.wide_resnet import WideResnetFMPT
 
 
 class Backbone(nn.Module):
@@ -35,6 +36,10 @@ class Backbone(nn.Module):
             if dataset_name == "CIFAR10" or dataset_name == "CIFAR100":
                 backbone_network.conv1 = nn.Conv2d(3, 64, 3, 1, 1, bias=False)
                 backbone_network.maxpool = nn.Identity()
+        elif backbone_cfg.hub_model_name == "wresnet-28-2":
+            backbone_network = WideResnetFMPT(10, k=2, n=28)
+            backbone_feature_dim = backbone_network.fc.in_features
+            backbone_network.fc = nn.Identity()
 
         network = Backbone(backbone_cfg, backbone_network)
 
