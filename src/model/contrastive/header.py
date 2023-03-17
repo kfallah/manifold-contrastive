@@ -63,19 +63,12 @@ class ContrastiveHeader(nn.Module):
                     self.transop_header.state_dict()[to_name].copy_(param)
 
 
-    def unshuffle_outputs(self, shuffle_idx, header_out: HeaderOutput) -> HeaderOutput:
-        if self.projection_header is not None:
-            header_dict = header_out.header_dict
-            header_dict["proj_01"] = batch_unshuffle(header_dict["proj_01"], shuffle_idx)
-
-        return HeaderOutput(header_dict, header_out.distribution_data)
-
-    def forward(self, header_input: HeaderInput) -> HeaderOutput:
+    def forward(self, header_input: HeaderInput, nn_queue: nn.Module = None) -> HeaderOutput:
         aggregate_header_out = {}
 
         distribution_data = None
         if self.transop_header is not None:
-            header_out = self.transop_header(header_input)
+            header_out = self.transop_header(header_input, nn_queue)
             distribution_data = header_out.distribution_data
             aggregate_header_out.update(header_out.header_dict)
 

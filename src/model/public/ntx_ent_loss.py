@@ -12,7 +12,7 @@ from lightly.utils import dist
 from torch import nn
 
 
-def lie_nt_xent_loss(out_1, out_2, out_3, temperature, eps=1e-6):
+def lie_nt_xent_loss(out_1, out_2, out_3=None, temperature=0.07, eps=1e-6):
     """
     DOES NOT assume out_1 and out_2 are normalized
     out_1: [batch_size, dim]
@@ -26,7 +26,10 @@ def lie_nt_xent_loss(out_1, out_2, out_3, temperature, eps=1e-6):
     # out: [2 * batch_size, dim]
     # out_dist: [3 * batch_size * world_size, dim]
     out = torch.cat([out_1, out_2], dim=0)
-    out_dist = torch.cat([out_1, out_2, out_3], dim=0)
+    if out_3 is not None:
+        out_dist = torch.cat([out_1, out_2, out_3], dim=0)
+    else:
+        out_dist = torch.cat([out_1, out_2], dim=0)
 
     # cov and sim: [2 * batch_size, 3 * batch_size * world_size]
     # neg: [2 * batch_size]

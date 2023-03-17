@@ -27,7 +27,7 @@ class Model(nn.Module):
         self.backbone_feat_dim = backbone_feat_dim
         self.contrastive_header = contrastive_header
 
-    def forward(self, x: torch.Tensor, x_idx: List, curr_iter: int) -> ModelOutput:
+    def forward(self, x: torch.Tensor, x_idx: List, curr_iter: int, nn_queue: nn.Module = None) -> ModelOutput:
         """Take input image and get prediction from contrastive header.
 
         Args:
@@ -52,7 +52,7 @@ class Model(nn.Module):
         else:
             raise NotImplementedError
 
-        header_out = self.contrastive_header(header_input)
+        header_out = self.contrastive_header(header_input, nn_queue)
 
         return ModelOutput(header_input, header_out)
 

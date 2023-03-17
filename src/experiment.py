@@ -150,7 +150,7 @@ def initialize_experiment(cfg: DictConfig) -> None:
     trainer = Trainer.initialize_trainer(
         cfg.trainer_cfg, model, cfg.trainer_cfg.num_epochs * len(train_dataloader), default_device
     )
-    evaluator = Evaluator.initialize_evaluator(cfg.evaluator_cfg, model, default_device)
+    evaluator = Evaluator.initialize_evaluator(cfg.evaluator_cfg, trainer.get_model(), default_device)
 
     # Run experiment
     run_experiment(cfg, trainer, evaluator, train_dataloader, eval_dataloader)

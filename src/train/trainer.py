@@ -13,6 +13,7 @@ from typing import Dict
 
 import torch
 import torch.nn as nn
+from lightly.models.modules import NNMemoryBankModule
 from torch.cuda.amp import GradScaler, autocast
 
 from model.model import Model
@@ -52,6 +53,10 @@ class Trainer(nn.Module):
             self.trainer_cfg.metric_logger_cfg, self.get_model(), self.scheduler
         )
 
+        self.nn_queue = None
+        if self.trainer_cfg.enable_nn_queue:
+            self.nn_queue = NNMemoryBankModule(size=self.trainer_cfg.nn_queue_size)
+
     def get_model(self) -> Model:
         if isinstance(self.model, nn.parallel.DataParallel):
             return self.model.module
@@ -70,8 +75,12 @@ class Trainer(nn.Module):
 
             with autocast(enabled=self.trainer_cfg.use_amp):
                 # Send inputs through model
-                model_output = self.model(x_gpu, x_idx, curr_iter)
+                model_output = self.model(x_gpu, x_idx, curr_iter, self.nn_queue)
                 loss_metadata, total_loss = self.get_model().compute_loss(curr_iter, model_output)
+
+                if self.trainer_cfg.enable_nn_queue:
+                    z1 = model_output.header_input.feature_1
+                    _ = self.nn_queue(z1.detach(), update=True)
 
             # Backpropagate loss
             self.scaler.scale(total_loss / self.trainer_cfg.grad_accumulation_iters).backward()

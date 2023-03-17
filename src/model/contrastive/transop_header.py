@@ -7,7 +7,6 @@ Transport operator header that estimates the manifold path between a pair of poi
 """
 import torch
 import torch.nn as nn
-from lightly.models.modules import NNMemoryBankModule
 from torch.cuda.amp import autocast
 
 from model.contrastive.config import TransportOperatorConfig
@@ -46,10 +45,6 @@ class TransportOperatorHeader(nn.Module):
                 self.cfg.lambda_prior,
             )
 
-        self.nn_memory_bank = None
-        if self.cfg.enable_nn_point_pair:
-            self.nn_memory_bank = NNMemoryBankModule(size=self.cfg.nn_memory_bank_size)
-
     def get_param_groups(self):
         param_list = [
             {
@@ -72,7 +67,7 @@ class TransportOperatorHeader(nn.Module):
             )
         return param_list
 
-    def forward(self, header_input: HeaderInput) -> HeaderOutput:
+    def forward(self, header_input: HeaderInput, nn_queue: nn.Module = None) -> HeaderOutput:
         header_out = {}
         curr_iter = header_input.curr_iter
         x0, x1 = header_input.x_0, header_input.x_1
@@ -88,8 +83,8 @@ class TransportOperatorHeader(nn.Module):
 
         # either use the nearnest neighbor bank or the projected feature to make the prediction
         z0 = z0[: self.cfg.batch_size]
-        if self.cfg.enable_nn_point_pair:
-            z1_use = self.nn_memory_bank(z1.detach(), update=True).detach()[: self.cfg.batch_size]
+        if nn_queue is not None:
+            z1_use = nn_queue(z1.detach(), update=False).detach()[: self.cfg.batch_size]
         else:
             z1_use = z1[: self.cfg.batch_size]
 

@@ -101,10 +101,6 @@ class TransportOperatorConfig:
     # Number of steps to alternate between updating the backbone and the transop/encoder
     alternating_min_step: int = 200
 
-    # Option to use NN to find point pairs
-    enable_nn_point_pair: bool = False
-    nn_memory_bank_size: int = 65536
-
     # Config for variational network
     enable_variational_inference: bool = True
     vi_cfg: VariationalEncoderConfig = VariationalEncoderConfig()

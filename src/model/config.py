@@ -24,7 +24,7 @@ class LossConfig:
 
     ntxent_lie_loss_active: bool = False
     ntxent_lie_loss_weight: float = 1.0
-    ntxent_lie_loss_start_iter: int = 5000
+    ntxent_lie_loss_start_iter: int = 0
     ntxent_lie_temp: float = 0.07
 
     vicreg_loss_active: bool = False
@@ -54,7 +54,7 @@ class LossConfig:
     c_l2_weight: float = 1.0e-3
 
     enable_shift_l2: bool = False
-    shift_l2_weight: float = 1.0e-2
+    shift_l2_weight: float = 1.0e-3
 
     det_prior_loss_active: bool = False
     det_prior_l2_weight: float = 1.0e-3
