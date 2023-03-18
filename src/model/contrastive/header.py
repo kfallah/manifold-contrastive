@@ -12,7 +12,8 @@ from lightly.models.utils import batch_unshuffle
 
 from model.contrastive.config import ContrastiveHeaderConfig
 from model.contrastive.projection_header import ProjectionHeader
-from model.contrastive.projection_prediction_header import ProjectionPredictionHeader
+from model.contrastive.projection_prediction_header import \
+    ProjectionPredictionHeader
 from model.contrastive.transop_header import TransportOperatorHeader
 from model.type import HeaderInput, HeaderOutput
 
@@ -71,13 +72,13 @@ class ContrastiveHeader(nn.Module):
         if self.header_cfg.enable_transop_augmentation:
             enc = self.transop_header.coefficient_encoder
             psi = self.transop_header.transop.psi
-            z = header_input.feature_0
+            z = header_input.feature_1
             z = torch.stack(torch.split(z, self.transop_header.cfg.block_dim, dim=-1)).transpose(0, 1)
             c = enc.prior_sample(z.detach())
             T = torch.matrix_exp(torch.einsum("bsm,muv->bsuv", c, psi))
             z_aug = (T @ z.unsqueeze(-1)).squeeze(-1).reshape(len(z), -1)
             # Place back into header input
-            header_input = header_input._replace(feature_0=z_aug)
+            header_input = header_input._replace(feature_1=z_aug)
 
         if self.projection_header is not None:
             header_out = self.projection_header(header_input)

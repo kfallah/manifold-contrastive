@@ -30,7 +30,7 @@ model_cfg:
         feature_dim: 512
         scale_prior: 0.01
         shift_prior: 0.0
-        variational_encoder_lr: 0.01
+        variational_encoder_lr: 0.1
         variational_encoder_weight_decay: 1.0e-6
         enable_learned_prior: true
         enable_thresh_warmup: false
