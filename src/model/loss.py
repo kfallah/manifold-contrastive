@@ -102,30 +102,30 @@ class Loss(nn.Module):
             z0, z1, z1hat = header_dict["transop_z0"], header_dict["transop_z1"], header_dict["transop_z1"]
             z0, z1, z1hat = z0.reshape(len(z1), -1), z1.reshape(len(z1), -1), z1hat.reshape(len(z1), -1)
             proj = args_dict["proj"]
-            z0_proj, z1_proj, z1hat_proj= z0, z1, z1hat
-            #z0_proj, z1_proj, z1hat_proj= proj(z0), proj(z1), proj(z1hat)
+            z0_proj, z1_proj, z1hat_proj = z0, z1, z1hat
+            # z0_proj, z1_proj, z1hat_proj= proj(z0), proj(z1), proj(z1hat)
             lie_loss = lie_nt_xent_loss(
                 F.normalize(z0_proj, dim=-1),
                 F.normalize(z1_proj, dim=-1),
-                #out_3=None,
+                # out_3=None,
                 F.normalize(z1hat_proj, dim=-1),
-                temperature=self.loss_cfg.ntxent_lie_temp
+                temperature=self.loss_cfg.ntxent_lie_temp,
             )
-            loss_meta["ntxent_lie_loss"] = lie_loss.item()     
+            loss_meta["ntxent_lie_loss"] = lie_loss.item()
             total_loss += self.loss_cfg.ntxent_lie_loss_weight * lie_loss
 
         # Transport operator loss terms
         if self.loss_cfg.transop_loss_active:
             z1_hat, z1 = header_dict["transop_z1hat"], header_dict["transop_z1"]
             if self.loss_cfg.transop_loss_fn == "mse":
-                transop_loss = F.mse_loss(z1_hat, z1, reduction="none").mean()
+                transop_loss = F.mse_loss(z1_hat, z1.detach(), reduction="none").mean()
                 if self.loss_cfg.transop_symmetric:
                     z0_hat, z0 = header_dict["transop_z0hat"], header_dict["transop_z0"]
-                    transop_loss = 0.5*transop_loss + 0.5*F.mse_loss(z0_hat, z0.detach(), reduction="none").mean()
-                loss_meta["transop_loss"] = transop_loss.item()     
+                    transop_loss = 0.5 * transop_loss + 0.5 * F.mse_loss(z0_hat, z0.detach(), reduction="none").mean()
+                loss_meta["transop_loss"] = transop_loss.item()
             elif self.loss_cfg.transop_loss_fn == "cos":
-                transop_loss = (-(F.cosine_similarity(z1, z1_hat, dim=-1)**2)).exp().mean()
-                loss_meta["transop_cos"] = transop_loss.item()      
+                transop_loss = (-(F.cosine_similarity(z1, z1_hat, dim=-1) ** 2)).exp().mean()
+                loss_meta["transop_cos"] = transop_loss.item()
             elif self.loss_cfg.transop_loss_fn == "huber":
                 transop_loss = F.huber_loss(z1_hat, z1, reduction="none", delta=0.5).mean()
                 loss_meta["transop_huber"] = transop_loss.item()

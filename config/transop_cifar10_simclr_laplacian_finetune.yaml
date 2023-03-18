@@ -10,7 +10,7 @@ trainer_cfg:
   num_epochs: 1000
 model_cfg:
   backbone_cfg:
-    load_backbone: /storage/home/hcoda1/0/kfallah3/scratch/manifold-contrastive/model_zoo/transop_40dict_vi_simclr.pt
+    load_backbone: /home/kion/manifold-contrastive/model_zoo/transop_40dict_vi_simclr.pt
     freeze_backbone: false
   loss_cfg:
     ntxent_loss_active: true

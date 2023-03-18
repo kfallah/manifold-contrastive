@@ -10,19 +10,20 @@ model_cfg:
     projection_header_cfg:
       header_name: SimCLR
       projection_type: MLP
+    enable_transop_augmentation: true
     enable_transop_header: true
     transop_header_cfg:
       batch_size: 128
       start_iter: 0
       fine_tune_iter: 0
-      dictionary_size: 200
-      lambda_prior: 0.03
+      dictionary_size: 50
+      lambda_prior: 0.02
       transop_weight_decay: 1.0e-6
       transop_lr: 0.6
-      block_dim: 128
+      block_dim: 64
       enable_variational_inference: true
       vi_cfg:
-        max_sample_start_iter: 5000
+        max_sample_start_iter: 0
         samples_per_iter: 20
         total_num_samples: 20
         max_sample_l1_penalty: 0.001
@@ -31,8 +32,8 @@ model_cfg:
         shift_prior: 0.0
         variational_encoder_lr: 0.01
         variational_encoder_weight_decay: 1.0e-6
-        enable_thresh_warmup: true
-        enable_enc_attn: false
+        enable_learned_prior: true
+        enable_thresh_warmup: false
   loss_cfg:
     ntxent_loss_active: true
     ntxent_loss_weight: 1.0
@@ -58,3 +59,4 @@ trainer_cfg:
   enable_transop_grad_clip: true
   enable_coeffenc_grad_clip: true
   enable_backbone_grad_clip: true
+  enable_nn_queue: true

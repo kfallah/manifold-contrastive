@@ -12,8 +12,7 @@ from lightly.models.utils import batch_unshuffle
 
 from model.contrastive.config import ContrastiveHeaderConfig
 from model.contrastive.projection_header import ProjectionHeader
-from model.contrastive.projection_prediction_header import \
-    ProjectionPredictionHeader
+from model.contrastive.projection_prediction_header import ProjectionPredictionHeader
 from model.contrastive.transop_header import TransportOperatorHeader
 from model.type import HeaderInput, HeaderOutput
 
@@ -29,9 +28,7 @@ class ContrastiveHeader(nn.Module):
 
         self.projection_header = None
         if self.header_cfg.enable_projection_header:
-            self.projection_header = ProjectionHeader(
-                self.header_cfg.projection_header_cfg, backbone_feature_dim
-            )
+            self.projection_header = ProjectionHeader(self.header_cfg.projection_header_cfg, backbone_feature_dim)
 
         self.transop_header = None
         if self.header_cfg.enable_transop_header:
@@ -62,7 +59,6 @@ class ContrastiveHeader(nn.Module):
                         param = param.data
                     self.transop_header.state_dict()[to_name].copy_(param)
 
-
     def forward(self, header_input: HeaderInput, nn_queue: nn.Module = None) -> HeaderOutput:
         aggregate_header_out = {}
 
@@ -72,13 +68,20 @@ class ContrastiveHeader(nn.Module):
             distribution_data = header_out.distribution_data
             aggregate_header_out.update(header_out.header_dict)
 
+        if self.header_cfg.enable_transop_augmentation:
+            enc = self.transop_header.coefficient_encoder
+            psi = self.transop_header.transop.psi
+            z = header_input.feature_0
+            z = torch.stack(torch.split(z, self.transop_header.cfg.block_dim, dim=-1)).transpose(0, 1)
+            c = enc.prior_sample(z.detach())
+            T = torch.matrix_exp(torch.einsum("bsm,muv->bsuv", c, psi))
+            z_aug = (T @ z.unsqueeze(-1)).squeeze(-1).reshape(len(z), -1)
+            # Place back into header input
+            header_input = header_input._replace(feature_0=z_aug)
+
         if self.projection_header is not None:
             header_out = self.projection_header(header_input)
             aggregate_header_out.update(header_out.header_dict)
-
-            if self.header_cfg.enable_transop_augmentation:
-                # TODO: Re-implement augmentations
-                raise NotImplementedError()
 
         if self.proj_pred_header is not None:
             header_out = self.proj_pred_header(header_input)

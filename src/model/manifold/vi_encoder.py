@@ -89,7 +89,7 @@ class CoefficientEncoder(nn.Module):
             nn.LeakyReLU(),
             nn.Linear(4 * feat_dim, enc_out),
         )
-        
+
         self.enc_scale = None
         self.enc_shift = None
         if not self.vi_cfg.enable_det_enc:
@@ -148,11 +148,7 @@ class CoefficientEncoder(nn.Module):
         c = c_refine.detach().clamp(min=-2.0, max=2.0).nan_to_num(nan=0.01).reshape(c.shape)
         return {"shift": c, "logscale": torch.ones_like(c) * self.prior_params["logscale"]}
 
-    # Return encoder, prior, and hyperprior params. In case where the prior is fixed and not learned,
-    # the hyperprior is equal to the pror.
-    def get_distribution_params(
-        self, x0, x1, psi, curr_iter
-    ) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+    def get_prior_params(self, x0, x1=None):
         prior_params = {}
         hyperprior_params = {}
         hyperprior_params["logscale"] = (
@@ -174,16 +170,24 @@ class CoefficientEncoder(nn.Module):
                 )
                 if self.vi_cfg.enable_prior_shift:
                     prior_params["shift"] = self.prior_shift(z_prior).clamp(min=-5.0, max=5.0)
+                else:
+                    prior_params["shift"] = hyperprior_params["shift"]
         else:
             prior_params = hyperprior_params.copy()
+        return prior_params, hyperprior_params
+
+    # Return encoder, prior, and hyperprior params. In case where the prior is fixed and not learned,
+    # the hyperprior is equal to the pror.
+    def get_distribution_params(
+        self, x0, x1, psi, curr_iter
+    ) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+        prior_params, hyperprior_params = self.get_prior_params(x0, x1)
 
         encoder_params = {}
         if self.vi_cfg.enable_fista_enc:
             encoder_params = self.fista_encoder(x0, x1, psi, prior_params, curr_iter)
         elif self.vi_cfg.enable_det_enc:
-            encoder_params["logscale"] = torch.log(
-                torch.ones_like(prior_params["logscale"]) * self.vi_cfg.scale_prior
-            )
+            encoder_params["logscale"] = torch.log(torch.ones_like(prior_params["logscale"]) * self.vi_cfg.scale_prior)
             if self.vi_cfg.encode_point_pair:
                 enc_input = torch.cat((x0, x1), dim=-1)
             else:
@@ -206,6 +210,12 @@ class CoefficientEncoder(nn.Module):
             encoder_params["shift"] += torch.ones_like(encoder_params["shift"]) * self.vi_cfg.shift_prior
 
         return encoder_params, prior_params, hyperprior_params
+
+    def prior_sample(self, x) -> torch.Tensor:
+        prior_params, _ = self.get_prior_params(x)
+        noise = draw_noise_samples(self.vi_cfg.distribution, prior_params["shift"].shape, x.device)
+        samples = reparameterize(self.vi_cfg.distribution, prior_params, noise, self.thresh_warmup * self.lambda_prior)
+        return samples
 
     def max_elbo_sample(self, encoder_params, psi, x0, x1) -> torch.Tensor:
         logscale, shift = encoder_params["logscale"], encoder_params["shift"]
@@ -246,7 +256,9 @@ class CoefficientEncoder(nn.Module):
             if self.thresh_warmup > 1.0:
                 self.thresh_warmup = 1.0
 
-        encoder_params, prior_params, hyperprior_params = self.get_distribution_params(x0, x1, transop.psi.detach(), curr_iter)
+        encoder_params, prior_params, hyperprior_params = self.get_distribution_params(
+            x0, x1, transop.psi.detach(), curr_iter
+        )
 
         if self.vi_cfg.enable_fista_enc or self.vi_cfg.enable_det_enc:
             samples = encoder_params["shift"]
