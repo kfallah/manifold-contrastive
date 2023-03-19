@@ -229,7 +229,14 @@ class CoefficientEncoder(nn.Module):
                 c = reparameterize(
                     self.vi_cfg.distribution, encoder_params, noise, self.thresh_warmup * self.lambda_prior
                 )
-                T = torch.matrix_exp(torch.einsum("sblm,mpk->sblpk", c, psi))
+                if len(psi.shape) == 3:
+                    # Handle the case where we have a single dictionary
+                    T = torch.matrix_exp(torch.einsum("sblm,mpk->sblpk", c, psi))
+                else:
+                    # Handle the case where we have a dictionary per block
+                    T = torch.einsum("sblm,lmpk->sblpk", c, psi)
+                    s, b, l, n, _ = T.shape
+                    T = torch.matrix_exp(T.reshape(-1, n, n)).reshape(s, b, l, n ,n)
                 x1_hat = (T @ x0.unsqueeze(0).unsqueeze(-1)).squeeze(-1)
                 transop_loss = torch.nn.functional.mse_loss(
                     x1_hat, x1.unsqueeze(0).repeat(self.vi_cfg.samples_per_iter, 1, 1, 1), reduction="none"
@@ -263,7 +270,7 @@ class CoefficientEncoder(nn.Module):
         if self.vi_cfg.enable_fista_enc or self.vi_cfg.enable_det_enc:
             samples = encoder_params["shift"]
         else:
-            if self.vi_cfg.enable_max_sampling and curr_iter > self.vi_cfg.max_sample_start_iter:
+            if self.vi_cfg.enable_max_sampling and curr_iter >= self.vi_cfg.max_sample_start_iter:
                 noise = self.max_elbo_sample(encoder_params, transop.psi.detach(), x0, x1)
             else:
                 noise = draw_noise_samples(self.vi_cfg.distribution, encoder_params["shift"].shape, x0.device)

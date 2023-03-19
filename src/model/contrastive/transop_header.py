@@ -26,6 +26,7 @@ class TransportOperatorHeader(nn.Module):
         self.cfg = transop_cfg
 
         if self.cfg.enable_block_diagonal:
+            dict_count = backbone_feature_dim // self.cfg.block_dim
             backbone_feature_dim = self.cfg.block_dim
 
         self.transop = TransOp_expm(
@@ -34,6 +35,7 @@ class TransportOperatorHeader(nn.Module):
             stable_init=self.cfg.stable_operator_initialization,
             real_range=self.cfg.real_range_initialization,
             imag_range=self.cfg.image_range_initialization,
+            dict_count=dict_count if self.cfg.enable_dict_per_block else None
         )
 
         self.coefficient_encoder = None

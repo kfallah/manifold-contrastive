@@ -8,7 +8,7 @@ Wrapper for different contrastive headers.
 
 import torch
 import torch.nn as nn
-from lightly.models.utils import batch_unshuffle
+from torch.cuda.amp import autocast
 
 from model.contrastive.config import ContrastiveHeaderConfig
 from model.contrastive.projection_header import ProjectionHeader
@@ -71,12 +71,12 @@ class ContrastiveHeader(nn.Module):
 
         if self.header_cfg.enable_transop_augmentation:
             enc = self.transop_header.coefficient_encoder
-            psi = self.transop_header.transop.psi
+            transop = self.transop_header.transop
             z = header_input.feature_1
             z = torch.stack(torch.split(z, self.transop_header.cfg.block_dim, dim=-1)).transpose(0, 1)
             c = enc.prior_sample(z.detach())
-            T = torch.matrix_exp(torch.einsum("bsm,muv->bsuv", c, psi))
-            z_aug = (T @ z.unsqueeze(-1)).squeeze(-1).reshape(len(z), -1)
+            with autocast(enabled=False):
+                z_aug = transop(z.float().unsqueeze(-1), c).squeeze(dim=-1).reshape(len(z), -1)
             # Place back into header input
             header_input = header_input._replace(feature_1=z_aug)
 

@@ -111,6 +111,9 @@ class MetricLogger:
             )
             header_dict = model_output.header_output.header_dict
             psi = self.model.contrastive_header.transop_header.transop.get_psi()
+            # For now just take the first dictionary if using a dict per block
+            if len(psi.shape) == 4:
+                psi = psi[0]
             c = np.array(self.c_cache)
             coeff_nz = np.count_nonzero(c, axis=0)
             nz_tot = np.count_nonzero(coeff_nz)

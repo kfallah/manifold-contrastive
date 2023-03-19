@@ -95,6 +95,8 @@ class TransportOperatorConfig:
     # Option to splice input to create BDM constraint on transop
     enable_block_diagonal: bool = True
     block_dim: int = 64
+    # Use a separate dictionary for each block of features
+    enable_dict_per_block: bool = False
 
     # Option for alternating minimization between
     enable_alternating_min: bool = False
