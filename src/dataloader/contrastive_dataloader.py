@@ -45,7 +45,14 @@ def get_dataset(config: DatasetConfig, enable_collate: bool = True, train: bool 
             transform_list.insert(0, T.Resize(config.image_size))
         transform = T.Compose(transform_list)
         dataset = torchvision.datasets.CIFAR100(config.dataset_dir, transform=transform, train=train, download=True)
-    elif config.dataset_name == "ImageNet":
+    elif config.dataset_name == "STL10":
+        if train:
+            split = "train+unlabeled"
+        else:
+            split="test"
+        transform = T.Compose(transform_list)
+        dataset = torchvision.datasets.STL10(root=config.dataset_dir, transform=transform, split=split, download=True)
+    elif config.dataset_name == "TinyImageNet":
         transform = T.Compose(transform_list)
         split = "train" if train else "val"
         directory = config.dataset_dir + "/" + split
@@ -111,6 +118,7 @@ def get_dataloader(config: DataLoaderConfig) -> Tuple[Dataset, DataLoader]:
         num_workers=config.num_workers,
         collate_fn=collate_fn,
         persistent_workers=config.persistent_workers,
+        pin_memory=True
     )
 
     return (pytorch_dataset, dataloader)

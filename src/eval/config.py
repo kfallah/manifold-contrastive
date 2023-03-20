@@ -19,6 +19,8 @@ class EvalRunnerConfig:
     use_for_best_checkpoint: bool = False
     # Evaluation frequency in epochs
     eval_freq: int = 50
+    # Whether this eval requires features
+    requires_feat: bool = False
 
 
 @dataclass
@@ -31,12 +33,14 @@ class LinearProbeConfig(EvalRunnerConfig):
 
 @dataclass
 class ClusteringEvalConfig(EvalRunnerConfig):
+    requires_feat: bool = True
     num_points_cluster: int = 5000
     num_clusters: int = 10
 
 
 @dataclass
 class KNNEvalConfig(EvalRunnerConfig):
+    requires_feat: bool = True
     k: int = 20
 
 

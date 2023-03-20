@@ -6,10 +6,10 @@ defaults:
 
 model_cfg:
   backbone_cfg:
-    hub_model_name: torchhub:resnet50
+    hub_model_name: torchhub:resnet18
 eval_dataloader_cfg:
   collate_fn_cfg:
     collate_fn_type: NONE
   train: false
   shuffle: false
-  batch_size: 256
+  batch_size: 512

@@ -12,4 +12,4 @@ batch_size: 512
 train: true
 shuffle: true
 persistent_workers: true
-num_workers: 20
+num_workers: 32

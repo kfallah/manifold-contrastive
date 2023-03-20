@@ -41,6 +41,12 @@ class Evaluator(nn.Module):
         eval_runner_list = [epoch % eval_runner.get_eval_freq() == 0 for eval_runner in self.eval_runners]
         return np.any(eval_runner_list)
 
+    def features_needed(self) -> bool:
+        for runner in self.eval_runners:
+            if runner.cfg.requires_feat:
+                return True
+        return False
+
     def run_eval(
         self,
         epoch: int,
@@ -54,8 +60,10 @@ class Evaluator(nn.Module):
         eval_metrics = {}
 
         weak_aug_train_dataloader = get_weak_aug_dataloader(train_dataloader, train_dataloader_cfg)
-        train_eval_input = encode_features(self.model, weak_aug_train_dataloader, self.device)
-        val_eval_input = encode_features(self.model, eval_dataloader, self.device)
+        train_eval_input, val_eval_input = None, None
+        if self.features_needed:
+            train_eval_input = encode_features(self.model, weak_aug_train_dataloader, self.device)
+            val_eval_input = encode_features(self.model, eval_dataloader, self.device)
 
         checkpoint_metric = 0.0
         for eval_runner in self.eval_runners:
