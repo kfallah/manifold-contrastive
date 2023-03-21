@@ -27,14 +27,13 @@ class Model(nn.Module):
         self.backbone_feat_dim = backbone_feat_dim
         self.contrastive_header = contrastive_header
 
-    def forward(self, x: torch.Tensor, x_idx: List, curr_iter: int, nn_queue: nn.Module = None) -> ModelOutput:
+    def forward(self, x: torch.Tensor, curr_iter: int, nn_queue: nn.Module = None) -> ModelOutput:
         """Take input image and get prediction from contrastive header.
 
         Args:
             x_list (torch.Tensor): V x [B x H x W x C] List of Tensors where each entry is a batch of different views
                                     of the image. V=1 returns features only, V=2 performs contrastive and manifold
                                     headers.
-            x_idx (torch.Tensor): [B] Indices of each entry in the batch.
 
         Returns:
             Returns the encoded features from the backbone and the prediction provided by the header.
@@ -42,12 +41,12 @@ class Model(nn.Module):
         # Only a single view of an image is used, for evaluation purposes
         if x.shape[1] == 1:
             feature_0 = self.backbone(x[:, 0])
-            header_input = HeaderInput(curr_iter, x, None, x_idx, feature_0, None)
+            header_input = HeaderInput(curr_iter, x, None, feature_0, None)
             return ModelOutput(header_input, None)
         # Two views of an image are provided
         elif x.shape[1] == 2:
             feature_0, feature_1 = self.backbone(x[:, 0]), self.backbone(x[:, 1])
-            header_input = HeaderInput(curr_iter, x[:, 0], x[:, 1], x_idx, feature_0, feature_1)
+            header_input = HeaderInput(curr_iter, x[:, 0], x[:, 1], feature_0, feature_1)
         # All other cases are not currently supported
         else:
             raise NotImplementedError

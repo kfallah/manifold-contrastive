@@ -19,8 +19,6 @@ class EvaluationInput(NamedTuple):
     model: Model
     # All the input images used for evaluation [N x H x W x 3] (expected on CPU)
     x: torch.Tensor
-    # Indices for input data from dataloader [N] (expected on CPU)
-    x_idx: list
     # Labels for all of the validation samples [N] (expected on CPU)
     labels: torch.Tensor
     # Encoded features from backbone for the val dataloader [N x D] (expected on CPU)

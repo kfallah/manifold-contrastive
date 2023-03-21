@@ -1,8 +1,7 @@
 defaults:
   - exp_cfg
   - default_hydra
-  - dataloader/cifar10@train_dataloader_cfg
-  - dataloader/cifar10@eval_dataloader_cfg
+  - dataloader/cifar10@dataloader_cfg
   - _self_
 
 exp_dir: results
@@ -21,10 +20,9 @@ trainer_cfg:
   num_epochs: 1000
   use_amp: false
   optimizer_cfg:
-    optimizer: SGD
-    initial_lr: 0.6
+    optimizer: Adam
+    initial_lr: 0.001
     weight_decay: 1e-6
-    enable_nesterov: true
   scheduler_cfg:
     scheduler: LinearWarmupCosineAnnealingLR
     warmup_epochs: 10
@@ -49,10 +47,3 @@ evaluator_cfg:
     enable_runner: true
     eval_freq: 100
     num_epochs: 100
-    use_amp: false
-eval_dataloader_cfg:
-  collate_fn_cfg:
-    collate_fn_type: NONE
-  train: false
-  shuffle: false
-  batch_size: 512

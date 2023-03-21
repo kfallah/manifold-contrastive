@@ -11,8 +11,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from dataloader.config import DataLoaderConfig
-from dataloader.utils import get_weak_aug_dataloader
+from dataloader.base import Dataset
 from eval.clustering import ClusteringEval
 from eval.config import EvaluatorConfig
 from eval.knn_acc import KNNEval
@@ -41,39 +40,28 @@ class Evaluator(nn.Module):
         eval_runner_list = [epoch % eval_runner.get_eval_freq() == 0 for eval_runner in self.eval_runners]
         return np.any(eval_runner_list)
 
-    def features_needed(self) -> bool:
-        for runner in self.eval_runners:
-            if runner.cfg.requires_feat:
-                return True
-        return False
-
     def run_eval(
         self,
         epoch: int,
-        train_dataloader: torch.utils.data.DataLoader,
-        train_dataloader_cfg: DataLoaderConfig,
-        eval_dataloader: torch.utils.data.DataLoader,
+        dataset: Dataset,
         last_epoch: bool = False,
     ) -> Optional[Tuple[float, Dict[str, float]]]:
         if not self.eval_needed(epoch) and not last_epoch:
             return None
         eval_metrics = {}
 
-        weak_aug_train_dataloader = get_weak_aug_dataloader(train_dataloader, train_dataloader_cfg)
-        train_eval_input, val_eval_input = None, None
-        if self.features_needed:
-            train_eval_input = encode_features(self.model, weak_aug_train_dataloader, self.device)
-            val_eval_input = encode_features(self.model, eval_dataloader, self.device)
+        eval_dataloader = dataset.eval_dataloader
+        val_dataloader = dataset.val_dataloader
+        train_eval_input = encode_features(self.model, eval_dataloader, self.device)
+        val_eval_input = encode_features(self.model, val_dataloader, self.device)
 
         checkpoint_metric = 0.0
         for eval_runner in self.eval_runners:
-            if epoch > 0 and (epoch % eval_runner.get_eval_freq() == 0 or last_epoch):
+            if (epoch % eval_runner.get_eval_freq() == 0 or last_epoch):
                 metric_metadata, key_metric_value = eval_runner.run_eval(
                     train_eval_input=train_eval_input,
                     val_eval_input=val_eval_input,
-                    train_dataloader=weak_aug_train_dataloader,
-                    val_dataloader=eval_dataloader,
-                    num_classes=train_dataloader_cfg.dataset_cfg.num_classes,
+                    num_classes=dataset.cfg.dataset_cfg.num_classes,
                     device=self.device,
                 )
                 eval_metrics.update(metric_metadata)

@@ -68,14 +68,13 @@ class Trainer(nn.Module):
         for idx, batch in enumerate(train_dataloader):
             curr_iter = idx + (epoch * len(train_dataloader))
             pre_time = time.time()
-            x_list = list(batch[0])
-            x_idx = list(batch[2])
+            x_list, _ = batch
             # Tensor of input images of shape [B x V x H x W x C]
             x_gpu = torch.stack([x.to(self.device) for x in x_list]).transpose(0, 1)
 
             with autocast(enabled=self.trainer_cfg.use_amp):
                 # Send inputs through model
-                model_output = self.model(x_gpu, x_idx, curr_iter, self.nn_queue)
+                model_output = self.model(x_gpu, curr_iter, self.nn_queue)
                 loss_metadata, total_loss = self.get_model().compute_loss(curr_iter, model_output)
 
                 if self.trainer_cfg.enable_nn_queue:

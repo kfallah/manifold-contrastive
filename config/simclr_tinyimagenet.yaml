@@ -1,7 +1,6 @@
 defaults:
   - base
-  - dataloader/tinyimagenet@train_dataloader_cfg
-  - dataloader/tinyimagenet@eval_dataloader_cfg
+  - dataloader/tinyimagenet@dataloader_cfg
   - _self_
 
 exp_name: SimCLR_TinyImageNet

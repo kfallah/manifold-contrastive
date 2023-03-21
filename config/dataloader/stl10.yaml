@@ -2,12 +2,8 @@ dataset_cfg:
   dataset_name: STL10
   num_classes: 10
   image_size: 64
-collate_fn_cfg:
-  collate_fn_type: LIGHTLY_IMAGE
+ssl_aug_cfg:
   normalize_mean: [0.43, 0.42, 0.39]
   normalize_std: [0.27, 0.26, 0.27]
-batch_size: 512
-train: true
-shuffle: true
 persistent_workers: true
 num_workers: 32
