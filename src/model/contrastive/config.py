@@ -92,7 +92,7 @@ class TransportOperatorConfig:
 
     stable_operator_initialization: bool = True
     real_range_initialization: float = 0.0001
-    image_range_initialization: float = 10.0
+    image_range_initialization: float = 6.0
 
     batch_size: int = 128
 

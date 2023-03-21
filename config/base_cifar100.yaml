@@ -1,7 +1,7 @@
 defaults:
   - base_cifar10
-  - dataloader/cifar100_simclr_strong@train_dataloader_cfg
-  - dataloader/cifar100_simclr_strong@eval_dataloader_cfg
+  - dataloader/cifar100@train_dataloader_cfg
+  - dataloader/cifar100@eval_dataloader_cfg
   - _self_
 
 model_cfg:

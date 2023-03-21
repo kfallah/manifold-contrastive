@@ -5,12 +5,6 @@ dataset_cfg:
   dataset_dir: ../../datasets/tiny-imagenet-200
 collate_fn_cfg:
   collate_fn_type: LIGHTLY_IMAGE
-  cj_bright: 0.8
-  cj_contrast: 0.8
-  cj_sat: 0.8
-  cj_hue: 0.2
-  min_scale: 0.08
-  gausian_blur: 0.5
   normalize_mean: [0.480, 0.448, 0.398]
   normalize_std: [0.277, 0.269, 0.282]
 batch_size: 512

@@ -1,8 +1,8 @@
 defaults:
   - exp_cfg
   - default_hydra
-  - dataloader/stl10_simclr_strong@train_dataloader_cfg
-  - dataloader/stl10_simclr_strong@eval_dataloader_cfg
+  - dataloader/stl10@train_dataloader_cfg
+  - dataloader/stl10@eval_dataloader_cfg
   - _self_
 
 exp_dir: results
@@ -15,7 +15,7 @@ model_cfg:
     hub_model_name: torchhub:resnet18
   loss_cfg:
     ntxent_loss_active: true
-    ntxent_temp: 0.1
+    ntxent_temp: 0.5
 
 trainer_cfg:
   num_epochs: 1000

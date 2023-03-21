@@ -1,8 +1,8 @@
 defaults:
   - exp_cfg
   - default_hydra
-  - dataloader/cifar10_simclr_strong@train_dataloader_cfg
-  - dataloader/cifar10_simclr_strong@eval_dataloader_cfg
+  - dataloader/cifar10@train_dataloader_cfg
+  - dataloader/cifar10@eval_dataloader_cfg
   - _self_
 
 exp_dir: results

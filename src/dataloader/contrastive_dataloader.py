@@ -81,6 +81,8 @@ def get_collate_fn(config: CollateFunctionConfig, image_size: int) -> Callable:
             cj_sat=config.cj_sat,
             cj_hue=config.cj_hue,
             min_scale=config.min_scale,
+            random_gray_scale=config.gray_scale,
+            hf_prob=config.horiz_flip,
             gaussian_blur=config.gausian_blur,
             normalize={"mean": list(config.normalize_mean), "std": list(config.normalize_std)}
             if config.normalize_mean

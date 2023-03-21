@@ -1,16 +1,13 @@
 dataset_cfg: 
-  dataset_name: CIFAR10
+  dataset_name: STL10
   num_classes: 10
-  image_size: 32
+  image_size: 64
 collate_fn_cfg:
   collate_fn_type: LIGHTLY_IMAGE
-  cj_bright: 0.4
-  cj_contrast: 0.4
-  cj_sat: 0.4
-  cj_hue: 0.1
-  min_scale: 0.08
+  normalize_mean: [0.43, 0.42, 0.39]
+  normalize_std: [0.27, 0.26, 0.27]
 batch_size: 512
 train: true
 shuffle: true
 persistent_workers: true
-num_workers: 20
+num_workers: 32
