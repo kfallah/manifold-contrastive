@@ -1,5 +1,7 @@
 defaults:
-  - base_stl10
+  - base
+  - dataloader/stl10@train_dataloader_cfg
+  - dataloader/stl10@eval_dataloader_cfg  
   - _self_
 
 exp_name: SimCLR_STL10
