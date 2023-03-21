@@ -1,5 +1,7 @@
 defaults:
-  - base_cifar100
+  - base
+  - dataloader/cifar100@train_dataloader_cfg
+  - dataloader/cifar100@eval_dataloader_cfg
   - _self_
 
 exp_name: SimCLR_CIFAR100
