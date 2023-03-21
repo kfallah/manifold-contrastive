@@ -52,12 +52,16 @@ class VariationalEncoderConfig:
     total_num_samples: int = 20
     samples_per_iter: int = 20
 
+    # Learn the prior, as in a CVAE
+    # Required for transop augmentations
     enable_learned_prior: bool = False
     enable_prior_shift: bool = False
-    # Use deterministic encoder
-    enable_det_enc: bool = False
+    enable_prior_block_encoding: bool = False
     # Use a deterministic prior for shift
     enable_det_prior: bool = False
+
+    # Use deterministic encoder
+    enable_det_enc: bool = False
 
     # whether to use FISTA for the encoder instead of a DNN.
     enable_fista_enc: bool = False
@@ -88,7 +92,7 @@ class TransportOperatorConfig:
 
     stable_operator_initialization: bool = True
     real_range_initialization: float = 0.0001
-    image_range_initialization: float = 5.0
+    image_range_initialization: float = 10.0
 
     batch_size: int = 128
 

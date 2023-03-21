@@ -9,7 +9,7 @@ collate_fn_cfg:
   cj_sat: 0.4
   cj_hue: 0.1
   min_scale: 0.08
-batch_size: 256
+batch_size: 512
 train: true
 shuffle: true
 persistent_workers: true

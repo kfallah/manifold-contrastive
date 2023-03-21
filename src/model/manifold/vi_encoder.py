@@ -107,6 +107,8 @@ class CoefficientEncoder(nn.Module):
 
         if self.vi_cfg.enable_learned_prior:
             input_dim = 2 * input_size if self.vi_cfg.enable_det_prior else input_size
+            if self.vi_cfg.enable_prior_block_encoding:
+                input_dim += 1
             final_dim = dict_size if self.vi_cfg.enable_det_prior else feat_dim
             self.prior_feat_extract = nn.Sequential(
                 nn.Linear(input_dim, 4 * feat_dim),
@@ -163,6 +165,10 @@ class CoefficientEncoder(nn.Module):
                 prior_params["shift"] = c_det.clamp(min=-5.0, max=5.0)
                 prior_params["logscale"] = hyperprior_params["logscale"]
             else:
+                if self.vi_cfg.enable_prior_block_encoding:
+                    block_encoding = torch.arange(x0.shape[1], device=x0.device)
+                    block_encoding = block_encoding.view(1, x0.shape[1], 1).repeat(len(x0), 1, 1)
+                    x0 = torch.cat((x0, block_encoding), dim=-1)
                 z_prior = self.prior_feat_extract(x0)
                 prior_params["logscale"] = self.prior_scale(z_prior).clamp(max=2)
                 prior_params["logscale"] += torch.log(
