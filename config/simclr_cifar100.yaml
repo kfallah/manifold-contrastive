@@ -10,3 +10,4 @@ model_cfg:
     projection_header_cfg:
       header_name: SimCLR
       projection_type: MLP
+      output_dim: 64

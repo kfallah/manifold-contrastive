@@ -52,7 +52,7 @@ class TransportOperatorHeader(nn.Module):
             {
                 "params": self.transop.parameters(),
                 "lr": self.cfg.transop_lr,
-                "eta_min": 1e-4,
+                "eta_min": 1e-6,
                 "weight_decay": self.cfg.transop_weight_decay,
                 "disable_layer_adaptation": True,
             },
@@ -62,7 +62,7 @@ class TransportOperatorHeader(nn.Module):
                 {
                     "params": self.coefficient_encoder.parameters(),
                     "lr": self.cfg.vi_cfg.variational_encoder_lr,
-                    "eta_min": 1e-4,
+                    "eta_min": 1e-6,
                     "weight_decay": self.cfg.vi_cfg.variational_encoder_weight_decay,
                     "disable_layer_adaptation": True,
                 }

@@ -10,3 +10,7 @@ model_cfg:
     projection_header_cfg:
       header_name: SimCLR
       projection_type: MLP
+trainer_cfg:
+  num_epochs: 2000
+  optimizer_cfg:
+    initial_lr: 0.002
