@@ -1,5 +1,5 @@
 dataset_cfg: 
-  dataset_name: TinyImageNet
+  dataset_name: TinyImagenet
   num_classes: 200
   image_size: 64
   dataset_dir: ../../datasets/tiny-imagenet-200

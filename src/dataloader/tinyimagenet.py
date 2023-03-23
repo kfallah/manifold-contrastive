@@ -5,7 +5,6 @@ from dataloader.base import Dataset
 
 
 class TinyImagenet(Dataset):
-
     def train_dataset(self):
         t = self.get_ssl_transform()
         directory = self.cfg.dataset_cfg.dataset_dir + "/train"
@@ -25,5 +24,5 @@ class TinyImagenet(Dataset):
         Dataset used for validation metrics, likely uses no augmentations
         """
         t = self.get_base_transform()
-        directory = self.cfg.dataset_cfg.dataset_dir + "/test"
+        directory = self.cfg.dataset_cfg.dataset_dir + "/val"
         return torchvision.datasets.ImageFolder(directory, transform=t)

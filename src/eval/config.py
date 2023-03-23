@@ -23,9 +23,8 @@ class EvalRunnerConfig:
 
 @dataclass
 class LinearProbeConfig(EvalRunnerConfig):
-    optimizer_cfg: OptimizerConfig = OptimizerConfig(initial_lr=0.2, weight_decay=0.0, enable_nesterov=True)
-    scheduler_cfg: SchedulerConfig = SchedulerConfig()
-    num_epochs: int = 100
+    optimizer_cfg: OptimizerConfig = OptimizerConfig(optimizer="Adam", initial_lr=1.0e-2, weight_decay=5.0e-6)
+    num_epochs: int = 500
 
 
 @dataclass

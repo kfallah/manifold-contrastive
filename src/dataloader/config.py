@@ -21,7 +21,7 @@ class DatasetConfig:
 
 @dataclass
 class SSLAugmentationConfig:
-    cj_prob: float = 0.4
+    cj_prob: float = 0.8
     cj_bright: float = 0.4
     cj_contrast: float = 0.4
     cj_sat: float = 0.4
@@ -38,9 +38,8 @@ class DataLoaderConfig:
     dataset_cfg: DatasetConfig = MISSING
     ssl_aug_cfg: SSLAugmentationConfig = SSLAugmentationConfig()
     train: bool = True
-    train_batch_size: int = 512
+    train_batch_size: int = 1024
     eval_batch_size: int = 1000
     val_batch_size: int = 1000
-    shuffle: bool = False
     persistent_workers: bool = True
     num_workers: int = 0

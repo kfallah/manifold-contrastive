@@ -72,5 +72,9 @@ def initialize_scheduler(
                 1e-3,
             ),
         )
+    elif config.scheduler == "MultiStepLR":
+        iters_per_epoch = num_iters / num_epochs
+        milestones = [int(num_iters - 50 * iters_per_epoch), int(num_iters - 25 * iters_per_epoch)]
+        return torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones, gamma=0.2)
     else:
         raise NotImplementedError

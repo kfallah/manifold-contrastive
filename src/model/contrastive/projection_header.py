@@ -15,8 +15,7 @@ import math
 
 import torch
 import torch.nn as nn
-from lightly.models.modules.heads import (BarlowTwinsProjectionHead,
-                                          SimCLRProjectionHead)
+from lightly.models.modules.heads import BarlowTwinsProjectionHead, BYOLProjectionHead
 
 from model.contrastive.config import ProjectionHeaderConfig
 from model.type import HeaderInput, HeaderOutput
@@ -46,16 +45,14 @@ class ProjectionHeader(nn.Module):
         self.projector = None
         if self.proj_cfg.projection_type == "MLP":
             if self.proj_cfg.header_name == "SimCLR":
-                self.projector = SimCLRProjectionHead(
+                self.projector = BYOLProjectionHead(
                     backbone_feature_dim,
                     self.proj_cfg.hidden_dim,
                     self.proj_cfg.output_dim,
                 )
             elif self.proj_cfg.header_name == "VICReg":
                 self.projector = BarlowTwinsProjectionHead(
-                    backbone_feature_dim,
-                    self.proj_cfg.hidden_dim,
-                    self.proj_cfg.output_dim
+                    backbone_feature_dim, self.proj_cfg.hidden_dim, self.proj_cfg.output_dim
                 )
             else:
                 raise NotImplementedError
@@ -67,7 +64,6 @@ class ProjectionHeader(nn.Module):
             self.projector = nn.Identity()
         else:
             raise NotImplementedError
-
 
     def forward(self, header_input: HeaderInput) -> HeaderOutput:
         header_out = {}
