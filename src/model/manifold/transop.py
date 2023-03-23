@@ -40,10 +40,12 @@ class TransOp_expm(nn.Module):
             else:
                 T = torch.einsum("bsm,mpk->bspk", c, psi_use)
             T = torch.matrix_exp(T)
+            out = T @ x
         else:
-            T = torch.einsum("bsm,smpk->bspk", c, psi_use)
+            T = torch.einsum("bm,smpk->bspk", c, psi_use)
             T = torch.matrix_exp(T.reshape(-1, self.N, self.N)).reshape(len(x), self.dict_count, self.N, self.N)
-        out = T @ x
+            x = x.reshape(len(x), self.dict_count, self.N, 1)
+            out = (T @ x).reshape(len(x), -1, 1)
         return out
 
     def set_coefficients(self, c):

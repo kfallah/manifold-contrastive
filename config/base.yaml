@@ -24,7 +24,8 @@ trainer_cfg:
     initial_lr: 0.003
     weight_decay: 1e-6
   scheduler_cfg:
-    scheduler: MultiStepLR
+    scheduler: LinearWarmupCosineAnnealingLR
+    warmup_epochs: 10
   metric_logger_cfg:
     enable_wandb_logging: true
     enable_console_logging: true
@@ -45,4 +46,4 @@ evaluator_cfg:
     use_for_best_checkpoint: true
     enable_runner: true
     eval_freq: 100
-    num_epochs: 100
+    num_epochs: 500

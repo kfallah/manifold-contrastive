@@ -117,7 +117,7 @@ class Loss(nn.Module):
         if self.loss_cfg.transop_loss_active:
             z1_hat, z1 = header_dict["transop_z1hat"], header_dict["transop_z1"]
             if self.loss_cfg.transop_loss_fn == "mse":
-                transop_loss = F.mse_loss(z1_hat, z1, reduction="none").mean()
+                transop_loss = F.mse_loss(z1_hat, z1.detach(), reduction="none").mean()
                 if self.loss_cfg.transop_symmetric:
                     z0_hat, z0 = header_dict["transop_z0hat"], header_dict["transop_z0"]
                     transop_loss = 0.5 * transop_loss + 0.5 * F.mse_loss(z0_hat, z0.detach(), reduction="none").mean()

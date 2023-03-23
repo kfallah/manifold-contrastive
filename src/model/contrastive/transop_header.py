@@ -25,13 +25,14 @@ class TransportOperatorHeader(nn.Module):
         super(TransportOperatorHeader, self).__init__()
         self.cfg = transop_cfg
 
+        transop_dim = backbone_feature_dim
         if self.cfg.enable_block_diagonal:
             dict_count = backbone_feature_dim // self.cfg.block_dim
-            backbone_feature_dim = self.cfg.block_dim
+            transop_dim = self.cfg.block_dim
 
         self.transop = TransOp_expm(
             M=self.cfg.dictionary_size,
-            N=backbone_feature_dim,
+            N=transop_dim,
             stable_init=self.cfg.stable_operator_initialization,
             real_range=self.cfg.real_range_initialization,
             imag_range=self.cfg.image_range_initialization,
@@ -42,7 +43,7 @@ class TransportOperatorHeader(nn.Module):
         if self.cfg.enable_variational_inference:
             self.coefficient_encoder = CoefficientEncoder(
                 self.cfg.vi_cfg,
-                backbone_feature_dim,
+                backbone_feature_dim if self.cfg.enable_dict_per_block else transop_dim,
                 self.cfg.dictionary_size,
                 self.cfg.lambda_prior,
             )
@@ -92,7 +93,7 @@ class TransportOperatorHeader(nn.Module):
 
         # If enabled, impose block diagonal constraint on operators by breaking up features into
         # sequence of length b (e.g., b=64)
-        if self.cfg.enable_block_diagonal:
+        if self.cfg.enable_block_diagonal and not self.cfg.enable_dict_per_block:
             z0 = torch.stack(torch.split(z0, self.cfg.block_dim, dim=-1)).transpose(0, 1)
             z1_use = torch.stack(torch.split(z1_use, self.cfg.block_dim, dim=-1)).transpose(0, 1)
 

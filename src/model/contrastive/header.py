@@ -72,13 +72,22 @@ class ContrastiveHeader(nn.Module):
         if self.header_cfg.enable_transop_augmentation:
             enc = self.transop_header.coefficient_encoder
             transop = self.transop_header.transop
-            z = header_input.feature_1
-            z = torch.stack(torch.split(z, self.transop_header.cfg.block_dim, dim=-1)).transpose(0, 1)
-            c = enc.prior_sample(z.detach())
+
+            z0 = header_input.feature_0
+            z1 = header_input.feature_1
+
+            if self.transop_header.cfg.enable_block_diagonal and not self.transop_header.cfg.enable_dict_per_block:
+                z0 = torch.stack(torch.split(z0, self.transop_header.cfg.block_dim, dim=-1)).transpose(0, 1)
+                z1 = torch.stack(torch.split(z1, self.transop_header.cfg.block_dim, dim=-1)).transpose(0, 1)
+
+            c0 = enc.prior_sample(z0.detach())
+            c1 = enc.prior_sample(z1.detach())
+
             with autocast(enabled=False):
-                z_aug = transop(z.float().unsqueeze(-1), c).squeeze(dim=-1).reshape(len(z), -1)
+                z1_aug = transop(z1.float().unsqueeze(-1), c1).squeeze(dim=-1).reshape(len(z1), -1)
+                z0_aug = transop(z0.float().unsqueeze(-1), c0).squeeze(dim=-1).reshape(len(z0), -1)
             # Place back into header input
-            header_input = header_input._replace(feature_1=z_aug)
+            header_input = header_input._replace(feature_0=z0_aug, feature_1=z1_aug)
 
         if self.projection_header is not None:
             header_out = self.projection_header(header_input)
