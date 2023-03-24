@@ -77,13 +77,6 @@ class TransportOperatorHeader(nn.Module):
         z0, z1 = header_input.feature_0, header_input.feature_1
         distribution_data = None
 
-        # Detach the predictions in the case where we dont want gradient going to the backbone
-        # or when we do alternating minimization.
-        if (
-            self.cfg.enable_alternating_min and (header_input.curr_iter // self.cfg.alternating_min_step) % 2 == 0
-        ) or curr_iter < self.cfg.fine_tune_iter:
-            z0, z1 = z0.detach(), z1.detach()
-
         # either use the nearnest neighbor bank or the projected feature to make the prediction
         z0 = z0[: self.cfg.batch_size]
         if nn_queue is not None:
@@ -95,7 +88,7 @@ class TransportOperatorHeader(nn.Module):
         # sequence of length b (e.g., b=64)
         if self.cfg.enable_block_diagonal and not self.cfg.enable_dict_per_block:
             z0 = z0.reshape(len(z0), -1, self.cfg.block_dim)
-            z1 = z1_use.reshape(len(z0), -1, self.cfg.block_dim)
+            z1_use = z1_use.reshape(len(z0), -1, self.cfg.block_dim)
 
         # Infer coefficients for point pair
         if not self.cfg.enable_variational_inference:
@@ -118,7 +111,7 @@ class TransportOperatorHeader(nn.Module):
         # Whether or not to compute gradient through the transport operator
         transop_grad = (
             not (
-                self.cfg.enable_alternating_min and (header_input.curr_iter // self.cfg.alternating_min_step) % 2 != 0
+                self.cfg.enable_alternating_min and (header_input.curr_iter // self.cfg.alternating_min_step) != 0
             )
             and curr_iter > self.cfg.start_iter
         )

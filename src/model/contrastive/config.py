@@ -105,7 +105,7 @@ class TransportOperatorConfig:
     # Option for alternating minimization between
     enable_alternating_min: bool = False
     # Number of steps to alternate between updating the backbone and the transop/encoder
-    alternating_min_step: int = 200
+    alternating_min_step: int = 20
 
     # Config for variational network
     enable_variational_inference: bool = True

@@ -175,8 +175,10 @@ class Loss(nn.Module):
 
         if self.loss_cfg.real_eig_reg_active:
             assert "psi" in args_dict.keys()
-            psi = args_dict["psi"]
-            eig_loss = (torch.real(torch.linalg.eigvals(psi)) ** 2).sum()
+            psi_use = args_dict["psi"]
+            psi_use = psi_use.reshape(-1, psi_use.shape[-1], psi_use.shape[-1])
+            psi_use = psi_use[torch.randperm(len(psi_use))[:10]]
+            eig_loss = (torch.real(torch.linalg.eigvals(psi_use)) ** 2).sum()
             loss_meta["real_eig_loss"] = eig_loss.item()
             total_loss += self.loss_cfg.real_eig_reg_weight * eig_loss
 

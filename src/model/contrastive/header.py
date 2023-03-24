@@ -84,8 +84,8 @@ class ContrastiveHeader(nn.Module):
             c1 = enc.prior_sample(z1.detach())
 
             with autocast(enabled=False):
-                z1_aug = transop(z1.float().unsqueeze(-1), c1).squeeze(dim=-1).reshape(len(z1), -1)
-                z0_aug = transop(z0.float().unsqueeze(-1), c0).squeeze(dim=-1).reshape(len(z0), -1)
+                z1_aug = transop(z1.float().unsqueeze(-1), c1, transop_grad=False).squeeze(dim=-1).reshape(len(z1), -1)
+                z0_aug = transop(z0.float().unsqueeze(-1), c0, transop_grad=False).squeeze(dim=-1).reshape(len(z0), -1)
             # Place back into header input
             header_input = header_input._replace(feature_0=z0_aug, feature_1=z1_aug)
 
