@@ -27,12 +27,15 @@ class LinearProbeEval(EvalRunner):
     ) -> None:
         backbone_feat_dim = train_eval_input.feature_list.shape[1]
         self.clf = nn.Linear(backbone_feat_dim, num_classes).to(device)
-
-        lr_start, lr_end = 1e-2, 1e-6
-        gamma = (lr_end / lr_start) ** (1 / self.get_config().num_epochs)
-
+        num_epoch_iters = len(train_eval_input.feature_list) // self.get_config().num_epochs
         self.optimizer = initialize_optimizer(self.get_config().optimizer_cfg, self.clf.parameters())
-        self.scheduler = torch.optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=gamma)
+        self.scheduler = initialize_scheduler(
+            self.get_config().scheduler_cfg,
+            self.get_config().optimizer_cfg,
+            self.get_config().num_epochs,
+            num_epoch_iters * self.get_config().num_epochs,
+            self.optimizer,
+        )
         self.criterion = nn.CrossEntropyLoss().to(device)
 
     def run_eval(
@@ -51,7 +54,7 @@ class LinearProbeEval(EvalRunner):
                 self.optimizer.zero_grad()
                 self.criterion(self.clf(x_train[idx]), y_train[idx]).backward()
                 self.optimizer.step()
-            self.scheduler.step()
+                self.scheduler.step()
 
         y_pred = self.clf(x_val)
         pred_top = y_pred.topk(max([1, 5]), 1, largest=True, sorted=True).indices

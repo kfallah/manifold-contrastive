@@ -38,7 +38,7 @@ class DataLoaderConfig:
     dataset_cfg: DatasetConfig = MISSING
     ssl_aug_cfg: SSLAugmentationConfig = SSLAugmentationConfig()
     train: bool = True
-    train_batch_size: int = 1024
+    train_batch_size: int = 512
     eval_batch_size: int = 1000
     val_batch_size: int = 1000
     persistent_workers: bool = True
