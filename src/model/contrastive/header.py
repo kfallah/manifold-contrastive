@@ -77,8 +77,8 @@ class ContrastiveHeader(nn.Module):
             z1 = header_input.feature_1
 
             if self.transop_header.cfg.enable_block_diagonal and not self.transop_header.cfg.enable_dict_per_block:
-                z0 = torch.stack(torch.split(z0, self.transop_header.cfg.block_dim, dim=-1)).transpose(0, 1)
-                z1 = torch.stack(torch.split(z1, self.transop_header.cfg.block_dim, dim=-1)).transpose(0, 1)
+                z0 = z0.reshape(len(z0), -1 self.transop_header.cfg.block_dim)
+                z1 = z1.reshape(len(z1), -1 self.transop_header.cfg.block_dim)
 
             c0 = enc.prior_sample(z0.detach())
             c1 = enc.prior_sample(z1.detach())

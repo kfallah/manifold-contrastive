@@ -284,26 +284,26 @@ class CoefficientEncoder(nn.Module):
                 # s x b x l x d x d
                 T = torch.matrix_exp(T.reshape(-1, n, n)).reshape(s, b, l, n ,n)
                 # b x l x d
-                x0_block = torch.stack(torch.split(x0, n, dim=-1)).transpose(0, 1)
+                x0_block = x0.reshape(len(x0), l, n)
                 # s x b x l x d
                 x1_hat_block = (T @ x0_block.unsqueeze(0).unsqueeze(-1)).squeeze(-1)
                 # s x b x D
                 x1_hat = x1_hat_block.reshape(s, len(x0), -1)
                 # s x b
                 transop_loss = torch.nn.functional.mse_loss(
-                    x1_hat, x1.unsqueeze(0).repeat(self.vi_cfg.samples_per_iter, 1, 1), reduction="none"
+                    x1_hat, x1.unsqueeze(0).expand(s, -1, -1), reduction="none"
                 ).mean(dim=-1)
 
-                noise_list.append(noise)
+                noise_list.append(noise.squeeze(1))
                 loss_list.append(transop_loss)
-                l1_list.append(c.abs().sum(dim=-1))
+                l1_list.append(c.abs().sum(dim=-1).squeeze(1))
 
             # S x b x m
-            noise_list = torch.cat(noise_list, dim=0).squeeze(1)
+            noise_list = torch.cat(noise_list, dim=0)
             # S x b
             loss_list = torch.cat(loss_list, dim=0)
             # S x b
-            l1_list = torch.cat(l1_list, dim=0).squeeze(1)
+            l1_list = torch.cat(l1_list, dim=0)
             # S x b
             max_elbo = torch.argmin(loss_list + self.vi_cfg.max_sample_l1_penalty * l1_list, dim=0).detach()
             optimal_noise = noise_list[max_elbo, torch.arange(len(max_elbo))]

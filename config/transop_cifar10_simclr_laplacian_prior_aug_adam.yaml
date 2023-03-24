@@ -18,9 +18,9 @@ model_cfg:
       start_iter: 0
       fine_tune_iter: 0
       dictionary_size: 50
-      lambda_prior: 0.01
+      lambda_prior: 0.02
       transop_weight_decay: 2.0e-6
-      transop_lr: 0.001
+      transop_lr: 0.003
       enable_dict_per_block: true
       block_dim: 64
       enable_variational_inference: true
@@ -30,9 +30,9 @@ model_cfg:
         total_num_samples: 100
         max_sample_l1_penalty: 0.0
         feature_dim: 512
-        scale_prior: 0.005
+        scale_prior: 0.02
         shift_prior: 0.0
-        variational_encoder_lr: 0.0001
+        variational_encoder_lr: 0.0003
         variational_encoder_weight_decay: 1.0e-6
         enable_learned_prior: true
         enable_prior_block_encoding: false
@@ -42,7 +42,7 @@ model_cfg:
     ntxent_loss_active: true
     ntxent_loss_weight: 1.0
     kl_loss_active: true
-    kl_loss_weight: 5.0e-6
+    kl_loss_weight: 1.0e-6
     kl_detach_shift: true
     kl_weight_warmup: Exponential
     enable_shift_l2: true

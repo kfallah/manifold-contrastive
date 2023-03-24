@@ -94,8 +94,8 @@ class TransportOperatorHeader(nn.Module):
         # If enabled, impose block diagonal constraint on operators by breaking up features into
         # sequence of length b (e.g., b=64)
         if self.cfg.enable_block_diagonal and not self.cfg.enable_dict_per_block:
-            z0 = torch.stack(torch.split(z0, self.cfg.block_dim, dim=-1)).transpose(0, 1)
-            z1_use = torch.stack(torch.split(z1_use, self.cfg.block_dim, dim=-1)).transpose(0, 1)
+            z0 = z0.reshape(len(z0), -1 self.cfg.block_dim)
+            z1 = z1_use.reshape(len(z0), -1 self.cfg.block_dim)
 
         # Infer coefficients for point pair
         if not self.cfg.enable_variational_inference:
