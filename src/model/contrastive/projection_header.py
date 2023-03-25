@@ -15,7 +15,8 @@ import math
 
 import torch
 import torch.nn as nn
-from lightly.models.modules.heads import BarlowTwinsProjectionHead, BYOLProjectionHead
+from lightly.models.modules.heads import (BarlowTwinsProjectionHead,
+                                          BYOLProjectionHead)
 
 from model.contrastive.config import ProjectionHeaderConfig
 from model.type import HeaderInput, HeaderOutput
@@ -65,10 +66,19 @@ class ProjectionHeader(nn.Module):
         else:
             raise NotImplementedError
 
+        self.final_bn = None
+        if self.proj_cfg.enable_final_batchnorm:
+            self.final_bn = nn.BatchNorm1d(self.proj_cfg.output_dim)
+
     def forward(self, header_input: HeaderInput) -> HeaderOutput:
         header_out = {}
         proj_0 = self.projector(header_input.feature_0)
         proj_1 = self.projector(header_input.feature_1)
+
+        if self.proj_cfg.enable_final_batchnorm:
+            proj_bn = self.final_bn(torch.cat([proj_0, proj_1]))
+            proj_0 = proj_bn[:len(proj_0)]
+            proj_1 = proj_bn[len(proj_0):]
 
         # For DirectCLR only use a subset of the features for prediction
         if self.proj_cfg.projection_type == "Direct":

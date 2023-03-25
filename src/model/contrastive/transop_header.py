@@ -113,7 +113,7 @@ class TransportOperatorHeader(nn.Module):
             not (
                 self.cfg.enable_alternating_min and (header_input.curr_iter // self.cfg.alternating_min_step) != 0
             )
-            and curr_iter > self.cfg.start_iter
+            and curr_iter >= self.cfg.start_iter
         )
         # Matrix exponential not supported with float16
         with autocast(enabled=False):

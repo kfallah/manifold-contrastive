@@ -27,6 +27,8 @@ class LinearProbeEval(EvalRunner):
     ) -> None:
         backbone_feat_dim = train_eval_input.feature_list.shape[1]
         self.clf = nn.Linear(backbone_feat_dim, num_classes).to(device)
+        
+        """
         num_epoch_iters = len(train_eval_input.feature_list) // self.get_config().num_epochs
         self.optimizer = initialize_optimizer(self.get_config().optimizer_cfg, self.clf.parameters())
         self.scheduler = initialize_scheduler(
@@ -36,6 +38,13 @@ class LinearProbeEval(EvalRunner):
             num_epoch_iters * self.get_config().num_epochs,
             self.optimizer,
         )
+        """
+
+        lr_start, lr_end = 1e-2, 1e-6
+        gamma = (lr_end / lr_start) ** (1 / self.get_config().num_epochs)
+        self.optimizer = torch.optim.Adam(self.clf.parameters(), lr=lr_start, weight_decay=5e-6)
+        self.scheduler = torch.optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=gamma)
+
         self.criterion = nn.CrossEntropyLoss().to(device)
 
     def run_eval(
@@ -54,7 +63,7 @@ class LinearProbeEval(EvalRunner):
                 self.optimizer.zero_grad()
                 self.criterion(self.clf(x_train[idx]), y_train[idx]).backward()
                 self.optimizer.step()
-                self.scheduler.step()
+            self.scheduler.step()
 
         y_pred = self.clf(x_val)
         pred_top = y_pred.topk(max([1, 5]), 1, largest=True, sorted=True).indices

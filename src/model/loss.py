@@ -14,7 +14,8 @@ from lightly.loss.vicreg_loss import VICRegLoss
 
 from model.config import ModelConfig
 from model.manifold.reparameterize import compute_kl
-from model.public.ntx_ent_loss import NTXentLoss, lie_nt_xent_loss
+from model.public.ntx_ent_loss import (NTXentLoss, contrastive_loss,
+                                       lie_nt_xent_loss)
 from model.type import ModelOutput
 
 
@@ -25,6 +26,7 @@ class Loss(nn.Module):
         self.loss_cfg = model_cfg.loss_cfg
         self.kl_warmup = 0
 
+        """
         self.ntxent_loss = None
         if self.loss_cfg.ntxent_loss_active:
             self.ntxent_loss = NTXentLoss(
@@ -34,6 +36,7 @@ class Loss(nn.Module):
                 loss_type=self.loss_cfg.ntxent_logit,
                 detach_off_logit=self.loss_cfg.ntxent_detach_off_logit,
             )
+        """
 
         self.vicreg_loss = None
         if self.loss_cfg.vicreg_loss_active:
@@ -81,11 +84,14 @@ class Loss(nn.Module):
 
         # Contrastive loss terms
         if self.loss_cfg.ntxent_loss_active:
+            """
             ntxent_loss = self.ntxent_loss.nt_xent(header_dict["proj_00"], header_dict["proj_01"])
             if self.loss_cfg.ntxent_symmetric:
                 ntxent_loss = 0.5 * (
                     ntxent_loss + self.ntxent_loss.nt_xent(header_dict["proj_10"], header_dict["proj_11"])
                 )
+            """
+            ntxent_loss = contrastive_loss(header_dict["proj_00"], header_dict["proj_01"], self.loss_cfg.ntxent_temp)
             total_loss += self.loss_cfg.ntxent_loss_weight * ntxent_loss
             loss_meta["ntxent_loss"] = ntxent_loss.item()
 
