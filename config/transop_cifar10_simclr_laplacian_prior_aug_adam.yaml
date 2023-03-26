@@ -17,9 +17,9 @@ model_cfg:
       batch_size: 128
       start_iter: 0
       fine_tune_iter: 0
-      dictionary_size: 50
+      dictionary_size: 100
       lambda_prior: 0.01
-      transop_weight_decay: 2.0e-6
+      transop_weight_decay: 1.0e-6
       transop_lr: 0.001
       enable_dict_per_block: true
       block_dim: 64
@@ -33,7 +33,7 @@ model_cfg:
         scale_prior: 0.01
         shift_prior: 0.0
         variational_encoder_lr: 0.0001
-        variational_encoder_weight_decay: 1.0e-6
+        variational_encoder_weight_decay: 1.0e-5
         enable_learned_prior: true
         enable_prior_block_encoding: false
         enable_thresh_warmup: false
@@ -59,7 +59,7 @@ trainer_cfg:
   optimizer_cfg:
     optimizer: Adam
     initial_lr: 0.003
-    weight_decay: 1e-6
+    weight_decay: 1e-5
     enable_nesterov: true
   use_amp: false
   save_interval: 100

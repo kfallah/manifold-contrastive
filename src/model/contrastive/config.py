@@ -28,7 +28,7 @@ class ProjectionHeaderConfig:
     hidden_dim: int = 1024
     output_dim: int = 128
     direct_proj_num_dim: int = 64
-    enable_final_batchnorm: bool = False
+    enable_final_batchnorm: bool = True
 
 
 @dataclass

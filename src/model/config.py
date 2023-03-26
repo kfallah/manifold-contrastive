@@ -39,7 +39,7 @@ class LossConfig:
     kl_weight_warmup: str = "None"
 
     real_eig_reg_active: bool = False
-    real_eig_reg_weight: float = 1e-4
+    real_eig_reg_weight: float = 1e-5
 
     transop_loss_active: bool = False
     transop_loss_weight: float = 1.0
