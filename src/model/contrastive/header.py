@@ -12,8 +12,7 @@ from torch.cuda.amp import autocast
 
 from model.contrastive.config import ContrastiveHeaderConfig
 from model.contrastive.projection_header import ProjectionHeader
-from model.contrastive.projection_prediction_header import \
-    ProjectionPredictionHeader
+from model.contrastive.projection_prediction_header import ProjectionPredictionHeader
 from model.contrastive.transop_header import TransportOperatorHeader
 from model.type import HeaderInput, HeaderOutput
 

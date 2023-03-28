@@ -87,19 +87,18 @@ class Trainer(nn.Module):
                 # clip gradients if relevant
                 if self.trainer_cfg.enable_transop_grad_clip:
                     torch.nn.utils.clip_grad_norm_(
-                            self.get_model().contrastive_header.transop_header.transop.parameters(), 
-                            self.trainer_cfg.transop_grad_clip
-                        )
+                        self.get_model().contrastive_header.transop_header.transop.parameters(),
+                        self.trainer_cfg.transop_grad_clip,
+                    )
                 if self.trainer_cfg.enable_coeffenc_grad_clip:
                     torch.nn.utils.clip_grad_norm_(
-                            self.get_model().contrastive_header.transop_header.coefficient_encoder.parameters(), 
-                            self.trainer_cfg.coeffenc_grad_clip
-                        )
+                        self.get_model().contrastive_header.transop_header.coefficient_encoder.parameters(),
+                        self.trainer_cfg.coeffenc_grad_clip,
+                    )
                 if self.trainer_cfg.enable_backbone_grad_clip:
                     torch.nn.utils.clip_grad_norm_(
-                            self.get_model().backbone.parameters(), 
-                            self.trainer_cfg.backbone_grad_clip
-                        )
+                        self.get_model().backbone.parameters(), self.trainer_cfg.backbone_grad_clip
+                    )
 
                 self.scaler.step(self.optimizer)
                 self.optimizer.zero_grad()

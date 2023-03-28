@@ -1,5 +1,6 @@
 # Contains modifications from the lightly.ai source code found at:
 # https://github.com/lightly-ai/lightly/blob/master/lightly/loss/ntx_ent_loss.py
+# because theirs has a lot of bugs.
 """ Contrastive Loss Functions """
 
 # Copyright (c) 2020. Lightly AG and its affiliates.
@@ -15,8 +16,8 @@ from torch import nn
 def contrastive_loss(x0, x1, tau, norm=True):
     # https://github.com/google-research/simclr/blob/master/objective.py
     bsize = x0.shape[0]
-    target = torch.arange(bsize).cuda()
-    eye_mask = torch.eye(bsize).cuda() * 1e9
+    target = torch.arange(bsize, device=x1.device)
+    eye_mask = torch.eye(bsize, device=x1.device) * 1e9
     if norm:
         x0 = F.normalize(x0, p=2, dim=1)
         x1 = F.normalize(x1, p=2, dim=1)
@@ -28,7 +29,8 @@ def contrastive_loss(x0, x1, tau, norm=True):
         F.cross_entropy(torch.cat([logits01, logits00], dim=1), target)
         + F.cross_entropy(torch.cat([logits10, logits11], dim=1), target)
     ) / 2
-    
+
+
 def lie_nt_xent_loss(out_1, out_2, out_3=None, temperature=0.07, eps=1e-6):
     """
     DOES NOT assume out_1 and out_2 are normalized
