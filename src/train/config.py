@@ -52,7 +52,7 @@ class TrainerConfig:
     metric_logger_cfg: MetricLoggerConfig = MetricLoggerConfig()
     num_epochs: int = 300
     grad_accumulation_iters: int = 1
-    save_interval: int = 50
+    save_interval: int = 100
     use_amp: bool = False
 
     # Option to use NN to find point pairs

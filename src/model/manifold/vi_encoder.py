@@ -225,10 +225,11 @@ class CoefficientEncoder(nn.Module):
 
         return encoder_params, prior_params, hyperprior_params
 
-    def prior_sample(self, x) -> torch.Tensor:
-        prior_params, _ = self.get_prior_params(x)
-        noise = draw_noise_samples(self.vi_cfg.distribution, prior_params["logscale"].shape, x.device)
-        samples = reparameterize(self.vi_cfg.distribution, prior_params, noise, self.thresh_warmup * self.lambda_prior)
+    def prior_sample(self, x, distribution_params=None) -> torch.Tensor:
+        if distribution_params is None:
+            distribution_params, _ = self.get_prior_params(x)
+        noise = draw_noise_samples(self.vi_cfg.distribution, distribution_params["logscale"].shape, x.device)
+        samples = reparameterize(self.vi_cfg.distribution, distribution_params, noise, self.thresh_warmup * self.lambda_prior)
         return samples
 
     def per_block_max_elbo_sample(self, encoder_params, psi, x0, x1) -> torch.Tensor:

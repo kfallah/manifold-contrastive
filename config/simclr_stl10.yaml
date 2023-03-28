@@ -10,6 +10,7 @@ model_cfg:
     projection_header_cfg:
       header_name: SimCLR
       projection_type: MLP
+      enable_final_batchnorm: true
 trainer_cfg:
   num_epochs: 2000
   optimizer_cfg:
