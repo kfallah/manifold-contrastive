@@ -33,10 +33,9 @@ class Backbone(nn.Module):
             backbone_feature_dim = backbone_network.fc.in_features
             backbone_network.fc = nn.Identity()
 
-            if dataset_name == "CIFAR10" or dataset_name == "CIFAR100" or dataset_name == "STL10":
-                backbone_network.conv1 = nn.Conv2d(3, 64, 3, 1, 1, bias=False)
-                if dataset_name == "CIFAR10" or dataset_name == "CIFAR100":
-                    backbone_network.maxpool = nn.Identity()
+            backbone_network.conv1 = nn.Conv2d(3, 64, 3, 1, 1, bias=False)
+            if dataset_name == "CIFAR10" or dataset_name == "CIFAR100":
+                backbone_network.maxpool = nn.Identity()
         elif backbone_cfg.hub_model_name == "wresnet-28-2":
             backbone_network = WideResnetFMPT(10, k=2, n=28)
             backbone_feature_dim = backbone_network.fc.in_features

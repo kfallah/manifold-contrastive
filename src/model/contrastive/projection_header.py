@@ -15,7 +15,8 @@ import math
 
 import torch
 import torch.nn as nn
-from lightly.models.modules.heads import BarlowTwinsProjectionHead, BYOLProjectionHead
+from lightly.models.modules.heads import (BarlowTwinsProjectionHead,
+                                          BYOLProjectionHead)
 
 from model.contrastive.config import ProjectionHeaderConfig
 from model.type import HeaderInput, HeaderOutput
@@ -48,6 +49,7 @@ class ProjectionHeader(nn.Module):
                 self.projector = nn.Sequential(
                     nn.Linear(backbone_feature_dim, self.proj_cfg.hidden_dim),
                     nn.BatchNorm1d(self.proj_cfg.hidden_dim),
+                    nn.ReLU(),
                     nn.Linear(self.proj_cfg.hidden_dim, self.proj_cfg.output_dim),
                 )
             elif self.proj_cfg.header_name == "VICReg":
