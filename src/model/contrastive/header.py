@@ -8,7 +8,7 @@ Wrapper for different contrastive headers.
 
 import torch
 import torch.nn as nn
-from lightly.models.utils import batch_unshuffle
+from torch.cuda.amp import autocast
 
 from model.contrastive.config import ContrastiveHeaderConfig
 from model.contrastive.projection_header import ProjectionHeader
@@ -29,9 +29,7 @@ class ContrastiveHeader(nn.Module):
 
         self.projection_header = None
         if self.header_cfg.enable_projection_header:
-            self.projection_header = ProjectionHeader(
-                self.header_cfg.projection_header_cfg, backbone_feature_dim
-            )
+            self.projection_header = ProjectionHeader(self.header_cfg.projection_header_cfg, backbone_feature_dim)
 
         self.transop_header = None
         if self.header_cfg.enable_transop_header:
@@ -62,30 +60,40 @@ class ContrastiveHeader(nn.Module):
                         param = param.data
                     self.transop_header.state_dict()[to_name].copy_(param)
 
-
-    def unshuffle_outputs(self, shuffle_idx, header_out: HeaderOutput) -> HeaderOutput:
-        if self.projection_header is not None:
-            header_dict = header_out.header_dict
-            header_dict["proj_01"] = batch_unshuffle(header_dict["proj_01"], shuffle_idx)
-
-        return HeaderOutput(header_dict, header_out.distribution_data)
-
-    def forward(self, header_input: HeaderInput) -> HeaderOutput:
+    def forward(self, header_input: HeaderInput, nn_queue: nn.Module = None) -> HeaderOutput:
         aggregate_header_out = {}
 
         distribution_data = None
         if self.transop_header is not None:
-            header_out = self.transop_header(header_input)
+            header_out = self.transop_header(header_input, nn_queue)
             distribution_data = header_out.distribution_data
             aggregate_header_out.update(header_out.header_dict)
+
+        if self.header_cfg.enable_transop_augmentation:
+            enc = self.transop_header.coefficient_encoder
+            transop = self.transop_header.transop
+
+            z0 = header_input.feature_0
+            z1 = header_input.feature_1
+
+            if self.transop_header.cfg.enable_block_diagonal and not self.transop_header.cfg.enable_dict_per_block:
+                z0 = z0.reshape(len(z0), -1, self.transop_header.cfg.block_dim)
+                z1 = z1.reshape(len(z1), -1, self.transop_header.cfg.block_dim)
+
+            # Optimization: pass the prior params already computed
+            c0 = enc.prior_sample(z0.detach(), None) #distribution_data.prior_params)
+            c1 = enc.prior_sample(z1.detach())
+
+            with autocast(enabled=False):
+                z0_aug = transop(z0.float().unsqueeze(-1), c0, transop_grad=False).squeeze(dim=-1).reshape(len(z0), -1)
+                z1_aug = transop(z1.float().unsqueeze(-1), c1, transop_grad=False).squeeze(dim=-1).reshape(len(z1), -1)
+            # Place back into header input
+            header_input = header_input._replace(feature_0=z0_aug, feature_1=z1_aug)
+            #header_input = header_input._replace(feature_1=z0_aug)
 
         if self.projection_header is not None:
             header_out = self.projection_header(header_input)
             aggregate_header_out.update(header_out.header_dict)
-
-            if self.header_cfg.enable_transop_augmentation:
-                # TODO: Re-implement augmentations
-                raise NotImplementedError()
 
         if self.proj_pred_header is not None:
             header_out = self.proj_pred_header(header_input)

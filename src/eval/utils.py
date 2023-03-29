@@ -32,22 +32,20 @@ def encode_features(
 ) -> EvaluationInput:
     x_eval = []
     labels = []
-    x_idx = []
     feature_list = []
     model.eval()
     with torch.no_grad():
         for _, batch in enumerate(data_loader):
-            x, batch_label, batch_idx = batch
+            x, batch_label = batch
             x_gpu = x.to(device).unsqueeze(1)
-            model_output = model(x_gpu, batch_idx, 0)
+            model_output = model(x_gpu, 0)
             feat = model_output.header_input.feature_0
 
             x_eval.append(x.detach().cpu())
             labels.append(batch_label.detach().cpu())
-            x_idx.extend(list(batch_idx))
             feature_list.append(feat.detach().cpu())
     # Flatten all encoded data to a single tensor
     x_eval = torch.cat(x_eval)
     labels = torch.cat(labels)
     feature_list = torch.cat(feature_list).squeeze(1)
-    return EvaluationInput(model, x_eval, x_idx, labels, feature_list)
+    return EvaluationInput(model, x_eval, labels, feature_list)

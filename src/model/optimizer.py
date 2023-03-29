@@ -60,7 +60,7 @@ def initialize_scheduler(
     elif config.scheduler == "LinearWarmupCosineAnnealingLR":
         iters_per_epoch = num_iters / num_epochs
         return LinearWarmupCosineAnnealingLR(
-            optimizer, warmup_epochs=config.warmup_epochs * iters_per_epoch, max_epochs=num_iters, eta_min=1e-4
+            optimizer, warmup_epochs=config.warmup_epochs * iters_per_epoch, max_epochs=num_iters, eta_min=1e-6
         )
     elif config.scheduler == "CosineAnnealingMinLR":
         return torch.optim.lr_scheduler.LambdaLR(
@@ -72,5 +72,9 @@ def initialize_scheduler(
                 1e-3,
             ),
         )
+    elif config.scheduler == "MultiStepLR":
+        iters_per_epoch = num_iters / num_epochs
+        milestones = [int(num_iters - 50 * iters_per_epoch), int(num_iters - 25 * iters_per_epoch)]
+        return torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones, gamma=0.2)
     else:
         raise NotImplementedError

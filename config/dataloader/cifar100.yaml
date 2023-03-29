@@ -1,0 +1,7 @@
+dataset_cfg: 
+  dataset_name: CIFAR100
+  num_classes: 100
+  image_size: 32
+persistent_workers: true
+num_workers: 32
+train_batch_size: 1024

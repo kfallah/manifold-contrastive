@@ -2,7 +2,7 @@ defaults:
   - base
   - _self_
 
-exp_name: TransOp_NN_CIFAR10
+exp_name: cotrain_vi_100s
 
 model_cfg:
   header_cfg:
@@ -13,35 +13,36 @@ model_cfg:
     enable_transop_header: true
     transop_header_cfg:
       batch_size: 128
-      start_iter: 2000
-      fine_tune_iter: 50000
-      dictionary_size: 40
-      lambda_prior: 0.01
-      transop_weight_decay: 5.0e-6
-      transop_lr: 0.3
+      start_iter: 0
+      fine_tune_iter: 0
+      dictionary_size: 200
+      lambda_prior: 0.03
+      transop_weight_decay: 1.0e-6
+      transop_lr: 0.6
+      block_dim: 128
       enable_variational_inference: true
       vi_cfg:
-        max_sample_start_iter: 2000
+        max_sample_start_iter: 5000
         samples_per_iter: 20
         total_num_samples: 20
         max_sample_l1_penalty: 0.001
         feature_dim: 512
         scale_prior: 0.01
-        shift_prior: 0.05
+        shift_prior: 0.0
         variational_encoder_lr: 0.01
         variational_encoder_weight_decay: 1.0e-6
         enable_thresh_warmup: true
         enable_enc_attn: false
   loss_cfg:
     ntxent_loss_active: true
-    ntxent_loss_weight: 0.01
+    ntxent_loss_weight: 1.0
     kl_loss_active: true
     kl_loss_weight: 1.0e-5
     kl_detach_shift: true
     kl_weight_warmup: Exponential
     enable_shift_l2: true
     transop_loss_active: true
-    transop_loss_weight: 1.0
+    transop_loss_weight: 0.1
     transop_loss_fn: mse
 
 trainer_cfg:
@@ -49,7 +50,7 @@ trainer_cfg:
     enable_transop_logging: true
   optimizer_cfg:
     optimizer: SGD
-    initial_lr: 0.3
+    initial_lr: 0.6
     weight_decay: 1e-6
     enable_nesterov: true
   use_amp: false

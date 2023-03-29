@@ -26,8 +26,6 @@ class LinearProbeConfig(EvalRunnerConfig):
     optimizer_cfg: OptimizerConfig = OptimizerConfig(initial_lr=0.2, weight_decay=0.0, enable_nesterov=True)
     scheduler_cfg: SchedulerConfig = SchedulerConfig()
     num_epochs: int = 100
-    use_amp: bool = True
-
 
 @dataclass
 class ClusteringEvalConfig(EvalRunnerConfig):
@@ -37,7 +35,7 @@ class ClusteringEvalConfig(EvalRunnerConfig):
 
 @dataclass
 class KNNEvalConfig(EvalRunnerConfig):
-    k: int = 20
+    k: int = 5
 
 
 @dataclass

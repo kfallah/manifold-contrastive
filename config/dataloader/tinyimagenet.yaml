@@ -1,0 +1,11 @@
+dataset_cfg: 
+  dataset_name: TinyImagenet
+  num_classes: 200
+  image_size: 64
+  dataset_dir: ../../datasets/tiny-imagenet-200
+ssl_aug_cfg:
+  normalize_mean: [0.480, 0.448, 0.398]
+  normalize_std: [0.277, 0.269, 0.282]
+persistent_workers: true
+num_workers: 32
+train_batch_size: 1024

@@ -25,9 +25,10 @@ class ProjectionPredictionHeaderConfig:
 class ProjectionHeaderConfig:
     header_name: str = "SimCLR"
     projection_type: str = "MLP"
-    hidden_dim: int = 2048
+    hidden_dim: int = 1024
     output_dim: int = 128
     direct_proj_num_dim: int = 64
+    enable_final_batchnorm: bool = True
 
 
 @dataclass
@@ -52,10 +53,16 @@ class VariationalEncoderConfig:
     total_num_samples: int = 20
     samples_per_iter: int = 20
 
+    # Learn the prior, as in a CVAE
+    # Required for transop augmentations
     enable_learned_prior: bool = False
     enable_prior_shift: bool = False
+    enable_prior_block_encoding: bool = False
     # Use a deterministic prior for shift
     enable_det_prior: bool = False
+
+    # Use deterministic encoder
+    enable_det_enc: bool = False
 
     # whether to use FISTA for the encoder instead of a DNN.
     enable_fista_enc: bool = False
@@ -86,22 +93,20 @@ class TransportOperatorConfig:
 
     stable_operator_initialization: bool = True
     real_range_initialization: float = 0.0001
-    image_range_initialization: float = 5.0
+    image_range_initialization: float = 6.0
 
     batch_size: int = 128
 
     # Option to splice input to create BDM constraint on transop
     enable_block_diagonal: bool = True
     block_dim: int = 64
+    # Use a separate dictionary for each block of features
+    enable_dict_per_block: bool = False
 
     # Option for alternating minimization between
     enable_alternating_min: bool = False
     # Number of steps to alternate between updating the backbone and the transop/encoder
-    alternating_min_step: int = 200
-
-    # Option to use NN to find point pairs
-    enable_nn_point_pair: bool = False
-    nn_memory_bank_size: int = 65536
+    alternating_min_step: int = 20
 
     # Config for variational network
     enable_variational_inference: bool = True

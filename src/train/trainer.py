@@ -13,6 +13,7 @@ from typing import Dict
 
 import torch
 import torch.nn as nn
+from lightly.models.modules import NNMemoryBankModule
 from torch.cuda.amp import GradScaler, autocast
 
 from model.model import Model
@@ -52,6 +53,10 @@ class Trainer(nn.Module):
             self.trainer_cfg.metric_logger_cfg, self.get_model(), self.scheduler
         )
 
+        self.nn_queue = None
+        if self.trainer_cfg.enable_nn_queue:
+            self.nn_queue = NNMemoryBankModule(size=self.trainer_cfg.nn_queue_size)
+
     def get_model(self) -> Model:
         if isinstance(self.model, nn.parallel.DataParallel):
             return self.model.module
@@ -63,15 +68,18 @@ class Trainer(nn.Module):
         for idx, batch in enumerate(train_dataloader):
             curr_iter = idx + (epoch * len(train_dataloader))
             pre_time = time.time()
-            x_list = list(batch[0])
-            x_idx = list(batch[2])
+            x_list, _ = batch
             # Tensor of input images of shape [B x V x H x W x C]
             x_gpu = torch.stack([x.to(self.device) for x in x_list]).transpose(0, 1)
 
             with autocast(enabled=self.trainer_cfg.use_amp):
                 # Send inputs through model
-                model_output = self.model(x_gpu, x_idx, curr_iter)
+                model_output = self.model(x_gpu, curr_iter, self.nn_queue)
                 loss_metadata, total_loss = self.get_model().compute_loss(curr_iter, model_output)
+
+                if self.trainer_cfg.enable_nn_queue:
+                    z1 = model_output.header_input.feature_1
+                    _ = self.nn_queue(z1.detach(), update=True)
 
             # Backpropagate loss
             self.scaler.scale(total_loss / self.trainer_cfg.grad_accumulation_iters).backward()
@@ -79,19 +87,18 @@ class Trainer(nn.Module):
                 # clip gradients if relevant
                 if self.trainer_cfg.enable_transop_grad_clip:
                     torch.nn.utils.clip_grad_norm_(
-                            self.get_model().contrastive_header.transop_header.transop.parameters(), 
-                            self.trainer_cfg.transop_grad_clip
-                        )
+                        self.get_model().contrastive_header.transop_header.transop.parameters(),
+                        self.trainer_cfg.transop_grad_clip,
+                    )
                 if self.trainer_cfg.enable_coeffenc_grad_clip:
                     torch.nn.utils.clip_grad_norm_(
-                            self.get_model().contrastive_header.transop_header.coefficient_encoder.parameters(), 
-                            self.trainer_cfg.coeffenc_grad_clip
-                        )
+                        self.get_model().contrastive_header.transop_header.coefficient_encoder.parameters(),
+                        self.trainer_cfg.coeffenc_grad_clip,
+                    )
                 if self.trainer_cfg.enable_backbone_grad_clip:
                     torch.nn.utils.clip_grad_norm_(
-                            self.get_model().backbone.parameters(), 
-                            self.trainer_cfg.backbone_grad_clip
-                        )
+                        self.get_model().backbone.parameters(), self.trainer_cfg.backbone_grad_clip
+                    )
 
                 self.scaler.step(self.optimizer)
                 self.optimizer.zero_grad()

@@ -1,5 +1,6 @@
 # Contains modifications from the lightly.ai source code found at:
 # https://github.com/lightly-ai/lightly/blob/master/lightly/loss/ntx_ent_loss.py
+# because theirs has a lot of bugs.
 """ Contrastive Loss Functions """
 
 # Copyright (c) 2020. Lightly AG and its affiliates.
@@ -10,6 +11,62 @@ import torch.nn.functional as F
 from lightly.loss.memory_bank import MemoryBankModule
 from lightly.utils import dist
 from torch import nn
+
+
+def contrastive_loss(x0, x1, tau, norm=True):
+    # https://github.com/google-research/simclr/blob/master/objective.py
+    bsize = x0.shape[0]
+    target = torch.arange(bsize, device=x1.device)
+    eye_mask = torch.eye(bsize, device=x1.device) * 1e9
+    if norm:
+        x0 = F.normalize(x0, p=2, dim=1)
+        x1 = F.normalize(x1, p=2, dim=1)
+    logits00 = x0 @ x0.t() / tau - eye_mask
+    logits11 = x1 @ x1.t() / tau - eye_mask
+    logits01 = x0 @ x1.t() / tau
+    logits10 = x1 @ x0.t() / tau
+    return (
+        F.cross_entropy(torch.cat([logits01, logits00], dim=1), target)
+        + F.cross_entropy(torch.cat([logits10, logits11], dim=1), target)
+    ) / 2
+
+
+def lie_nt_xent_loss(out_1, out_2, out_3=None, temperature=0.07, eps=1e-6):
+    """
+    DOES NOT assume out_1 and out_2 are normalized
+    out_1: [batch_size, dim]
+    out_2: [batch_size, dim]
+    out_3: [batch_size, dim]
+    """
+    # gather representations in case of distributed training
+    # out_1_dist: [batch_size * world_size, dim]
+    # out_2_dist: [batch_size * world_size, dim]
+    # out_3_dist: [batch_size * world_size, dim]
+    # out: [2 * batch_size, dim]
+    # out_dist: [3 * batch_size * world_size, dim]
+    out = torch.cat([out_1, out_2], dim=0)
+    if out_3 is not None:
+        out_dist = torch.cat([out_1, out_2, out_3], dim=0)
+    else:
+        out_dist = torch.cat([out_1, out_2], dim=0)
+
+    # cov and sim: [2 * batch_size, 3 * batch_size * world_size]
+    # neg: [2 * batch_size]
+    cov = torch.mm(out, out_dist.t().contiguous())
+    sim = torch.exp(cov / temperature)
+    neg = sim.sum(dim=-1)
+
+    row_sub = torch.exp(torch.norm(out, dim=-1) / temperature)
+    neg = torch.clamp(neg - row_sub, min=eps)  # clamp for numerical stability
+
+    # Positive similarity, pos becomes [2 * batch_size]
+    pos = torch.exp(torch.sum(out_1 * out_2, dim=-1) / temperature)
+    pos = torch.cat([pos, pos], dim=0)
+    loss = -torch.log(pos / (neg + eps)).mean()
+    if loss < 0.0:
+        print("Lie Contrastive loss can't be negative")
+        raise ValueError("Lie Contrastive loss can't be negative")
+    return loss
 
 
 class NTXentLoss(MemoryBankModule):

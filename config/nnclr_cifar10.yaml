@@ -1,6 +1,5 @@
 defaults:
   - base_cifar10
-  - dataloader/cifar10_nnclr@train_dataloader_cfg
   - _self_
 
 exp_name: NNCLR_CIFAR10

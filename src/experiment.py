@@ -20,8 +20,9 @@ import wandb
 from hydra.core.config_store import ConfigStore
 from omegaconf import DictConfig, OmegaConf
 
+from dataloader.base import Dataset
 from dataloader.config import DataLoaderConfig
-from dataloader.contrastive_dataloader import get_dataloader
+from dataloader.ssl_dataloader import get_dataset
 from eval.config import EvaluatorConfig
 from eval.evaluator import Evaluator
 from model.config import ModelConfig
@@ -34,8 +35,7 @@ warnings.filterwarnings("ignore")
 @dataclass
 class ExperimentConfig:
     # Hierarchical configurations used for experiment
-    train_dataloader_cfg: DataLoaderConfig = MISSING
-    eval_dataloader_cfg: DataLoaderConfig = MISSING
+    dataloader_cfg: DataLoaderConfig = MISSING
     model_cfg: ModelConfig = MISSING
     trainer_cfg: TrainerConfig = MISSING
     evaluator_cfg: EvaluatorConfig = MISSING
@@ -62,13 +62,11 @@ def run_eval(
     current_best: float,
     trainer: Trainer,
     evaluator: Evaluator,
-    train_dataloader: torch.utils.data.DataLoader,
-    train_dataloader_cfg: DataLoaderConfig,
-    eval_dataloader: torch.utils.data.DataLoader,
+    dataset: Dataset,
     last_epoch: bool = False,
 ):
     # Run evaluation metrics on the model
-    eval_out = evaluator.run_eval(epoch, train_dataloader, train_dataloader_cfg, eval_dataloader, last_epoch)
+    eval_out = evaluator.run_eval(epoch, dataset, last_epoch)
     # Only not equal to None when an evaluation was run
     if eval_out is not None:
         save_metric, eval_metadata = eval_out
@@ -88,18 +86,17 @@ def run_experiment(
     cfg: ExperimentConfig,
     trainer: Trainer,
     evaluator: Evaluator,
-    train_dataloader: torch.utils.data.DataLoader,
-    eval_dataloader: torch.utils.data.DataLoader,
+    dataset: Dataset,
 ) -> None:
     log.info("Running experiment...")
     # Used to save the
     current_best = 1e99
     for epoch in range(cfg.trainer_cfg.num_epochs):
         # Run eval metrics on the model
-        run_eval(epoch, current_best, trainer, evaluator, train_dataloader, cfg.train_dataloader_cfg, eval_dataloader)
+        run_eval(epoch, current_best, trainer, evaluator, dataset)
 
         # Perform a training epoch
-        _ = trainer.train_epoch(epoch, train_dataloader)
+        _ = trainer.train_epoch(epoch, dataset.train_dataloader)
         # Save the model every few epochs
         if epoch % cfg.trainer_cfg.save_interval == 0:
             trainer.save_model(epoch, os.getcwd() + "/checkpoints/")
@@ -110,9 +107,7 @@ def run_experiment(
         current_best,
         trainer,
         evaluator,
-        train_dataloader,
-        cfg.train_dataloader_cfg,
-        eval_dataloader,
+        dataset,
         last_epoch=True,
     )
     trainer.save_model(epoch, os.getcwd() + "/checkpoints/")
@@ -134,9 +129,8 @@ def initialize_experiment(cfg: DictConfig) -> None:
     default_device = torch.device(cfg.devices[0])
 
     # Initialize train_loader and eval_loader
-    log.info("Initializing dataloaders for " + cfg.train_dataloader_cfg.dataset_cfg.dataset_name + " dataset...")
-    train_dataset, train_dataloader = get_dataloader(cfg.train_dataloader_cfg)
-    eval_dataset, eval_dataloader = get_dataloader(cfg.eval_dataloader_cfg)
+    log.info("Initializing dataloaders for " + cfg.dataloader_cfg.dataset_cfg.dataset_name + " dataset...")
+    dataset = get_dataset(cfg.dataloader_cfg)
 
     # Set random seeds
     torch.manual_seed(cfg.seed)
@@ -144,16 +138,16 @@ def initialize_experiment(cfg: DictConfig) -> None:
 
     # Initialize the model
     log.info(f"Initializing model with {cfg.model_cfg.backbone_cfg.hub_model_name} backbone...")
-    model = Model.initialize_model(cfg.model_cfg, cfg.train_dataloader_cfg.dataset_cfg.dataset_name, cfg.devices)
+    model = Model.initialize_model(cfg.model_cfg, cfg.dataloader_cfg.dataset_cfg.dataset_name, cfg.devices)
 
     # Initialize the trainer and evaluator
     trainer = Trainer.initialize_trainer(
-        cfg.trainer_cfg, model, cfg.trainer_cfg.num_epochs * len(train_dataloader), default_device
+        cfg.trainer_cfg, model, cfg.trainer_cfg.num_epochs * len(dataset.train_dataloader), default_device
     )
-    evaluator = Evaluator.initialize_evaluator(cfg.evaluator_cfg, model, default_device)
+    evaluator = Evaluator.initialize_evaluator(cfg.evaluator_cfg, trainer.get_model(), default_device)
 
     # Run experiment
-    run_experiment(cfg, trainer, evaluator, train_dataloader, eval_dataloader)
+    run_experiment(cfg, trainer, evaluator, dataset)
 
 
 if __name__ == "__main__":

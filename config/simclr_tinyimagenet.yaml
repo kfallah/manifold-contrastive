@@ -1,14 +1,16 @@
 defaults:
   - base
-  - dataloader/cifar100@dataloader_cfg
+  - dataloader/tinyimagenet@dataloader_cfg
   - _self_
 
-exp_name: SimCLR_CIFAR100
+exp_name: SimCLR_TinyImageNet
 model_cfg:
   header_cfg:
     enable_projection_header: true
     projection_header_cfg:
       header_name: SimCLR
       projection_type: MLP
-      output_dim: 64
       enable_final_batchnorm: true
+trainer_cfg:
+  optimizer_cfg:
+    initial_lr: 0.002

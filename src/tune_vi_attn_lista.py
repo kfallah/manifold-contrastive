@@ -14,7 +14,7 @@ import wandb
 from hydra.core.config_store import ConfigStore
 from omegaconf import OmegaConf
 
-from dataloader.contrastive_dataloader import get_dataloader
+from dataloader.contrastive_dataset import get_dataloader
 from model.manifold.l1_inference import (differentiable_infer_coefficients,
                                          infer_coefficients)
 from model.manifold.transop import TransOp_expm
