@@ -49,12 +49,12 @@ class CoeffEncoderConfig:
     enable_shift_l2: bool = True
     shift_l2_weight: float = 1.0e-3
 
-    enable_max_sample: bool = True
+    enable_max_sample: bool = False
     max_sample_start_iter: int = 0
     total_num_samples: int = 20
-    samples_per_iter: int = 10
+    samples_per_iter: int = 20
 
-    learn_prior: bool = True
+    learn_prior: bool = False
     no_shift_prior: bool = True
 
 
@@ -85,7 +85,7 @@ class ExperimentConfig:
     vi_cfg: CoeffEncoderConfig = CoeffEncoderConfig()
     transop_cfg: TransportOperatorConfig = TransportOperatorConfig()
     data_cfg: DataLoaderConfig = DataLoaderConfig(
-        dataset_cfg=DatasetConfig(dataset_name="CIFAR10", num_classes=10), num_workers=32, train_batch_size=8
+        dataset_cfg=DatasetConfig(dataset_name="CIFAR10", num_classes=10), num_workers=32, train_batch_size=256
     )
 
 
@@ -375,7 +375,7 @@ def train(exp_cfg, train_dataloader, backbone, psi, encoder, projector):
 
             # TRANSOP LOSS
             z0, z1 = backbone[:-2](x0).reshape(len(x0), -1, 64), backbone[:-2](x1).reshape(len(x1), -1, 64)
-            z0_use, z1_use = z0[: exp_cfg.transop_cfg.batch_size], z0[: exp_cfg.transop_cfg.batch_size]
+            z0_use, z1_use = z0[: exp_cfg.transop_cfg.batch_size], z1[: exp_cfg.transop_cfg.batch_size]
             # if exp_cfg.vi_cfg.use_nn_point_pair:
             #    z1 = nn_bank(z1.detach(), update=True).detach()
 
@@ -432,7 +432,7 @@ def train(exp_cfg, train_dataloader, backbone, psi, encoder, projector):
             transop_loss_save.append(transop_loss.mean().item())
             kl_loss_save.append(kl_loss.item())
             infonce_loss_save.append(infonce_loss.item())
-            dw_bw_points = torch.nn.functional.mse_loss(z0, z1, reduction="none").mean(dim=-1)
+            dw_bw_points = torch.nn.functional.mse_loss(z0_use, z1_use, reduction="none").mean(dim=-1)
             dw_loss_save.append((transop_loss.mean(dim=-1) / dw_bw_points).mean().item())
             c_save.append(c.detach().cpu())
             iter_time.append(time.time() - pre_time)
