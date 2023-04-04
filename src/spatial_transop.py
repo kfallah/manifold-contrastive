@@ -47,14 +47,14 @@ class CoeffEncoderConfig:
     c_l2_weight: float = 1.0e-3
 
     enable_shift_l2: bool = True
-    shift_l2_weight: float = 1.0e-3
+    shift_l2_weight: float = 5.0e-3
 
-    enable_max_sample: bool = False
+    enable_max_sample: bool = True
     max_sample_start_iter: int = 0
     total_num_samples: int = 20
-    samples_per_iter: int = 20
+    samples_per_iter: int = 10
 
-    learn_prior: bool = False
+    learn_prior: bool = True
     no_shift_prior: bool = True
 
 
@@ -64,12 +64,13 @@ class TransportOperatorConfig:
     start_iter: int = 0
     dict_size: int = 32
     batch_size: int = 64
+    random_filter_count: int = 32
 
     lr: float = 0.001
     weight_decay: float = 1.0e-2
 
     init_real_range: float = 0.0001
-    init_imag_range: float = 8.0
+    init_imag_range: float = 6.0
 
 
 @dataclass
@@ -85,7 +86,7 @@ class ExperimentConfig:
     vi_cfg: CoeffEncoderConfig = CoeffEncoderConfig()
     transop_cfg: TransportOperatorConfig = TransportOperatorConfig()
     data_cfg: DataLoaderConfig = DataLoaderConfig(
-        dataset_cfg=DatasetConfig(dataset_name="CIFAR10", num_classes=10), num_workers=32, train_batch_size=256
+        dataset_cfg=DatasetConfig(dataset_name="CIFAR10", num_classes=10), num_workers=32, train_batch_size=512
     )
 
 
@@ -375,11 +376,13 @@ def train(exp_cfg, train_dataloader, backbone, psi, encoder, projector):
 
             # TRANSOP LOSS
             z0, z1 = backbone[:-2](x0).reshape(len(x0), -1, 64), backbone[:-2](x1).reshape(len(x1), -1, 64)
-            z0_use, z1_use = z0[: exp_cfg.transop_cfg.batch_size], z1[: exp_cfg.transop_cfg.batch_size]
+            filter_idx = torch.randperm(z0.shape[1])[:exp_cfg.transop_cfg.random_filter_count]
+            z0_use, z1_use = z0[: exp_cfg.transop_cfg.batch_size, filter_idx], z1[: exp_cfg.transop_cfg.batch_size, filter_idx]
             # if exp_cfg.vi_cfg.use_nn_point_pair:
             #    z1 = nn_bank(z1.detach(), update=True).detach()
 
-            c, kl_loss, (log_scale, shift) = encoder(curr_iter, z0_use, z1_use, psi.detach())
+            torch.autograd.set_detect_anomaly(True)
+            c, kl_loss, (log_scale, shift) = encoder(curr_iter, z0_use.detach(), z1_use.detach(), psi.detach())
             T = torch.matrix_exp(torch.einsum("bsm,mpk->bspk", c, psi))
             z1_hat = (T @ z0_use.unsqueeze(-1)).squeeze(-1)
             transop_loss = torch.nn.functional.mse_loss(z1_hat, z1_use, reduction="none")
@@ -393,9 +396,9 @@ def train(exp_cfg, train_dataloader, backbone, psi, encoder, projector):
                 loss += exp_cfg.vi_cfg.shift_l2_weight * l2_reg
 
             if exp_cfg.vi_cfg.learn_prior:
-                c_aug = encoder.sample(z0)
+                c_aug = encoder.sample(z0[:, filter_idx].detach())
                 T = torch.matrix_exp(torch.einsum("bsm,mpk->bspk", c_aug, psi))
-                z0 = (T @ z0.unsqueeze(-1)).squeeze(-1)
+                z0[:, filter_idx] = (T @ z0[:, filter_idx].clone().unsqueeze(-1)).squeeze(-1)
 
             # CONTRASTIVE LOSS
             z0f, z1f = (
