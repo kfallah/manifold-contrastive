@@ -1,0 +1,7 @@
+defaults:
+  - exp_cfg
+  - default_hydra
+  - _self_
+
+exp_name: Base
+exp_dir: results_spatial
