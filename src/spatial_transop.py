@@ -381,7 +381,6 @@ def train(exp_cfg, train_dataloader, backbone, psi, encoder, projector):
             # if exp_cfg.vi_cfg.use_nn_point_pair:
             #    z1 = nn_bank(z1.detach(), update=True).detach()
 
-            torch.autograd.set_detect_anomaly(True)
             c, kl_loss, (log_scale, shift) = encoder(curr_iter, z0_use.detach(), z1_use.detach(), psi.detach())
             T = torch.matrix_exp(torch.einsum("bsm,mpk->bspk", c, psi))
             z1_hat = (T @ z0_use.unsqueeze(-1)).squeeze(-1)
@@ -396,13 +395,16 @@ def train(exp_cfg, train_dataloader, backbone, psi, encoder, projector):
                 loss += exp_cfg.vi_cfg.shift_l2_weight * l2_reg
 
             if exp_cfg.vi_cfg.learn_prior:
+                z0_aug = z0.clone()
                 c_aug = encoder.sample(z0[:, filter_idx].detach())
                 T = torch.matrix_exp(torch.einsum("bsm,mpk->bspk", c_aug, psi))
-                z0[:, filter_idx] = (T @ z0[:, filter_idx].clone().unsqueeze(-1)).squeeze(-1)
+                z0_aug[:, filter_idx] = (T @ z0[:, filter_idx].detach().unsqueeze(-1)).squeeze(-1)
+            else:
+                z0_aug = z0
 
             # CONTRASTIVE LOSS
             z0f, z1f = (
-                backbone[-2:](z0.reshape(len(z0), -1, 8, 8)).squeeze(),
+                backbone[-2:](z0_aug.reshape(len(z0), -1, 8, 8)).squeeze(),
                 backbone[-2:](z1.reshape(len(z1), -1, 8, 8)).squeeze(),
             )
             h = projector(torch.cat([z0f.squeeze(), z1f.squeeze()]))
