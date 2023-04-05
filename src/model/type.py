@@ -33,6 +33,7 @@ class HeaderInput(NamedTuple):
     # Dimensions [B x D]
     feature_0: torch.Tensor
     feature_1: torch.Tensor
+    feature_2: Optional[torch.Tensor] = None
 
 
 class HeaderOutput(NamedTuple):

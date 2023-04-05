@@ -41,12 +41,16 @@ class Model(nn.Module):
         # Only a single view of an image is used, for evaluation purposes
         if x.shape[1] == 1:
             feature_0 = self.backbone(x[:, 0])
-            header_input = HeaderInput(curr_iter, x, None, feature_0, None)
+            header_input = HeaderInput(curr_iter, x, None, feature_0, None, None)
             return ModelOutput(header_input, None)
         # Two views of an image are provided
         elif x.shape[1] == 2:
             feature_0, feature_1 = self.backbone(x[:, 0]), self.backbone(x[:, 1])
-            header_input = HeaderInput(curr_iter, x[:, 0], x[:, 1], feature_0, feature_1)
+            header_input = HeaderInput(curr_iter, x[:, 0], x[:, 1], feature_0, feature_1, None)
+        # In this case we also have a weak augmentation for the transport operators
+        elif x.shape[1] == 3:
+            feature_0, feature_1, feature_2 = self.backbone(x[:, 0]), self.backbone(x[:, 1]), self.backbone(x[:, 2])
+            header_input = HeaderInput(curr_iter, x[:, 0], x[:, 1], feature_0, feature_1, feature_2)
         # All other cases are not currently supported
         else:
             raise NotImplementedError

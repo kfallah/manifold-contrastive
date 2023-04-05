@@ -8,6 +8,28 @@ def get_base_augmentation(cfg: SSLAugmentationConfig):
         T.ToTensor(), T.Normalize(cfg.normalize_mean, cfg.normalize_std)
     ])
 
+def get_weak_augmentation(cfg: SSLAugmentationConfig, img_size: int):
+    """Return a torchvision transform that gives two views of an image.
+
+    Args:
+        config (SSLAugmentationConfig): Augmentation config.
+        image_size (int): Image size in pixels.
+
+    Returns:
+        torchvision.transform: Transform that gives two views of the image.
+    """
+    return T.Compose(
+        [
+            T.RandomResizedCrop(
+                img_size,
+                scale=(0.5, 1.0),
+                ratio=(0.75, (4 / 3)),
+                interpolation=3,
+            ),
+            get_base_augmentation(cfg),
+        ]
+    )
+
 def get_ssl_augmentation(cfg: SSLAugmentationConfig, img_size: int):
     """Return a torchvision transform that gives two views of an image.
 
@@ -38,9 +60,8 @@ def get_ssl_augmentation(cfg: SSLAugmentationConfig, img_size: int):
 class MultiSample:
     """ generates n samples with augmentation """
 
-    def __init__(self, transform, n=2):
+    def __init__(self, transform):
         self.transform = transform
-        self.num = n
 
     def __call__(self, x):
-        return tuple(self.transform(x) for _ in range(self.num))
+        return tuple(t(x) for t in self.transform)

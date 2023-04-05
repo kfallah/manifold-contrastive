@@ -7,8 +7,7 @@ from functools import lru_cache
 import torch
 
 from dataloader.config import DataLoaderConfig, SSLAugmentationConfig
-from dataloader.transform import (MultiSample, get_base_augmentation,
-                                  get_ssl_augmentation)
+from dataloader.transform import (MultiSample, get_base_augmentation, get_ssl_augmentation, get_weak_augmentation)
 
 
 class Dataset(metaclass=ABCMeta):
@@ -17,9 +16,14 @@ class Dataset(metaclass=ABCMeta):
         self.cfg = cfg
 
     def get_ssl_transform(self):
-        t = MultiSample(
-            get_ssl_augmentation(self.cfg.ssl_aug_cfg, self.cfg.dataset_cfg.image_size), n=2
-        )
+        transform = 2 * [get_ssl_augmentation(self.cfg.ssl_aug_cfg, self.cfg.dataset_cfg.image_size)]
+        # transform = [
+        #     get_weak_augmentation(self.cfg.ssl_aug_cfg, self.cfg.dataset_cfg.image_size),
+        #     get_ssl_augmentation(self.cfg.ssl_aug_cfg, self.cfg.dataset_cfg.image_size),
+        #     #get_ssl_augmentation(self.cfg.ssl_aug_cfg, self.cfg.dataset_cfg.image_size),
+        # ]
+
+        t = MultiSample(transform)
         return t
 
     def get_base_transform(self):

@@ -75,12 +75,14 @@ class TransportOperatorHeader(nn.Module):
         curr_iter = header_input.curr_iter
         x0, x1 = header_input.x_0, header_input.x_1
         z0, z1 = header_input.feature_0, header_input.feature_1
+        if header_input.feature_2 is not None:
+            z0 = header_input.feature_2
         distribution_data = None
 
         # either use the nearnest neighbor bank or the projected feature to make the prediction
         z0 = z0[: self.cfg.batch_size]
         if nn_queue is not None:
-            z1_use = nn_queue(z1.detach(), update=False).detach()[: self.cfg.batch_size]
+            z1_use = nn_queue(z0.detach(), update=False).detach()[: self.cfg.batch_size]
         else:
             z1_use = z1[: self.cfg.batch_size]
 
