@@ -68,9 +68,13 @@ class Trainer(nn.Module):
         for idx, batch in enumerate(train_dataloader):
             curr_iter = idx + (epoch * len(train_dataloader))
             pre_time = time.time()
-            x_list, _ = batch
-            # Tensor of input images of shape [B x V x H x W x C]
-            x_gpu = torch.stack([x.to(self.device) for x in x_list]).transpose(0, 1)
+
+            x_gpu = torch.stack([x.to(self.device) for x in batch[0]]).transpose(0, 1)
+            labels = batch[1]
+            if len(batch) == 3:
+                x_nn = batch[1][0].to(self.device).unsqueeze(1)
+                x_gpu = torch.cat([x_gpu, x_nn], dim=1)
+                labels = batch[2]
 
             with autocast(enabled=self.trainer_cfg.use_amp):
                 # Send inputs through model
@@ -78,8 +82,8 @@ class Trainer(nn.Module):
                 loss_metadata, total_loss = self.get_model().compute_loss(curr_iter, model_output)
 
                 if self.trainer_cfg.enable_nn_queue:
-                    z1 = model_output.header_input.feature_1
-                    _ = self.nn_queue(z1.detach(), update=True)
+                    z = model_output.header_input.feature_0
+                    _ = self.nn_queue(z.detach(), update=True)
 
             # Backpropagate loss
             self.scaler.scale(total_loss / self.trainer_cfg.grad_accumulation_iters).backward()
@@ -110,7 +114,7 @@ class Trainer(nn.Module):
                 curr_iter,
                 epoch,
                 model_output,
-                batch[1],
+                labels,
                 loss_metadata,
             )
         return loss_metadata

@@ -14,8 +14,7 @@ from lightly.loss.vicreg_loss import VICRegLoss
 
 from model.config import ModelConfig
 from model.manifold.reparameterize import compute_kl
-from model.public.ntx_ent_loss import (NTXentLoss, contrastive_loss,
-                                       lie_nt_xent_loss)
+from model.public.ntx_ent_loss import NTXentLoss, contrastive_loss, lie_nt_xent_loss
 from model.type import ModelOutput
 
 
@@ -167,6 +166,11 @@ class Loss(nn.Module):
             enc_shift_l2 = (enc_shift**2).sum(dim=-1).mean()
             total_loss += self.loss_cfg.shift_l2_weight * enc_shift_l2
             loss_meta["shift_l2"] = enc_shift_l2.item()
+            if self.loss_cfg.enable_prior_shift_l2:
+                prior_shift = header_out.distribution_data.prior_params["shift"]
+                prior_shift_l2 = (prior_shift**2).sum(dim=-1).mean()
+                total_loss += self.loss_cfg.shift_l2_weight * prior_shift_l2
+                loss_meta["prior_shift_l2"] = prior_shift_l2.item()
 
         if self.loss_cfg.det_prior_loss_active:
             z1_det_hat, z1 = header_dict["transop_z1_det_hat"], header_dict["transop_z1"].detach()
