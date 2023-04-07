@@ -4,6 +4,13 @@ defaults:
 
 exp_name: cotrain_vi_100s
 
+dataloader_cfg:
+  ssl_aug_cfg:
+    enable_weak_z0_aug: true
+  dataset_cfg:
+    enable_nn_pair: true
+    nn_pair_path: '../../results/pretrained/cifar10_cifar_nn.pt'
+
 model_cfg:
   header_cfg:
     enable_transop_augmentation: true
