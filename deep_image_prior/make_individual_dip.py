@@ -17,6 +17,7 @@ from matplotlib import pyplot as plt
 
 import wandb
 
+
 default_device = torch.device('cuda:0')
 
 def plot_dip_image(
@@ -65,35 +66,6 @@ def plot_multiple_dip_images(
 
     plt.savefig(save_path)
 
-def load_resnet_backbone(
-    last_layer="fc", 
-    resnet_type="resnet50", 
-    weights_path=None
-):
-    if resnet_type == "resnet50":
-        backbone = torchvision.models.resnet50(pretrained=True).to(default_device)
-    else:
-        backbone = torchvision.models.resnet18(pretrained=True).to(default_device)
-
-    if not weights_path is None:
-        backbone.load_state_dict(torch.load(weights_path))
-
-    backbone.eval()
-    # backbone.conv1 = nn.Conv2d(3, 64, 3, 1, 1, bias=False)
-    # backbone.maxpool = nn.Identity()
-    # backbone.fc = nn.Identity()
-
-
-    if last_layer == "layer4":
-        backbone.avgpool = torch.nn.Identity()
-    elif last_layer == "layer3":
-        backbone.avgpool = torch.nn.Identity()
-        backbone.layer4 = torch.nn.Identity()
-
-    backbone.fc = torch.nn.Identity()
-    deactivate_requires_grad(backbone)
-
-    return backbone
 
 def compute_dip_image(
     input_z, 

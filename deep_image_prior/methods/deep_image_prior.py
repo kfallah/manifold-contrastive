@@ -88,3 +88,32 @@ def compute_dip_image(
 
     return x_hat[0]
 
+def compute_interpolation_dip_images(
+    operator_path_samples,
+    input_x,
+    backbone,
+    mse_lambda=1.0,
+    learning_rate=1e-3,
+    fixed_noise=False,
+    return_network=False,
+):
+    """
+        Computes the corresponding deep image priors for the given set of 
+        operator path samples. 
+    """
+
+    dip_images = []
+    for path_sample in operator_path_samples:
+        dip_images.append(
+            compute_dip_image(
+                path_sample,
+                input_x,
+                backbone,
+                mse_lambda=mse_lambda,
+                learning_rate=learning_rate,
+                fixed_noise=fixed_noise,
+                return_network=return_network,
+            )
+        )
+
+    return dip_images

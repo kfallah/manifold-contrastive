@@ -1,6 +1,9 @@
 import matplotlib.pyplot as plt
 import torchvision.transforms.transforms as T
 
+from methods.manifold_interpolation import compute_operator_path_range, compute_operator_path_samples
+from methods.deep_image_prior import compute_dip_image
+
 def plot_multiple_dip_images(
     original_images,
     dip_images,
@@ -24,5 +27,38 @@ def plot_multiple_dip_images(
         axs[index, 0].axis('off')
         axs[index, 1].imshow(dip_image)
         axs[index, 1].axis('off')
+
+    plt.savefig(save_path)
+
+def plot_operator_path_samples(
+    input_images,
+    dip_images,
+    save_path="nn_path_visualizations.png",
+):
+    """
+        Plots the nearest images to the points along a
+        manifold path for a given transport operator.
+    """
+    fig, axs = plt.subplots(
+        len(dip_images),
+        len(dip_images[0]) + 1,
+        figsize=((len(dip_images[0]) + 1) * 1.5, len(input_images)),
+        dpi=300
+    )
+    for input_image_index in range(len(input_images)):
+        input_image = input_images[input_image_index]
+        axs[z_index, 0].imshow(input_image)
+        # axs[index].set_title(f"Path {index}")
+        axs[z_index, 0].axis("off")
+        axs[z_index, 0].set_title("Initial Image")
+        # Plot the images
+        # axs = image_fig.subplots(1, num_samples)
+        for index in range(num_samples):
+            # print(images[index].shape)
+            image = dip_images[input_image_index, index].permute(1, 2, 0) # [:, :, [2, 1, 0]]
+            image = (image - image.min()) / (image.max() - image.min())
+            axs[z_index, index + 1].imshow(image)
+            # axs[index].set_title(f"Path {index}")
+            axs[z_index, index + 1].axis("off")
 
     plt.savefig(save_path)
