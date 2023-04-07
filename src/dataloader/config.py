@@ -18,9 +18,13 @@ class DatasetConfig:
     dataset_dir: str = "../../datasets"
     image_size: int = 64
 
+    enable_nn_pair: bool = False
+    nn_pair_path: str = ""
+
 
 @dataclass
 class SSLAugmentationConfig:
+    enable_weak_z0_aug: bool = False
     cj_prob: float = 0.8
     cj_bright: float = 0.4
     cj_contrast: float = 0.4

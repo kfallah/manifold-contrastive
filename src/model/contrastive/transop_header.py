@@ -36,7 +36,7 @@ class TransportOperatorHeader(nn.Module):
             stable_init=self.cfg.stable_operator_initialization,
             real_range=self.cfg.real_range_initialization,
             imag_range=self.cfg.image_range_initialization,
-            dict_count=dict_count if self.cfg.enable_dict_per_block else None
+            dict_count=dict_count if self.cfg.enable_dict_per_block else None,
         )
 
         self.coefficient_encoder = None
@@ -73,13 +73,14 @@ class TransportOperatorHeader(nn.Module):
     def forward(self, header_input: HeaderInput, nn_queue: nn.Module = None) -> HeaderOutput:
         header_out = {}
         curr_iter = header_input.curr_iter
-        x0, x1 = header_input.x_0, header_input.x_1
-        z0, z1 = header_input.feature_0, header_input.feature_1
+        z0, z1, z_nn = header_input.feature_0, header_input.feature_1, header_input.feature_2
         distribution_data = None
 
         # either use the nearnest neighbor bank or the projected feature to make the prediction
         z0 = z0[: self.cfg.batch_size]
-        if nn_queue is not None:
+        if z_nn is not None:
+            z1_use = z_nn[: self.cfg.batch_size]
+        elif nn_queue is not None:
             z1_use = nn_queue(z1.detach(), update=False).detach()[: self.cfg.batch_size]
         else:
             z1_use = z1[: self.cfg.batch_size]
@@ -110,9 +111,7 @@ class TransportOperatorHeader(nn.Module):
 
         # Whether or not to compute gradient through the transport operator
         transop_grad = (
-            not (
-                self.cfg.enable_alternating_min and (header_input.curr_iter // self.cfg.alternating_min_step) != 0
-            )
+            not (self.cfg.enable_alternating_min and (header_input.curr_iter // self.cfg.alternating_min_step) != 0)
             and curr_iter >= self.cfg.start_iter
         )
         # Matrix exponential not supported with float16

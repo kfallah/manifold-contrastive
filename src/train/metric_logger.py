@@ -14,10 +14,10 @@ from typing import Dict
 import numpy as np
 import torch
 import torch.nn.functional as F
-import wandb
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 
+import wandb
 from model.model import Model, ModelOutput
 from train.config import MetricLoggerConfig
 from train.metric_utils import plot_log_spectra, plot_tsne, transop_plots
@@ -75,13 +75,13 @@ class MetricLogger:
         if self.cfg.enable_loss_logging:
             if len(self.metadata_avg) == 0:
                 # In the first iteration use the loss metadata directly
-                self.metadata_avg = dict(('loss/' + key, value) for (key, value) in loss_metadata.items())
+                self.metadata_avg = dict(("loss/" + key, value) for (key, value) in loss_metadata.items())
             else:
                 # Get moving average for the iterations between the loss metadata
                 for key in loss_metadata.keys():
-                    if 'loss/'+key not in self.metadata_avg.keys():
-                        self.metadata_avg['loss/' + key] = 0.0
-                    self.metadata_avg['loss/' + key] += loss_metadata[key] / self.cfg.loss_log_freq
+                    if "loss/" + key not in self.metadata_avg.keys():
+                        self.metadata_avg["loss/" + key] = 0.0
+                    self.metadata_avg["loss/" + key] += loss_metadata[key] / self.cfg.loss_log_freq
 
             if curr_iter % self.cfg.loss_log_freq == 0:
                 metrics.update(self.metadata_avg)
