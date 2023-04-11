@@ -60,6 +60,9 @@ class VariationalEncoderConfig:
     enable_prior_block_encoding: bool = False
     # Use a deterministic prior for shift
     enable_det_prior: bool = False
+    # Warmup prior params from fixed to those output by a DNN
+    enable_prior_warmup: bool = False
+    prior_warmup_iters: int = 10000
 
     # Use deterministic encoder
     enable_det_enc: bool = False

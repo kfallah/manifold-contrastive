@@ -150,7 +150,7 @@ class CoefficientEncoder(nn.Module):
         c = c_refine.detach().clamp(min=-2.0, max=2.0).nan_to_num(nan=0.01).reshape(c.shape)
         return {"shift": c, "logscale": torch.ones_like(c) * self.prior_params["logscale"]}
 
-    def get_prior_params(self, x0, x1=None):
+    def get_prior_params(self, x0, curr_iter=100000, x1=None):
         prior_params = {}
         hyperprior_params = {}
         if len(x0.shape) > 2:
@@ -186,6 +186,13 @@ class CoefficientEncoder(nn.Module):
                     prior_params["shift"] = self.prior_shift(z_prior).clamp(min=-5.0, max=5.0)
                 else:
                     prior_params["shift"] = hyperprior_params["shift"]
+
+                if self.vi_cfg.enable_prior_warmup:
+                    warmup = min(curr_iter / self.vi_cfg.prior_warmup_iters, 1.0)
+                    warmup = (5e-3) ** (1 - warmup)
+                    prior_params["logscale"] = warmup*prior_params["logscale"] + (1-warmup)*hyperprior_params["logscale"]
+                    prior_params["shift"] = warmup*prior_params["shift"] + (1-warmup)*hyperprior_params["shift"]*torch.sign(warmup*prior_params["shift"]).detach()
+
         else:
             prior_params = hyperprior_params.copy()
         return prior_params, hyperprior_params
@@ -195,7 +202,7 @@ class CoefficientEncoder(nn.Module):
     def get_distribution_params(
         self, x0, x1, psi, curr_iter
     ) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
-        prior_params, hyperprior_params = self.get_prior_params(x0, x1)
+        prior_params, hyperprior_params = self.get_prior_params(x0, curr_iter=curr_iter, x1=x1)
 
         encoder_params = {}
         if self.vi_cfg.enable_fista_enc:
@@ -225,9 +232,9 @@ class CoefficientEncoder(nn.Module):
 
         return encoder_params, prior_params, hyperprior_params
 
-    def prior_sample(self, x, distribution_params=None) -> torch.Tensor:
+    def prior_sample(self, x, curr_iter=100000, distribution_params=None) -> torch.Tensor:
         if distribution_params is None:
-            distribution_params, _ = self.get_prior_params(x)
+            distribution_params, _ = self.get_prior_params(x, curr_iter=curr_iter)
         noise = draw_noise_samples(self.vi_cfg.distribution, distribution_params["logscale"].shape, x.device)
         samples = reparameterize(self.vi_cfg.distribution, distribution_params, noise, self.thresh_warmup * self.lambda_prior)
         return samples

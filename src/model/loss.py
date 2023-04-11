@@ -10,11 +10,11 @@ from typing import Dict, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from lightly.loss.vicreg_loss import VICRegLoss
 
 from model.config import ModelConfig
 from model.manifold.reparameterize import compute_kl
 from model.public.ntx_ent_loss import NTXentLoss, contrastive_loss, lie_nt_xent_loss
+from model.public.vireg_loss import VICRegLoss
 from model.type import ModelOutput
 
 
@@ -97,14 +97,12 @@ class Loss(nn.Module):
         # Self-supervised loss from vicreg
         if self.loss_cfg.vicreg_loss_active:
             z0, z1 = header_dict["proj_00"], header_dict["proj_01"]
-            vicreg_loss = self.vicreg_loss(z0, z1)
+            z0_aug = None
+            if "z0_augproj" in header_dict.keys():
+                z0_aug = header_dict["z0_augproj"]
+            vicreg_loss = self.vicreg_loss(z0, z1, invariance_z_a=z0_aug, block_dim=self.loss_cfg.vicreg_block_dim)
             total_loss += self.loss_cfg.vicreg_loss_weight * vicreg_loss
             loss_meta["vicreg_loss"] = vicreg_loss.item()
-
-            z0_aug = header_dict["z0_augproj"]
-            inv_loss = F.mse_loss(z0_aug, z1)
-            total_loss += self.loss_cfg.vicreg_loss_weight * inv_loss
-            loss_meta["vicreg_inv_loss"] = inv_loss.item()
 
         # InfoNCE Lie Loss on transport operator estimates
         if self.loss_cfg.ntxent_lie_loss_active and curr_iter >= self.loss_cfg.ntxent_lie_loss_start_iter:
@@ -145,6 +143,16 @@ class Loss(nn.Module):
                 transop_loss /= F.mse_loss(z0, z1.detach(), reduction="none").mean(dim=-1) + 1.0e-4
                 transop_loss = transop_loss.mean()
                 loss_meta["transop_ratio"] = transop_loss.item()
+            elif self.loss_cfg.transop_loss_fn == "ce":
+                z0 = header_dict["transop_z0"]
+                transop_loss = F.mse_loss(z1_hat, z1, reduction="none").mean(dim=-1)
+                loss_meta["transop_loss"] = transop_loss.mean().item()
+                dist = F.mse_loss(z0, z1, reduction="none").mean(dim=-1)
+                distr = -torch.stack([transop_loss, dist], dim=-1)
+                labels = torch.zeros(len(transop_loss), device=transop_loss.device).long()
+                ce_loss = F.cross_entropy(distr / self.loss_cfg.transop_loss_ce_temp, labels)
+                transop_loss = transop_loss.mean() + 0.1*ce_loss
+                loss_meta["transop_ce"] = ce_loss.item()
             elif self.loss_cfg.transop_loss_fn == "diff":
                 z0 = header_dict["transop_z0"]
                 transop_loss = F.mse_loss(z1_hat, z1, reduction="none").mean(dim=-1)

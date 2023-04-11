@@ -16,7 +16,7 @@ model_cfg:
     enable_transop_augmentation: true
     enable_transop_header: true
     transop_header_cfg:
-      batch_size: 32
+      batch_size: 128
       start_iter: 0
       fine_tune_iter: 0
       dictionary_size: 64
@@ -24,12 +24,12 @@ model_cfg:
       transop_weight_decay: 1.0e-4
       transop_lr: 0.001
       enable_dict_per_block: true
-      block_dim: 128
+      block_dim: 64
       enable_variational_inference: true
       vi_cfg:
         max_sample_start_iter: 0
-        samples_per_iter: 20
-        total_num_samples: 20
+        samples_per_iter: 50
+        total_num_samples: 100
         max_sample_l1_penalty: 0.0
         feature_dim: 512
         scale_prior: 0.01
@@ -55,12 +55,10 @@ model_cfg:
     transop_loss_active: true
     transop_loss_weight: 1.0
     transop_loss_fn: mse
-    real_eig_reg_active: false
-    real_eig_reg_weight: 1.0e-6
 
 trainer_cfg:
   optimizer_cfg:
-    initial_lr: 0.001
+    initial_lr: 0.003
     weight_decay: 1e-5
   metric_logger_cfg:
     enable_transop_logging: true
