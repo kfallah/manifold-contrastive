@@ -21,15 +21,15 @@ model_cfg:
       fine_tune_iter: 0
       dictionary_size: 64
       lambda_prior: 0.01
-      transop_weight_decay: 1.0e-4
+      transop_weight_decay: 1.0e-2
       transop_lr: 0.001
       enable_dict_per_block: true
       block_dim: 64
       enable_variational_inference: true
       vi_cfg:
         max_sample_start_iter: 0
-        samples_per_iter: 50
-        total_num_samples: 100
+        samples_per_iter: 20
+        total_num_samples: 20
         max_sample_l1_penalty: 0.0
         feature_dim: 512
         scale_prior: 0.01
