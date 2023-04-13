@@ -151,7 +151,7 @@ class Loss(nn.Module):
                 distr = -torch.stack([transop_loss, dist], dim=-1)
                 labels = torch.zeros(len(transop_loss), device=transop_loss.device).long()
                 ce_loss = F.cross_entropy(distr / self.loss_cfg.transop_loss_ce_temp, labels)
-                transop_loss = transop_loss.mean() + 0.1*ce_loss
+                transop_loss = transop_loss.mean() + 0.1 * ce_loss
                 loss_meta["transop_ce"] = ce_loss.item()
             elif self.loss_cfg.transop_loss_fn == "diff":
                 z0 = header_dict["transop_z0"]
@@ -204,6 +204,16 @@ class Loss(nn.Module):
             eig_loss = (torch.real(torch.linalg.eigvals(psi_use)) ** 2).sum()
             loss_meta["real_eig_loss"] = eig_loss.item()
             total_loss += self.loss_cfg.real_eig_reg_weight * eig_loss
+
+        if self.loss_cfg.sample_ratio_loss:
+            z1_samp, z1, z0 = header_dict["transop_z1samp"], header_dict["transop_z1"], header_dict["transop_z0"]
+            neg = F.mse_loss(z1_samp, z1.unsqueeze(1), reduction="none").mean(dim=-1)
+            dist = F.mse_loss(z1, z0, reduction="none").mean(dim=-1)
+            labels = torch.argmin(neg, dim=-1)
+            neg = -torch.cat([neg, dist.unsqueeze(-1)], dim=-1) / 7e-2
+            ratio_loss = F.cross_entropy(neg, labels)
+            loss_meta["ratio_loss"] = ratio_loss.item()
+            total_loss += ratio_loss
 
         # Variational Inference loss terms
         if self.loss_cfg.kl_loss_active:

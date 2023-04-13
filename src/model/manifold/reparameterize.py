@@ -26,9 +26,9 @@ def reparameterize(
         logscale, shift = distribution_params["logscale"], distribution_params["shift"]
         # NOTE: this is going to break if not using block diagonal constraint...
         # may need to change just for that ablation
-        if len(noise.shape) >= 4:
-            logscale = logscale.view(1, *logscale.shape).expand(len(noise), -1, -1, -1)
-            shift = shift.view(1, *shift.shape).expand(len(noise), -1, -1, -1)
+        if len(noise.shape) >= 3:
+            logscale = logscale.view(1, *logscale.shape).expand(len(noise), -1, -1)
+            shift = shift.view(1, *shift.shape).expand(len(noise), -1, -1)
         scale = torch.exp(logscale)
         eps = -scale * torch.sign(noise) * torch.log((1.0 - 2.0 * torch.abs(noise)).clamp(min=1e-6, max=1e6))
         c = shift + eps
@@ -42,23 +42,9 @@ def reparameterize(
         eps = scale * noise
         c = shift + eps
 
-    if distribution == "Laplacian+Gamma" or distribution == "Gaussian+Gamma":
-        assert "gamma_a" in distribution_params.keys() and "gamma_b" in distribution_params.keys()
-        gamma_a, gamma_b = (
-            distribution_params["gamma_a"],
-            distribution_params["gamma_b"],
-        )
-        gamma_distr = gamma.Gamma(gamma_a, gamma_b)
-        if len(noise.shape) >= 3:
-            lambda_ = gamma_distr.rsample([len(noise)])
-        else:
-            lambda_ = gamma_distr.rsample()
-    else:
-        lambda_ = torch.ones_like(eps) * lambda_prior
-
     # We do this weird detaching pattern because in certain cases we want gradient to flow through lambda_
     # In the case where lambda_ is constant, this is the same as c_thresh.detach() in the final line.
-    c_thresh = soft_threshold(eps.detach(), lambda_)
+    c_thresh = soft_threshold(eps.detach(), lambda_prior)
     non_zero = torch.nonzero(c_thresh, as_tuple=True)
     c_thresh[non_zero] = (shift[non_zero].detach()) + c_thresh[non_zero]
     c = c + c_thresh - c.detach()

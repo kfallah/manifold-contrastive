@@ -22,6 +22,8 @@ class LossConfig:
     ntxent_detach_off_logit: bool = False
     ntxent_symmetric: bool = False
 
+    sample_ratio_loss: bool = False
+
     ntxent_lie_loss_active: bool = False
     ntxent_lie_loss_weight: float = 1.0
     ntxent_lie_loss_start_iter: int = 0

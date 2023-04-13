@@ -190,8 +190,15 @@ class CoefficientEncoder(nn.Module):
                 if self.vi_cfg.enable_prior_warmup:
                     warmup = min(curr_iter / self.vi_cfg.prior_warmup_iters, 1.0)
                     warmup = (5e-3) ** (1 - warmup)
-                    prior_params["logscale"] = warmup*prior_params["logscale"] + (1-warmup)*hyperprior_params["logscale"]
-                    prior_params["shift"] = warmup*prior_params["shift"] + (1-warmup)*hyperprior_params["shift"]*torch.sign(warmup*prior_params["shift"]).detach()
+                    prior_params["logscale"] = (
+                        warmup * prior_params["logscale"] + (1 - warmup) * hyperprior_params["logscale"]
+                    )
+                    prior_params["shift"] = (
+                        warmup * prior_params["shift"]
+                        + (1 - warmup)
+                        * hyperprior_params["shift"]
+                        * torch.sign(warmup * prior_params["shift"]).detach()
+                    )
 
         else:
             prior_params = hyperprior_params.copy()
@@ -236,7 +243,9 @@ class CoefficientEncoder(nn.Module):
         if distribution_params is None:
             distribution_params, _ = self.get_prior_params(x, curr_iter=curr_iter)
         noise = draw_noise_samples(self.vi_cfg.distribution, distribution_params["logscale"].shape, x.device)
-        samples = reparameterize(self.vi_cfg.distribution, distribution_params, noise, self.thresh_warmup * self.lambda_prior)
+        samples = reparameterize(
+            self.vi_cfg.distribution, distribution_params, noise, self.thresh_warmup * self.lambda_prior
+        )
         return samples
 
     def per_block_max_elbo_sample(self, encoder_params, psi, x0, x1) -> torch.Tensor:
@@ -290,7 +299,7 @@ class CoefficientEncoder(nn.Module):
                 T = torch.einsum("slbm,lmpk->sblpk", c, psi)
                 s, b, l, n, _ = T.shape
                 # s x b x l x d x d
-                T = torch.matrix_exp(T.reshape(-1, n, n)).reshape(s, b, l, n ,n)
+                T = torch.matrix_exp(T.reshape(-1, n, n)).reshape(s, b, l, n, n)
                 # b x l x d
                 x0_block = x0.reshape(len(x0), l, n)
                 # s x b x l x d
@@ -312,7 +321,7 @@ class CoefficientEncoder(nn.Module):
             loss_list = torch.cat(loss_list, dim=0)
             # S x b
             l1_list = torch.cat(l1_list, dim=0)
-            # S x b
+            # b
             max_elbo = torch.argmin(loss_list + self.vi_cfg.max_sample_l1_penalty * l1_list, dim=0).detach()
             optimal_noise = noise_list[max_elbo, torch.arange(len(max_elbo))]
             return optimal_noise
@@ -337,7 +346,13 @@ class CoefficientEncoder(nn.Module):
                 else:
                     noise = self.max_elbo_sample(encoder_params, psi_use, x0, x1)
             else:
-                noise = draw_noise_samples(self.vi_cfg.distribution, encoder_params["shift"].shape, x0.device)
+                noise_shape = (
+                    encoder_params["shift"]
+                    .view(1, *encoder_params["shift"].shape)
+                    .repeat(self.vi_cfg.total_num_samples, 1, 1)
+                    .shape
+                )
+                noise = draw_noise_samples(self.vi_cfg.distribution, noise_shape, x0.device)
             samples = reparameterize(
                 self.vi_cfg.distribution, encoder_params, noise, self.thresh_warmup * self.lambda_prior
             )

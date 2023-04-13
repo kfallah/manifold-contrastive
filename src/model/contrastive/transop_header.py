@@ -7,6 +7,7 @@ Transport operator header that estimates the manifold path between a pair of poi
 """
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.cuda.amp import autocast
 
 from model.contrastive.config import TransportOperatorConfig
@@ -116,15 +117,21 @@ class TransportOperatorHeader(nn.Module):
         )
         # Matrix exponential not supported with float16
         with autocast(enabled=False):
-            z1_hat = self.transop(z0.float().unsqueeze(-1), c, transop_grad=transop_grad).squeeze(dim=-1)
-
-            if self.cfg.symmmetric_transport:
-                z0_hat = self.transop(z1_use.float().unsqueeze(-1), -c, transop_grad=transop_grad).squeeze(dim=-1)
-                header_out["transop_z0hat"] = z0_hat
+            # z1_hat = self.transop(z0.float().unsqueeze(-1), c, transop_grad=transop_grad).squeeze(dim=-1)
+            psi = self.transop.psi
+            T = torch.matrix_exp(torch.einsum("sbm,lmuv->sbluv", c, psi))
+            z1_samp = (T @ z0.reshape(1, len(z0), -1, self.cfg.block_dim, 1)).reshape(
+                self.cfg.vi_cfg.total_num_samples, len(z0), -1
+            )
+            min_idx = torch.argmin(
+                F.mse_loss(z1_samp, z1_use.unsqueeze(0), reduction="none").mean(dim=-1), dim=0
+            ).detach()
+            z1_hat = z1_samp[min_idx, torch.arange(len(min_idx))]
 
         header_out["transop_z0"] = z0
         header_out["transop_z1"] = z1_use
         header_out["transop_z1hat"] = z1_hat
+        header_out["transop_z1samp"] = z1_samp.transpose(0, 1)
 
         if self.cfg.vi_cfg.enable_det_prior:
             prior_c = distribution_data.prior_params["shift"]
