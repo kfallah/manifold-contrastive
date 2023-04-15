@@ -13,6 +13,7 @@ dataloader_cfg:
 
 model_cfg:
   header_cfg:
+    enable_projection_header: false
     enable_transop_augmentation: true
     enable_transop_header: true
     transop_header_cfg:
@@ -21,7 +22,7 @@ model_cfg:
       fine_tune_iter: 0
       dictionary_size: 64
       lambda_prior: 0.01
-      transop_weight_decay: 1.0e-2
+      transop_weight_decay: 1.0e-3
       transop_lr: 0.001
       enable_dict_per_block: true
       block_dim: 64
@@ -33,25 +34,20 @@ model_cfg:
         max_sample_l1_penalty: 0.0
         feature_dim: 512
         scale_prior: 0.01
-        shift_prior: 0.0
+        shift_prior: 0.05
         variational_encoder_lr: 0.0001
         variational_encoder_weight_decay: 1.0e-5
         enable_learned_prior: true
         enable_prior_shift: true
-        enable_prior_block_encoding: false
-        enable_thresh_warmup: false
-        enable_enc_attn: false
-        enable_det_enc: false
   loss_cfg:
     ntxent_loss_active: true
-    ntxent_loss_weight: 0.1
+    ntxent_loss_weight: 1.0
     kl_loss_active: true
     kl_loss_weight: 1.0e-5
     kl_detach_shift: false
     kl_weight_warmup: Exponential
     enable_shift_l2: true
-    enable_prior_shift_l2: true
-    shift_l2_weight: 1.0e-4
+    shift_l2_weight: 1.0e-3
     transop_loss_active: true
     transop_loss_weight: 1.0
     transop_loss_fn: mse

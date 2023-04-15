@@ -59,8 +59,9 @@ def lie_nt_xent_loss(out_1, out_2, out_3=None, temperature=0.07, mse=False, eps=
     sim = torch.exp(cov / temperature)
     neg = sim.sum(dim=-1)
 
-    row_sub = torch.exp(torch.norm(out, dim=-1) / temperature)
-    neg = torch.clamp(neg - row_sub, min=eps)  # clamp for numerical stability
+    if not mse:
+        row_sub = torch.exp(torch.norm(out, dim=-1) / temperature)
+        neg = torch.clamp(neg - row_sub, min=eps)  # clamp for numerical stability
 
     # Positive similarity, pos becomes [2 * batch_size]
     if mse:

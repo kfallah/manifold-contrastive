@@ -62,7 +62,7 @@ class VariationalEncoderConfig:
     enable_det_prior: bool = False
     # Warmup prior params from fixed to those output by a DNN
     enable_prior_warmup: bool = False
-    prior_warmup_iters: int = 10000
+    prior_warmup_iters: int = 5000
 
     # Use deterministic encoder
     enable_det_enc: bool = False
@@ -102,6 +102,8 @@ class TransportOperatorConfig:
 
     # Option to splice input to create BDM constraint on transop
     enable_block_diagonal: bool = True
+    # Only estimate transport for the top block
+    enable_direct: bool = False
     block_dim: int = 64
     # Use a separate dictionary for each block of features
     enable_dict_per_block: bool = False

@@ -31,15 +31,15 @@ class CoeffEncoderConfig:
     feature_dim: int = 512
     hidden_dim1: int = 2048
     hidden_dim2: int = 2048
-    scale_prior: float = 0.005
-    shift_prior: float = 0.0
-    threshold: float = 0.01
+    scale_prior: float = 0.01
+    shift_prior: float = 0.05
+    threshold: float = 0.0
 
-    logging_interval: int = 100
+    logging_interval: int = 1000
     lr: float = 0.0001
     opt_type: str = "AdamW"
     kl_weight: float = 1.0e-5
-    weight_decay: float = 1.0e-5
+    weight_decay: float = 1.0e-3
     grad_acc_iter: int = 1
 
     enable_c_l2: bool = False
@@ -48,12 +48,12 @@ class CoeffEncoderConfig:
     enable_shift_l2: bool = True
     shift_l2_weight: float = 1.0e-4
 
-    enable_max_sample: bool = True
+    enable_max_sample: bool = False
     max_sample_start_iter: int = 0
-    total_num_samples: int = 20
-    samples_per_iter: int = 20
+    total_num_samples: int = 10
+    samples_per_iter: int = 10
 
-    learn_prior: bool = True
+    learn_prior: bool = False
     learn_prior_shift: bool = True
     no_shift_prior: bool = True
 
@@ -86,7 +86,13 @@ class ExperimentConfig:
     vi_cfg: CoeffEncoderConfig = CoeffEncoderConfig()
     transop_cfg: TransportOperatorConfig = TransportOperatorConfig()
     data_cfg: DataLoaderConfig = DataLoaderConfig(
-        dataset_cfg=DatasetConfig(dataset_name="CIFAR10", num_classes=10, image_size=32),
+        dataset_cfg=DatasetConfig(
+            dataset_name="CIFAR10", 
+            num_classes=10, 
+            image_size=32,
+            enable_nn_pair=False,
+            nn_pair_path='../../results/pretrained/cifar10_cifar_nn.pt'
+        ),
         num_workers=32,
         train_batch_size=1024,
     )
@@ -114,7 +120,7 @@ class VIEncoder(nn.Module):
     def __init__(self, cfg: CoeffEncoderConfig, dict_size: int):
         super(VIEncoder, self).__init__()
         self.feat_extract = nn.Sequential(
-            nn.Linear(32, cfg.hidden_dim1),
+            nn.Linear(128, cfg.hidden_dim1),
             nn.LeakyReLU(),
             nn.Linear(cfg.hidden_dim1, cfg.hidden_dim2),
             nn.LeakyReLU(),
@@ -130,7 +136,7 @@ class VIEncoder(nn.Module):
 
         if self.cfg.learn_prior:
             self.prior_feat = nn.Sequential(
-                nn.Linear(16, cfg.hidden_dim1),
+                nn.Linear(64, cfg.hidden_dim1),
                 nn.LeakyReLU(),
                 nn.Linear(cfg.hidden_dim1, cfg.hidden_dim2),
                 nn.LeakyReLU(),
@@ -164,7 +170,7 @@ class VIEncoder(nn.Module):
         log_scale += torch.log(torch.ones_like(log_scale) * self.cfg.scale_prior)
         log_scale = log_scale.clamp(min=-100, max=2)
         noise = torch.rand_like(log_scale) - 0.5
-        if self.cfg.learn_prior_shift: 
+        if self.cfg.learn_prior_shift:
             shift = self.prior_shift(z_prior).clamp(-5, 5)
         else:
             shift = torch.zeros_like(log_scale)
@@ -262,7 +268,7 @@ class VIEncoder(nn.Module):
             prior_log_scale += torch.log(torch.ones_like(log_scale) * self.cfg.scale_prior)
             prior_log_scale = prior_log_scale.clamp(min=-100, max=2)
             prior_scale = prior_log_scale.exp()
-            if self.cfg.learn_prior_shift: 
+            if self.cfg.learn_prior_shift:
                 prior_shift = self.prior_shift(z_prior).clamp(-5, 5)
         kl = self.kl_loss(log_scale.exp(), shift, prior_scale, prior_shift, kl_scale).sum(dim=-1).mean()
 
@@ -303,7 +309,7 @@ def init_models(exp_cfg):
 
     transop = TransOp_expm(
         exp_cfg.transop_cfg.dict_size,
-        16,
+        64,
         stable_init=True,
         real_range=exp_cfg.transop_cfg.init_real_range,
         imag_range=exp_cfg.transop_cfg.init_imag_range,
@@ -382,7 +388,7 @@ def train(exp_cfg, train_dataloader, backbone, psi, encoder, projector):
             x0, x1 = x0.to(exp_cfg.device), x1.to(exp_cfg.device)
 
             # TRANSOP LOSS
-            z0, z1 = backbone[:-2](x0).reshape(len(x0), -1, 16), backbone[:-2](x1).reshape(len(x1), -1, 16)
+            z0, z1 = backbone[:-3](x0).reshape(len(x0), -1, 64), backbone[:-3](x1).reshape(len(x1), -1, 64)
             filter_idx = torch.randperm(z0.shape[1])[: exp_cfg.transop_cfg.random_filter_count]
             z0_use, z1_use = (
                 z0[: exp_cfg.transop_cfg.batch_size, filter_idx],
@@ -391,7 +397,9 @@ def train(exp_cfg, train_dataloader, backbone, psi, encoder, projector):
             # if exp_cfg.vi_cfg.use_nn_point_pair:
             #    z1 = nn_bank(z1.detach(), update=True).detach()
 
-            c, kl_loss, ((log_scale, shift), (prior_scale, prior_shift)) = encoder(curr_iter, z0_use.detach(), z1_use.detach(), psi.detach())
+            c, kl_loss, ((log_scale, shift), (prior_scale, prior_shift)) = encoder(
+                curr_iter, z0_use.detach(), z1_use.detach(), psi.detach()
+            )
             T = torch.matrix_exp(torch.einsum("bsm,mpk->bspk", c, psi))
             z1_hat = (T @ z0_use.unsqueeze(-1)).squeeze(-1)
             transop_loss = torch.nn.functional.mse_loss(z1_hat, z1_use, reduction="none")
@@ -403,7 +411,7 @@ def train(exp_cfg, train_dataloader, backbone, psi, encoder, projector):
             if exp_cfg.vi_cfg.enable_shift_l2:
                 l2_reg = (shift**2).sum(dim=-1).mean()
                 loss += exp_cfg.vi_cfg.shift_l2_weight * l2_reg
-                if exp_cfg.vi_cfg.learn_prior_shift:
+                if exp_cfg.vi_cfg.learn_prior and exp_cfg.vi_cfg.learn_prior_shift:
                     l2_prior = (prior_shift**2).sum(dim=-1).mean()
                     loss += exp_cfg.vi_cfg.shift_l2_weight * l2_prior
 
@@ -417,8 +425,8 @@ def train(exp_cfg, train_dataloader, backbone, psi, encoder, projector):
 
             # CONTRASTIVE LOSS
             z0f, z1f = (
-                backbone[-2:](z0_aug.reshape(len(z0), -1, 4, 4)).squeeze(),
-                backbone[-2:](z1.reshape(len(z1), -1, 4, 4)).squeeze(),
+                backbone[-3:](z0_aug.reshape(len(z0), -1, 8, 8)).squeeze(),
+                backbone[-3:](z1.reshape(len(z1), -1, 8, 8)).squeeze(),
             )
             h = projector(torch.cat([z0f.squeeze(), z1f.squeeze()]))
             h0, h1 = h[: len(z0)], h[len(z0) :]
@@ -484,18 +492,19 @@ def train(exp_cfg, train_dataloader, backbone, psi, encoder, projector):
 
                 if exp_cfg.transop_cfg.train_transop:
                     log_transop(psi.detach().cpu(), curr_iter)
-        if curr_iter % 5000 == 0:
-            torch.save(
-                {
-                    "encoder": encoder.state_dict(),
-                    "psi": psi,
-                    "optimizer": opt.state_dict(),
-                    "scheduler": scheduler.state_dict(),
-                    "curr_iter": curr_iter,
-                    "curr_epoch": i,
-                },
-                os.getcwd() + f"/model_state{curr_iter}.pt",
-            )
+        
+            if curr_iter % 5000 == 0:
+                torch.save(
+                    {
+                        "encoder": encoder.state_dict(),
+                        "psi": psi,
+                        "optimizer": opt.state_dict(),
+                        "scheduler": scheduler.state_dict(),
+                        "curr_iter": curr_iter,
+                        "curr_epoch": i,
+                    },
+                    os.getcwd() + f"/model_state{curr_iter}.pt",
+                )
 
 
 def register_configs() -> None:

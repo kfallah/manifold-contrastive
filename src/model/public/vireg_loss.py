@@ -78,11 +78,12 @@ class VICRegLoss(torch.nn.Module):
             z_a.shape == z_b.shape
         ), f"z_a and z_b must have same shape but found {z_a.shape} and {z_b.shape}."
 
+        inv_loss = invariance_loss(x=z_a, y=z_b)
+
+        prior_inv = 0.
         # invariance term of the loss
-        if invariance_z_a is None:
-            inv_loss = invariance_loss(x=z_a, y=z_b)
-        else:
-            inv_loss = invariance_loss(x=invariance_z_a, y=z_b)
+        if invariance_z_a is not None:
+            prior_inv = invariance_loss(x=invariance_z_a, y=z_b)
 
 
         # gather all batches
@@ -95,19 +96,9 @@ class VICRegLoss(torch.nn.Module):
         var_loss = 0.5 * (
             variance_loss(x=z_a, eps=self.eps) + variance_loss(x=z_b, eps=self.eps)
         )
-        if block_dim == -1:
-            cov_loss = covariance_loss(x=z_a) + covariance_loss(x=z_b)
-        else:
-            block_count = z_a.shape[-1] // block_dim
-            for i in range(block_count):
-                cov_loss = covariance_loss(x=z_a[i*block_dim:(i+1)*block_dim]) + covariance_loss(x=z_b[i*block_dim:(i+1)*block_dim])
+        cov_loss = covariance_loss(x=z_a) + covariance_loss(x=z_b)
 
-        loss = (
-            self.lambda_param * inv_loss
-            + self.mu_param * var_loss
-            + self.nu_param * cov_loss
-        )
-        return loss
+        return inv_loss, prior_inv, var_loss, cov_loss
 
 
 def invariance_loss(x: Tensor, y: Tensor) -> Tensor:
