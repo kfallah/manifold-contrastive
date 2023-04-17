@@ -100,24 +100,42 @@ class Loss(nn.Module):
             z0_aug = None
             if "z0_augproj" in header_dict.keys():
                 z0_aug = header_dict["z0_augproj"]
-            vicreg_loss = self.vicreg_loss(z0, z1, invariance_z_a=z0_aug, block_dim=self.loss_cfg.vicreg_block_dim)
+            inv_loss, prior_inv, var_loss, cov_loss = self.vicreg_loss(z0, z1, invariance_z_a=z0_aug)
+            vicreg_loss = (
+                self.loss_cfg.vicreg_inv_weight * inv_loss
+                + prior_inv
+                + self.loss_cfg.vicreg_var_weight * var_loss
+                + self.loss_cfg.vicreg_cov_weight * cov_loss
+            )
             total_loss += self.loss_cfg.vicreg_loss_weight * vicreg_loss
-            loss_meta["vicreg_loss"] = vicreg_loss.item()
+            loss_meta["inv_loss"] = inv_loss.item()
+            loss_meta["prior_inv"] = prior_inv.item()
+            loss_meta["var_loss"] = var_loss.item()
+            loss_meta["cov_loss"] = cov_loss.item()
 
         # InfoNCE Lie Loss on transport operator estimates
         if self.loss_cfg.ntxent_lie_loss_active and curr_iter >= self.loss_cfg.ntxent_lie_loss_start_iter:
-            z0, z1, z1hat = header_dict["transop_z0"], header_dict["transop_z1"], header_dict["transop_z1"]
-            z0, z1, z1hat = z0.reshape(len(z1), -1), z1.reshape(len(z1), -1), z1hat.reshape(len(z1), -1)
+            #z0, z1, z1hat = header_dict["transop_z0"], header_dict["transop_z1"], header_dict["transop_z1hat"]
+            #z0, z1, z1hat = z0.reshape(len(z1), -1), z1.reshape(len(z1), -1), z1hat.reshape(len(z1), -1)
+            z0, z1, z1hat = header_dict["transop_z0"], header_dict["transop_z1"], header_dict["z0_aug"]
+            #z0, z1, z1hat = model_output.header_input.feature_0, model_output.header_input.feature_1, header_dict["z0_aug"]
             proj = args_dict["proj"]
             z0_proj, z1_proj, z1hat_proj = z0, z1, z1hat
             # z0_proj, z1_proj, z1hat_proj= proj(z0), proj(z1), proj(z1hat)
-            lie_loss = lie_nt_xent_loss(
-                F.normalize(z0_proj, dim=-1),
-                F.normalize(z1_proj, dim=-1),
-                # out_3=None,
-                F.normalize(z1hat_proj, dim=-1),
-                temperature=self.loss_cfg.ntxent_lie_temp,
-            )
+            if self.loss_cfg.ntxent_lie_loss_mse:
+                lie_loss = lie_nt_xent_loss(
+                    z0_proj, z1_proj, z1hat_proj,
+                    mse=True,
+                    temperature=self.loss_cfg.ntxent_lie_temp,
+                )
+            else:
+                lie_loss = lie_nt_xent_loss(
+                    F.normalize(z0_proj, dim=-1),
+                    F.normalize(z1_proj, dim=-1),
+                    # out_3=None,
+                    F.normalize(z1hat_proj, dim=-1),
+                    temperature=self.loss_cfg.ntxent_lie_temp,
+                )
             loss_meta["ntxent_lie_loss"] = lie_loss.item()
             total_loss += self.loss_cfg.ntxent_lie_loss_weight * lie_loss
 

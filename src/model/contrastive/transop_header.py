@@ -27,7 +27,7 @@ class TransportOperatorHeader(nn.Module):
         self.cfg = transop_cfg
 
         transop_dim = backbone_feature_dim
-        if self.cfg.enable_block_diagonal:
+        if self.cfg.enable_block_diagonal or self.cfg.enable_direct:
             dict_count = backbone_feature_dim // self.cfg.block_dim
             transop_dim = self.cfg.block_dim
 
@@ -91,6 +91,9 @@ class TransportOperatorHeader(nn.Module):
         if self.cfg.enable_block_diagonal and not self.cfg.enable_dict_per_block:
             z0 = z0.reshape(len(z0), -1, self.cfg.block_dim)
             z1_use = z1_use.reshape(len(z0), -1, self.cfg.block_dim)
+        if self.cfg.enable_direct:
+            z0 = z0[:, :self.cfg.block_dim]
+            z1_use = z1_use[:, :self.cfg.block_dim]
 
         # Infer coefficients for point pair
         if not self.cfg.enable_variational_inference:
