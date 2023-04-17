@@ -97,12 +97,22 @@ class MetricLogger:
             metrics["meta/optim_lr"] = optim_lr
         # Logging collapse level
         if self.cfg.enable_collapse_logging and curr_iter % self.cfg.collapse_log_freq == 0:
-            feat_norm = torch.nn.functional.normalize(torch.tensor(np.array(self.feature_cache)).float(), dim=1)
+            feat = torch.tensor(np.array(self.feature_cache)).float()
+            feat_norm = torch.nn.functional.normalize(feat, dim=1)
             feat_var = torch.std(feat_norm, dim=0)
             feat_collapse = max(0.0, 1 - math.sqrt(len(feat_var)) * feat_var.mean().item())
             metrics["meta/feat_collapse"] = feat_collapse
+            _, S, _ = torch.linalg.svd(feat, full_matrices=False)
+            norm_S = S / S.sum()
+            effective_rank = (-norm_S * torch.log(norm_S)).sum()
+            stable_rank = (S**2).sum() / (max(S) ** 2)
+            metrics["meta/effective_rank"] = effective_rank
+            metrics["meta/stable_rank"] = stable_rank
+
             if self.cfg.enable_console_logging:
-                log.info(f"[Epoch {curr_epoch}, iter {curr_iter}]: Feature collapse: {feat_collapse:.2f}")
+                log.info(
+                    f"[Epoch {curr_epoch}, iter {curr_iter}]: Feature collapse: {feat_collapse:.2f}, Effective Rank: {effective_rank:.2f}, Stable Rank: {stable_rank:.2f}"
+                )
 
         if self.cfg.enable_transop_logging and curr_iter % self.cfg.transop_log_freq == 0:
             assert (

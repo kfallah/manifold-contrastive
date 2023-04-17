@@ -2,11 +2,12 @@ defaults:
   - simclr_cifar10
   - _self_
 
-exp_name: cotrain_vi_100s
+exp_name: vi-A_prior-mse_ltemp5e-1_dict128_block64
+devices: [0, 1]
 
 dataloader_cfg:
   ssl_aug_cfg:
-    enable_weak_z0_aug: true
+    enable_weak_z0_aug: false
   dataset_cfg:
     enable_nn_pair: false
     nn_pair_path: '../../results/pretrained/cifar10_cifar_nn.pt'
@@ -17,11 +18,11 @@ model_cfg:
     enable_transop_augmentation: true
     enable_transop_header: true
     transop_header_cfg:
-      batch_size: 32
+      batch_size: 256
       start_iter: 0
       fine_tune_iter: 0
-      dictionary_size: 64
-      lambda_prior: 0.01
+      dictionary_size: 128
+      lambda_prior: 0.0
       transop_weight_decay: 1.0e-3
       transop_lr: 0.001
       enable_dict_per_block: true
@@ -30,29 +31,39 @@ model_cfg:
       vi_cfg:
         enable_max_sampling: false
         max_sample_start_iter: 0
-        samples_per_iter: 20
-        total_num_samples: 10
+        samples_per_iter: 25
+        total_num_samples: 100
         max_sample_l1_penalty: 0.0
         feature_dim: 512
         scale_prior: 0.01
         shift_prior: 0.05
         variational_encoder_lr: 0.0001
         variational_encoder_weight_decay: 1.0e-5
-        enable_prior_warmup: true
         enable_learned_prior: true
         enable_prior_shift: true
+        enable_prior_warmup: true
   loss_cfg:
-    ntxent_loss_active: true
-    ntxent_loss_weight: 1.0
+    ntxent_loss_active: false
+    ntxent_lie_loss_active: true
+    ntxent_lie_loss_mse: true
+    ntxent_lie_loss_weight: 1.0
+    ntxent_lie_temp: 0.5
     kl_loss_active: true
     kl_loss_weight: 1.0e-5
     kl_detach_shift: false
     kl_weight_warmup: Exponential
-    enable_shift_l2: true
-    shift_l2_weight: 1.0e-3
+    enable_shift_l2: false
+    shift_l2_weight: 1.0e-2
     transop_loss_active: true
     transop_loss_weight: 1.0
     transop_loss_fn: mse
+
+evaluator_cfg:
+  aug_nn_eval_cfg:
+    enable_runner: true
+    eval_freq: 250
+  semisup_probe_eval_cfg:
+    manifold_aug: true
 
 trainer_cfg:
   optimizer_cfg:

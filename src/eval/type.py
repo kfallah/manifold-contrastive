@@ -5,10 +5,10 @@ Contain all data types used by the evaluator modules.
 @Author      Kion
 @Created     09/01/22
 """
-
 from typing import Dict, NamedTuple, Tuple
 
 import torch
+from matplotlib.figure import Figure
 
 from eval.config import EvalRunnerConfig
 from model.model import Model
@@ -30,7 +30,7 @@ class EvalRunner:
         super(EvalRunner, self).__init__()
         self.cfg = cfg
 
-    def run_eval(self, **kwargs) -> Tuple[Dict[str, float], float]:
+    def run_eval(self, **kwargs) -> Tuple[Dict[str, float], float, Dict[str, Figure]]:
         raise NotImplementedError
 
     def get_eval_freq(self) -> int:

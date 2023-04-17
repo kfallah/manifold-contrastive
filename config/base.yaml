@@ -47,3 +47,6 @@ evaluator_cfg:
     enable_runner: true
     eval_freq: 100
     num_epochs: 500
+  semisup_probe_eval_cfg:
+    enable_runner: true
+    eval_freq: 1000

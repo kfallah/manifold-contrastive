@@ -16,10 +16,10 @@ from typing import Tuple
 import hydra
 import numpy as np
 import torch
-import wandb
 from hydra.core.config_store import ConfigStore
 from omegaconf import DictConfig, OmegaConf
 
+import wandb
 from dataloader.base import Dataset
 from dataloader.config import DataLoaderConfig
 from dataloader.ssl_dataloader import get_dataset
@@ -31,6 +31,7 @@ from train.config import TrainerConfig
 from train.trainer import Trainer
 
 warnings.filterwarnings("ignore")
+
 
 @dataclass
 class ExperimentConfig:
@@ -93,7 +94,8 @@ def run_experiment(
     current_best = 1e99
     for epoch in range(cfg.trainer_cfg.num_epochs):
         # Run eval metrics on the model
-        run_eval(epoch, current_best, trainer, evaluator, dataset)
+        if epoch > 0:
+            run_eval(epoch, current_best, trainer, evaluator, dataset)
 
         # Perform a training epoch
         _ = trainer.train_epoch(epoch, dataset.train_dataloader)
