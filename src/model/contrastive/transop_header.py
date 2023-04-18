@@ -28,8 +28,9 @@ class TransportOperatorHeader(nn.Module):
 
         transop_dim = backbone_feature_dim
         dict_count = 1
-        if self.cfg.enable_block_diagonal or self.cfg.enable_direct:
+        if self.cfg.enable_block_diagonal: 
             dict_count = backbone_feature_dim // self.cfg.block_dim
+        if self.cfg.enable_block_diagonal or self.cfg.enable_direct:
             transop_dim = self.cfg.block_dim
 
         self.transop = TransOp_expm(
@@ -45,7 +46,7 @@ class TransportOperatorHeader(nn.Module):
         if self.cfg.enable_variational_inference:
             self.coefficient_encoder = CoefficientEncoder(
                 self.cfg.vi_cfg,
-                backbone_feature_dim,
+                backbone_feature_dim if not self.cfg.enable_direct else transop_dim,
                 self.cfg.dictionary_size,
                 self.cfg.lambda_prior,
             )

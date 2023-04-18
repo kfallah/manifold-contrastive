@@ -45,7 +45,7 @@ class VariationalEncoderConfig:
     # warmup the threshold parameter -- start with dense coefficients and anneal to sparse
     enable_thresh_warmup: bool = False
 
-    enable_max_sampling: bool = True
+    enable_max_sampling: bool = False
     max_sample_l1_penalty: float = 1.0e-2
     max_sample_start_iter: int = 50000
     total_num_samples: int = 20
