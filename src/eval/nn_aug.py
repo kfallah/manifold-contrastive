@@ -46,7 +46,7 @@ class AugmentationNNEval(EvalRunner):
         model = val_eval_input.model
         transop = model.contrastive_header.transop_header.transop
         coeff_enc = model.contrastive_header.transop_header.coefficient_encoder
-        start_idx = 20
+        start_idx = 2000
         num_im, num_augs = self.get_config().num_images, self.get_config().num_augs
 
         with torch.no_grad():
@@ -54,7 +54,7 @@ class AugmentationNNEval(EvalRunner):
             for i in range(num_im):
                 for j in range(num_augs):
                     z0 = z[start_idx + i].to(device)
-                    c = coeff_enc.prior_sample(z0.unsqueeze(0).detach()).squeeze(0) * 2
+                    c = coeff_enc.prior_sample(z0.unsqueeze(0).detach()).squeeze(0).clamp(min=-1, max=1)
                     zu_aug = transop(z0, c, transop_grad=False)
                     aug_list[i, j] = zu_aug.detach().cpu()
 

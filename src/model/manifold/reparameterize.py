@@ -45,7 +45,7 @@ def reparameterize(
     # In the case where lambda_ is constant, this is the same as c_thresh.detach() in the final line.
     c_thresh = soft_threshold(eps.detach(), lambda_prior)
     non_zero = torch.nonzero(c_thresh, as_tuple=True)
-    c_thresh[non_zero] = (shift[non_zero].detach()) + c_thresh[non_zero]
+    c_thresh[non_zero] = shift[non_zero].detach() + c_thresh[non_zero]
     c = c + c_thresh - c.detach()
     return c
 

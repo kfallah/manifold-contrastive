@@ -66,3 +66,4 @@ evaluator_cfg:
     eval_freq: 1000
   aug_nn_eval_cfg:
     enable_runner: true
+    eval_freq: 200
