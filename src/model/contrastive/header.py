@@ -12,7 +12,8 @@ from torch.cuda.amp import autocast
 
 from model.contrastive.config import ContrastiveHeaderConfig
 from model.contrastive.projection_header import ProjectionHeader
-from model.contrastive.projection_prediction_header import ProjectionPredictionHeader
+from model.contrastive.projection_prediction_header import \
+    ProjectionPredictionHeader
 from model.contrastive.transop_header import TransportOperatorHeader
 from model.type import HeaderInput, HeaderOutput
 
@@ -73,25 +74,13 @@ class ContrastiveHeader(nn.Module):
             enc = self.transop_header.coefficient_encoder
             transop = self.transop_header.transop
             z0 = header_input.feature_0
-            if self.transop_header.cfg.enable_block_diagonal and not self.transop_header.cfg.enable_dict_per_block:
-                z0 = z0.reshape(len(z0), -1, self.transop_header.cfg.block_dim)
             if self.transop_header.cfg.enable_direct:
                 z0 = z0[:, :self.transop_header.cfg.block_dim]
             # Optimization: pass the prior params already computed
             c0 = enc.prior_sample(z0.detach(), curr_iter=curr_iter)  # distribution_data.prior_params)
             with autocast(enabled=False):
-                z0_aug = (
-                    transop(z0.float().unsqueeze(-1), c0, transop_grad=self.header_cfg.enable_transop_prior_grad)
-                    .squeeze(dim=-1)
-                    .reshape(len(z0), -1)
-                )
-            
+                z0_aug = transop(z0.float(), c0, transop_grad=self.header_cfg.enable_transop_prior_grad)
             aggregate_header_out["z0_aug"] = z0_aug
-            # if self.projection_header.proj_cfg.header_name == "SimCLR":
-            #     # Place back into header input
-            #     header_input = header_input._replace(feature_0=z0_aug)
-            # elif self.projection_header.proj_cfg.header_name == "VICReg":
-            #     aggregate_header_out["z0_augproj"] = self.projection_header.projector(z0_aug)
 
         if self.projection_header is not None:
             header_out = self.projection_header(header_input)

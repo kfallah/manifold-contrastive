@@ -13,8 +13,7 @@ import torch.nn.functional as F
 
 from model.config import ModelConfig
 from model.manifold.reparameterize import compute_kl
-from model.public.ntx_ent_loss import NTXentLoss, contrastive_loss, lie_nt_xent_loss
-from model.public.vireg_loss import VICRegLoss
+from model.public.ntx_ent_loss import contrastive_loss, lie_nt_xent_loss
 from model.type import ModelOutput
 
 
@@ -24,26 +23,6 @@ class Loss(nn.Module):
         self.model_cfg = model_cfg
         self.loss_cfg = model_cfg.loss_cfg
         self.kl_warmup = 0
-
-        """
-        self.ntxent_loss = None
-        if self.loss_cfg.ntxent_loss_active:
-            self.ntxent_loss = NTXentLoss(
-                memory_bank_size=self.loss_cfg.memory_bank_size,
-                temperature=self.loss_cfg.ntxent_temp,
-                normalize=self.loss_cfg.ntxent_normalize,
-                loss_type=self.loss_cfg.ntxent_logit,
-                detach_off_logit=self.loss_cfg.ntxent_detach_off_logit,
-            )
-        """
-
-        self.vicreg_loss = None
-        if self.loss_cfg.vicreg_loss_active:
-            self.vicreg_loss = VICRegLoss(
-                lambda_param=self.loss_cfg.vicreg_inv_weight,
-                mu_param=self.loss_cfg.vicreg_var_weight,
-                nu_param=self.loss_cfg.vicreg_cov_weight,
-            )
 
     def get_kl_weight(self, curr_iter: int):
         if self.loss_cfg.kl_weight_warmup == "None":
@@ -83,35 +62,9 @@ class Loss(nn.Module):
 
         # Contrastive loss terms
         if self.loss_cfg.ntxent_loss_active:
-            """
-            ntxent_loss = self.ntxent_loss.nt_xent(header_dict["proj_00"], header_dict["proj_01"])
-            if self.loss_cfg.ntxent_symmetric:
-                ntxent_loss = 0.5 * (
-                    ntxent_loss + self.ntxent_loss.nt_xent(header_dict["proj_10"], header_dict["proj_11"])
-                )
-            """
             ntxent_loss = contrastive_loss(header_dict["proj_00"], header_dict["proj_01"], self.loss_cfg.ntxent_temp)
             total_loss += self.loss_cfg.ntxent_loss_weight * ntxent_loss
             loss_meta["ntxent_loss"] = ntxent_loss.item()
-
-        # Self-supervised loss from vicreg
-        if self.loss_cfg.vicreg_loss_active:
-            z0, z1 = header_dict["proj_00"], header_dict["proj_01"]
-            z0_aug = None
-            if "z0_augproj" in header_dict.keys():
-                z0_aug = header_dict["z0_augproj"]
-            inv_loss, prior_inv, var_loss, cov_loss = self.vicreg_loss(z0, z1, invariance_z_a=z0_aug)
-            vicreg_loss = (
-                self.loss_cfg.vicreg_inv_weight * inv_loss
-                + prior_inv
-                + self.loss_cfg.vicreg_var_weight * var_loss
-                + self.loss_cfg.vicreg_cov_weight * cov_loss
-            )
-            total_loss += self.loss_cfg.vicreg_loss_weight * vicreg_loss
-            loss_meta["inv_loss"] = inv_loss.item()
-            loss_meta["prior_inv"] = prior_inv.item()
-            loss_meta["var_loss"] = var_loss.item()
-            loss_meta["cov_loss"] = cov_loss.item()
 
         # InfoNCE Lie Loss on transport operator estimates
         if self.loss_cfg.ntxent_lie_loss_active and curr_iter >= self.loss_cfg.ntxent_lie_loss_start_iter:
@@ -187,11 +140,6 @@ class Loss(nn.Module):
             c_loss = F.mse_loss(c_vi, header_out.distribution_data.samples.detach())
             loss_meta["c_pred"] = self.loss_cfg.c_refine_loss_weight * c_loss.item()
 
-        if self.loss_cfg.c_l2_active:
-            c = header_out.distribution_data.samples
-            c_l2 = (c**2).mean()
-            loss_meta["c_l2"] = self.loss_cfg.c_l2_weight * c_l2
-
         if self.loss_cfg.enable_shift_l2:
             enc_shift = header_out.distribution_data.encoder_params["shift"]
             enc_shift_l2 = (enc_shift**2).sum(dim=-1).mean()
@@ -203,17 +151,6 @@ class Loss(nn.Module):
                 total_loss += self.loss_cfg.shift_l2_weight * prior_shift_l2
                 loss_meta["prior_shift_l2"] = prior_shift_l2.item()
 
-        if self.loss_cfg.det_prior_loss_active:
-            z1_det_hat, z1 = header_dict["transop_z1_det_hat"], header_dict["transop_z1"].detach()
-            det_transop_loss = F.mse_loss(z1_det_hat, z1, reduction="none").mean()
-            total_loss += self.loss_cfg.transop_loss_weight * det_transop_loss
-            loss_meta["det_transop_loss"] = det_transop_loss.item()
-
-            prior_shift = header_out.distribution_data.prior_params["shift"]
-            det_shift_l2 = (prior_shift**2).sum(dim=-1).mean()
-            total_loss += self.loss_cfg.det_prior_l2_weight * det_shift_l2
-            loss_meta["det_l2_loss"] = det_shift_l2.item()
-
         if self.loss_cfg.real_eig_reg_active:
             assert "psi" in args_dict.keys()
             psi_use = args_dict["psi"]
@@ -222,16 +159,6 @@ class Loss(nn.Module):
             eig_loss = (torch.real(torch.linalg.eigvals(psi_use)) ** 2).sum()
             loss_meta["real_eig_loss"] = eig_loss.item()
             total_loss += self.loss_cfg.real_eig_reg_weight * eig_loss
-
-        if self.loss_cfg.sample_ratio_loss:
-            z1_samp, z1, z0 = header_dict["transop_z1samp"], header_dict["transop_z1"], header_dict["transop_z0"]
-            neg = F.mse_loss(z1_samp, z1.unsqueeze(1), reduction="none").mean(dim=-1)
-            dist = F.mse_loss(z1, z0, reduction="none").mean(dim=-1)
-            labels = torch.argmin(neg, dim=-1)
-            neg = -torch.cat([neg, dist.unsqueeze(-1)], dim=-1) / 7e-2
-            ratio_loss = F.cross_entropy(neg, labels)
-            loss_meta["ratio_loss"] = ratio_loss.item()
-            total_loss += ratio_loss
 
         # Variational Inference loss terms
         if self.loss_cfg.kl_loss_active:

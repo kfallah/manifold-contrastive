@@ -2,8 +2,8 @@ defaults:
   - simclr_cifar10
   - _self_
 
-exp_name: vi-A_prior-mse_ltemp5e-1_dict128_block64
-devices: [0, 1]
+exp_name: vi100-A_prior-mse_ltemp2e-1_dict128_block64-l1e-2
+devices: [0, 1, 2, 3]
 
 dataloader_cfg:
   ssl_aug_cfg:
@@ -18,18 +18,16 @@ model_cfg:
     enable_transop_augmentation: true
     enable_transop_header: true
     transop_header_cfg:
-      batch_size: 256
+      batch_size: 128
       start_iter: 0
       fine_tune_iter: 0
       dictionary_size: 128
-      lambda_prior: 0.0
+      lambda_prior: 0.002
       transop_weight_decay: 1.0e-3
       transop_lr: 0.001
-      enable_dict_per_block: true
       block_dim: 64
       enable_variational_inference: true
       vi_cfg:
-        enable_max_sampling: false
         max_sample_start_iter: 0
         samples_per_iter: 25
         total_num_samples: 100
@@ -52,18 +50,11 @@ model_cfg:
     kl_loss_weight: 1.0e-5
     kl_detach_shift: false
     kl_weight_warmup: Exponential
-    enable_shift_l2: false
+    enable_shift_l2: true
     shift_l2_weight: 1.0e-2
     transop_loss_active: true
     transop_loss_weight: 1.0
     transop_loss_fn: mse
-
-evaluator_cfg:
-  aug_nn_eval_cfg:
-    enable_runner: true
-    eval_freq: 250
-  semisup_probe_eval_cfg:
-    manifold_aug: true
 
 trainer_cfg:
   optimizer_cfg:
@@ -75,3 +66,11 @@ trainer_cfg:
   enable_transop_grad_clip: true
   enable_coeffenc_grad_clip: true
   enable_nn_queue: false
+
+evaluator_cfg:
+  semisup_probe_eval_cfg:
+    enable_runner: true
+    manifold_aug: true
+    eval_freq: 1000
+  aug_nn_eval_cfg:
+    enable_runner: true

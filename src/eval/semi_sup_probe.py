@@ -31,7 +31,7 @@ class SemiSupProbeEval(EvalRunner):
         num_iters,
         transop_aug: bool = False,
         coeff_enc=None,
-        psi=None,
+        transop=None,
     ):
         clf = nn.Sequential(nn.Linear(512, 2048), nn.LeakyReLU(), nn.Linear(2048, 10)).to(device)
         optimizer = torch.optim.Adam(clf.parameters(), lr=0.001, weight_decay=1.0e-5)
@@ -50,10 +50,9 @@ class SemiSupProbeEval(EvalRunner):
             if not transop_aug:
                 zu_aug = zu.clone()
             else:
-                c = coeff_enc.prior_sample(zu.detach())
-                A = torch.einsum("bm,smuv->bsuv", c, psi)
-                T = torch.matrix_exp(A)
-                zu_aug = (T @ zu.reshape(len(zu), psi.shape[0], -1, 1)).reshape(*zu.shape)
+                with torch.no_grad():
+                    c = coeff_enc.prior_sample(zu.detach())
+                    zu_aug = transop(zu, c, transop_grad=False)
 
             y_pred = clf(zl)
             loss = criterion(y_pred, yl)
@@ -94,7 +93,7 @@ class SemiSupProbeEval(EvalRunner):
         if self.get_config().manifold_aug:
             manifold_acc = []
             model = val_eval_input.model
-            psi = model.contrastive_header.transop_header.transop.psi
+            transop = model.contrastive_header.transop_header.transop
             coeff_enc = model.contrastive_header.transop_header.coefficient_encoder
             for i in range(self.get_config().num_trials):
                 (train_zl, train_yl), (train_zu, _) = get_feature_split(
@@ -110,7 +109,7 @@ class SemiSupProbeEval(EvalRunner):
                     self.get_config().num_iters,
                     transop_aug=True,
                     coeff_enc=coeff_enc,
-                    psi=psi,
+                    transop=transop,
                 )
                 manifold_acc.append(acc)
             metrics.update(

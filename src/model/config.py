@@ -22,19 +22,11 @@ class LossConfig:
     ntxent_detach_off_logit: bool = False
     ntxent_symmetric: bool = False
 
-    sample_ratio_loss: bool = False
-
     ntxent_lie_loss_active: bool = False
     ntxent_lie_loss_mse: bool = False
     ntxent_lie_loss_weight: float = 1.0
     ntxent_lie_loss_start_iter: int = 0
     ntxent_lie_temp: float = 0.5
-
-    vicreg_loss_active: bool = False
-    vicreg_loss_weight: float = 1.0
-    vicreg_inv_weight: float = 25.0
-    vicreg_var_weight: float = 25.0
-    vicreg_cov_weight: float = 1.0
 
     kl_loss_active: bool = False
     kl_loss_weight: float = 0.1
@@ -54,15 +46,10 @@ class LossConfig:
     c_refine_loss_active: bool = False
     c_refine_loss_weight: float = 10.0
 
-    c_l2_active: bool = False
-    c_l2_weight: float = 1.0e-3
-
     enable_shift_l2: bool = False
     enable_prior_shift_l2: bool = False
     shift_l2_weight: float = 1.0e-3
 
-    det_prior_loss_active: bool = False
-    det_prior_l2_weight: float = 1.0e-3
 
 
 @dataclass

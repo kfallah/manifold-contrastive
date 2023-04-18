@@ -16,10 +16,10 @@ from typing import Tuple
 import hydra
 import numpy as np
 import torch
+import wandb
 from hydra.core.config_store import ConfigStore
 from omegaconf import DictConfig, OmegaConf
 
-import wandb
 from dataloader.base import Dataset
 from dataloader.config import DataLoaderConfig
 from dataloader.ssl_dataloader import get_dataset

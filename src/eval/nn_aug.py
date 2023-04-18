@@ -49,25 +49,25 @@ class AugmentationNNEval(EvalRunner):
         start_idx = 20
         num_im, num_augs = self.get_config().num_images, self.get_config().num_augs
 
-        aug_list = torch.zeros((num_im, num_augs, 512))
-        for i in range(num_im):
-            for j in range(num_augs):
-                z0 = z[start_idx + i].to(device)
-                c = coeff_enc.prior_sample(z0.unsqueeze(0).detach()).squeeze(0) * 2
-                T = torch.matrix_exp(torch.einsum("m,smuv->suv", c, transop.psi))
-                zu_aug = (T @ z0.reshape(transop.psi.shape[0], -1, 1)).reshape(*z0.shape)
-                aug_list[i, j] = zu_aug.detach().cpu()
+        with torch.no_grad():
+            aug_list = torch.zeros((num_im, num_augs, 512))
+            for i in range(num_im):
+                for j in range(num_augs):
+                    z0 = z[start_idx + i].to(device)
+                    c = coeff_enc.prior_sample(z0.unsqueeze(0).detach()).squeeze(0) * 2
+                    zu_aug = transop(z0, c, transop_grad=False)
+                    aug_list[i, j] = zu_aug.detach().cpu()
 
-        fig, ax = plt.subplots(nrows=num_im, ncols=num_augs + 1, figsize=(12, 12))
+            fig, ax = plt.subplots(nrows=num_im, ncols=num_augs + 1, figsize=(12, 12))
 
-        for k in range(num_im):
-            pw_dist = pairwise_distances(z, aug_list[k])
-            nn_idx = torch.argmin(torch.tensor(pw_dist), dim=0)
-            ax[k, 0].imshow(x_im[start_idx + k].permute(1, 2, 0))
-            for i in range(num_augs):
-                ax[k, i + 1].imshow(x_im[nn_idx[i]].permute(1, 2, 0))
-        [axi.set_axis_off() for axi in ax.ravel()]
-        plt.subplots_adjust(wspace=0.0, hspace=0.0)
+            for k in range(num_im):
+                pw_dist = pairwise_distances(z, aug_list[k])
+                nn_idx = torch.argmin(torch.tensor(pw_dist), dim=0)
+                ax[k, 0].imshow(x_im[start_idx + k].permute(1, 2, 0))
+                for i in range(num_augs):
+                    ax[k, i + 1].imshow(x_im[nn_idx[i]].permute(1, 2, 0))
+            [axi.set_axis_off() for axi in ax.ravel()]
+            plt.subplots_adjust(wspace=0.0, hspace=0.0)
 
         return {}, -1.0, {"aug_nn": fig}
 

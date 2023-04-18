@@ -14,10 +14,10 @@ from typing import Dict
 import numpy as np
 import torch
 import torch.nn.functional as F
+import wandb
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 
-import wandb
 from model.model import Model, ModelOutput
 from train.config import MetricLoggerConfig
 from train.metric_utils import plot_log_spectra, plot_tsne, transop_plots
@@ -121,15 +121,14 @@ class MetricLogger:
             )
             header_dict = model_output.header_output.header_dict
             psi = self.model.contrastive_header.transop_header.transop.get_psi()
-            # For now just take the first dictionary if using a dict per block
-            if len(psi.shape) == 4:
-                psi = psi[0]
+            # Construct full dimension matrix from block diagonal
+            if len(psi.shape) >= 4:
+                psi = torch.stack([torch.block_diag(*psi[i]) for i in range(len(psi))])
             c = np.array(self.c_cache)
             coeff_nz = np.count_nonzero(c, axis=0)
             nz_tot = np.count_nonzero(coeff_nz)
             total_nz = np.count_nonzero(c, axis=1)
             avg_feat_norm = np.linalg.norm(np.array(self.feature_cache), axis=-1).mean()
-            transop_loss = F.mse_loss(header_dict["transop_z1"], header_dict["transop_z1hat"]).item()
             dist_bw_point_pairs = F.mse_loss(header_dict["transop_z1"], header_dict["transop_z0"]).item()
             transop_dist = (
                 F.mse_loss(

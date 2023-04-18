@@ -29,7 +29,6 @@ model_cfg:
       lambda_prior: 0.01
       transop_weight_decay: 1.0e-2
       transop_lr: 0.001
-      enable_dict_per_block: true
       block_dim: 64
       enable_variational_inference: true
       vi_cfg:
