@@ -74,6 +74,7 @@ class ContrastiveHeader(nn.Module):
             enc = self.transop_header.coefficient_encoder
             transop = self.transop_header.transop
             z0 = header_input.feature_0
+            #z0 = aggregate_header_out["transop_z1hat"]
             if self.transop_header.cfg.enable_direct:
                 z0 = z0[:, :self.transop_header.cfg.block_dim]
             # Optimization: pass the prior params already computed

@@ -57,13 +57,6 @@ class Model(nn.Module):
 
     def compute_loss(self, curr_idx: int, model_output: ModelOutput) -> Tuple[Dict[str, float], float]:
         args_dict = {}
-        if self.model_cfg.loss_cfg.ntxent_lie_loss_active:
-            proj = None
-            if self.model_cfg.header_cfg.enable_projection_header:
-                proj = self.contrastive_header.projection_header.projector
-            elif self.model_cfg.header_cfg.enable_proj_pred_header:
-                proj = self.contrastive_header.proj_pred_header.projector
-            args_dict["proj"] = proj
         if self.model_cfg.loss_cfg.real_eig_reg_active:
             args_dict["psi"] = self.contrastive_header.transop_header.transop.psi
         return self.loss.compute_loss(curr_idx, model_output, args_dict)

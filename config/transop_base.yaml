@@ -58,6 +58,7 @@ trainer_cfg:
   use_amp: false
   enable_transop_grad_clip: true
   enable_coeffenc_grad_clip: true
+  enable_backbone_grad_clip: true
 
 evaluator_cfg:
   semisup_probe_eval_cfg:

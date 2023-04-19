@@ -68,25 +68,27 @@ class Loss(nn.Module):
 
         # InfoNCE Lie Loss on transport operator estimates
         if self.loss_cfg.ntxent_lie_loss_active and curr_iter >= self.loss_cfg.ntxent_lie_loss_start_iter:
-            #z0, z1, z1hat = header_dict["transop_z0"], header_dict["transop_z1"], header_dict["transop_z1hat"]
-            #z0, z1, z1hat = z0.reshape(len(z1), -1), z1.reshape(len(z1), -1), z1hat.reshape(len(z1), -1)
-            z0, z1, z1hat = header_dict["transop_z0"], header_dict["transop_z1"], header_dict["z0_aug"]
-            #z0, z1, z1hat = model_output.header_input.feature_0, model_output.header_input.feature_1, header_dict["z0_aug"]
-            proj = args_dict["proj"]
-            z0_proj, z1_proj, z1hat_proj = z0, z1, z1hat
-            # z0_proj, z1_proj, z1hat_proj= proj(z0), proj(z1), proj(z1hat)
+            # Contrast manifold point pair using ssamples from encoder
+            #z0, z1, zaug = header_dict["transop_z0"], header_dict["transop_z1"], header_dict["transop_z1hat"]
+
+            # Contrast manifold point pair using samples from prior
+            #z0, z1, zaug = header_dict["transop_z0"], header_dict["transop_z1"], header_dict["z0_aug"]
+
+            # Contrast two views of image using samples from prior
+            z0, z1, zaug = model_output.header_input.feature_0, model_output.header_input.feature_1, header_dict["z0_aug"]
+
             if self.loss_cfg.ntxent_lie_loss_mse:
                 lie_loss = lie_nt_xent_loss(
-                    z0_proj, z1_proj, z1hat_proj,
+                    z0, z1, zaug,
                     mse=True,
                     temperature=self.loss_cfg.ntxent_lie_temp,
                 )
             else:
                 lie_loss = lie_nt_xent_loss(
-                    F.normalize(z0_proj, dim=-1),
-                    F.normalize(z1_proj, dim=-1),
+                    F.normalize(z0, dim=-1),
+                    F.normalize(z1, dim=-1),
                     # out_3=None,
-                    F.normalize(z1hat_proj, dim=-1),
+                    F.normalize(zaug, dim=-1),
                     temperature=self.loss_cfg.ntxent_lie_temp,
                 )
             loss_meta["ntxent_lie_loss"] = lie_loss.item()

@@ -7,4 +7,4 @@ ssl_aug_cfg:
   normalize_std: [0.27, 0.26, 0.27]
 persistent_workers: true
 num_workers: 32
-train_batch_size: 1024
+train_batch_size: 512

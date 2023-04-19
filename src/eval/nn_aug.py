@@ -46,7 +46,7 @@ class AugmentationNNEval(EvalRunner):
         model = val_eval_input.model
         transop = model.contrastive_header.transop_header.transop
         coeff_enc = model.contrastive_header.transop_header.coefficient_encoder
-        start_idx = 2000
+        start_idx = 4802
         num_im, num_augs = self.get_config().num_images, self.get_config().num_augs
 
         with torch.no_grad():
