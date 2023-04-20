@@ -68,14 +68,14 @@ class Loss(nn.Module):
 
         # InfoNCE Lie Loss on transport operator estimates
         if self.loss_cfg.ntxent_lie_loss_active and curr_iter >= self.loss_cfg.ntxent_lie_loss_start_iter:
-            # Contrast manifold point pair using ssamples from encoder
-            #z0, z1, zaug = header_dict["transop_z0"], header_dict["transop_z1"], header_dict["transop_z1hat"]
+            # Contrast manifold point pair using samples from encoder
+            z0, z1, zaug = header_dict["transop_z0"], header_dict["transop_z1"], header_dict["transop_z1hat"]
 
             # Contrast manifold point pair using samples from prior
             #z0, z1, zaug = header_dict["transop_z0"], header_dict["transop_z1"], header_dict["z0_aug"]
 
             # Contrast two views of image using samples from prior
-            z0, z1, zaug = model_output.header_input.feature_0, model_output.header_input.feature_1, header_dict["z0_aug"]
+            #z0, z1, zaug = model_output.header_input.feature_0, model_output.header_input.feature_1, header_dict["z0_aug"]
 
             if self.loss_cfg.ntxent_lie_loss_mse:
                 lie_loss = lie_nt_xent_loss(
@@ -93,6 +93,24 @@ class Loss(nn.Module):
                 )
             loss_meta["ntxent_lie_loss"] = lie_loss.item()
             total_loss += self.loss_cfg.ntxent_lie_loss_weight * lie_loss
+
+            # Also contrast augmentations from prior
+            z0, z1 = header_dict["z0_aug"], model_output.header_input.feature_0
+            if self.loss_cfg.ntxent_lie_loss_mse:
+                prior_lie_loss = lie_nt_xent_loss(
+                    z0, z1, out_3=None,
+                    mse=True,
+                    temperature=self.loss_cfg.ntxent_lie_temp,
+                )
+            else:
+                prior_lie_loss = lie_nt_xent_loss(
+                    F.normalize(z0, dim=-1),
+                    F.normalize(z1, dim=-1),
+                    out_3=None,
+                    temperature=self.loss_cfg.ntxent_lie_temp,
+                )
+            loss_meta["prior_lie_loss"] = prior_lie_loss.item()
+            total_loss += prior_lie_loss
 
         # Transport operator loss terms
         if self.loss_cfg.transop_loss_active:

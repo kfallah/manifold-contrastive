@@ -35,8 +35,9 @@ class Dataset(metaclass=ABCMeta):
     def get_ssl_transform(self):
         if self.cfg.ssl_aug_cfg.enable_weak_z0_aug:
             transform = [
-                get_weak_augmentation(self.cfg.ssl_aug_cfg, self.cfg.dataset_cfg.image_size),
                 get_ssl_augmentation(self.cfg.ssl_aug_cfg, self.cfg.dataset_cfg.image_size),
+                get_ssl_augmentation(self.cfg.ssl_aug_cfg, self.cfg.dataset_cfg.image_size),
+                get_weak_augmentation(self.cfg.ssl_aug_cfg, self.cfg.dataset_cfg.image_size),
             ]
         else:
             transform = 2 * [get_ssl_augmentation(self.cfg.ssl_aug_cfg, self.cfg.dataset_cfg.image_size)]
