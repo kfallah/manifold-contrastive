@@ -14,7 +14,7 @@ model_cfg:
       batch_size: 256
       start_iter: 0
       fine_tune_iter: 0
-      dictionary_size: 128
+      dictionary_size: 64
       lambda_prior: 0.0
       transop_weight_decay: 1.0e-3
       transop_lr: 0.001
@@ -26,19 +26,19 @@ model_cfg:
         total_num_samples: 1
         max_sample_l1_penalty: 0.0
         feature_dim: 512
-        scale_prior: 0.05
+        scale_prior: 0.025
         shift_prior: 0.05
         variational_encoder_lr: 0.0001
         variational_encoder_weight_decay: 1.0e-5
         enable_learned_prior: true
         enable_prior_shift: true
-        enable_prior_warmup: true
+        enable_prior_warmup: false
   loss_cfg:
     ntxent_loss_active: false
     ntxent_lie_loss_active: true
     ntxent_lie_loss_mse: true
     ntxent_lie_loss_weight: 1.0
-    ntxent_lie_temp: 0.5
+    ntxent_lie_temp: 200
     kl_loss_active: true
     kl_loss_weight: 1.0e-5
     kl_detach_shift: false

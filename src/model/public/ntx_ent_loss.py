@@ -53,7 +53,7 @@ def lie_nt_xent_loss(out_1, out_2, out_3=None, temperature=0.07, mse=False, eps=
     # cov and sim: [2 * batch_size, 3 * batch_size * world_size]
     # neg: [2 * batch_size]
     if mse:
-        cov = -((out.unsqueeze(1) - out_dist.unsqueeze(0))**2).mean(dim=-1)
+        cov = -((out.unsqueeze(1) - out_dist.unsqueeze(0))**2).sum(dim=-1)
     else:
         cov = torch.mm(out, out_dist.t().contiguous())
     sim = torch.exp(cov / temperature)
@@ -65,7 +65,7 @@ def lie_nt_xent_loss(out_1, out_2, out_3=None, temperature=0.07, mse=False, eps=
 
     # Positive similarity, pos becomes [2 * batch_size]
     if mse:
-        pos = -((out_1 - out_2)**2).mean(dim=-1)
+        pos = -((out_1 - out_2)**2).sum(dim=-1)
         pos = torch.exp(pos / temperature)
     else:
         pos = torch.exp(torch.sum(out_1 * out_2, dim=-1) / temperature)

@@ -73,7 +73,7 @@ class ContrastiveHeader(nn.Module):
         if self.header_cfg.enable_transop_augmentation:
             enc = self.transop_header.coefficient_encoder
             transop = self.transop_header.transop
-            z0 = header_input.feature_2
+            z0 = header_input.feature_0
             #z0 = aggregate_header_out["transop_z1hat"]
             if self.transop_header.cfg.enable_direct:
                 z0 = z0[:, :self.transop_header.cfg.block_dim]

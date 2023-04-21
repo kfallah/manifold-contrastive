@@ -3,3 +3,7 @@ defaults:
   - _self_
 
 exp_name: vi-A_prior-mse_ltemp5e-1_dict128_block64
+
+dataloader_cfg:
+  ssl_aug_cfg:
+    enable_weak_z0_aug: false
