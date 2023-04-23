@@ -39,7 +39,7 @@ class SemiSupConfig(EvalRunnerConfig):
     num_iters: int = 10000
     batchsize_label: int = 32
     batchsize_unlabel: int = 224
-    labels_per_class: int = 10
+    labels_per_class: int = 5
     num_trials: int = 5
     manifold_aug: bool = False
 

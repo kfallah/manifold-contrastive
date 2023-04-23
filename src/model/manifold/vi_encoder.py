@@ -137,7 +137,7 @@ class CoefficientEncoder(nn.Module):
 
             if self.vi_cfg.enable_prior_warmup:
                 warmup = min(curr_iter / self.vi_cfg.prior_warmup_iters, 1.0)
-                # warmup = (5e-2) ** (1 - warmup)
+                warmup = (5e-2) ** (1 - warmup)
                 prior_params["logscale"] = (
                     warmup * prior_params["logscale"] + (1 - warmup) * hyperprior_params["logscale"]
                 )

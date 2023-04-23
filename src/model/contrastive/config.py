@@ -117,6 +117,8 @@ class ContrastiveHeaderConfig:
 
     enable_transop_header: bool = False
     enable_transop_augmentation: bool = False
+    enable_gaussian_augmentation: bool = False
+    enable_mixup_augmentation: bool = False
     enable_transop_prior_grad: bool = True
     transop_header_cfg: TransportOperatorConfig = TransportOperatorConfig()
 

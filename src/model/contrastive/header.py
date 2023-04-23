@@ -74,13 +74,23 @@ class ContrastiveHeader(nn.Module):
             enc = self.transop_header.coefficient_encoder
             transop = self.transop_header.transop
             z0 = header_input.feature_0
-            #z0 = aggregate_header_out["transop_z1hat"]
             if self.transop_header.cfg.enable_direct:
                 z0 = z0[:, :self.transop_header.cfg.block_dim]
             # Optimization: pass the prior params already computed
-            c0 = enc.prior_sample(z0.detach(), curr_iter=curr_iter)  # distribution_data.prior_params)
+            c0 = enc.prior_sample(z0.detach(), curr_iter=curr_iter, distribution_params=distribution_data.prior_params)
             with autocast(enabled=False):
                 z0_aug = transop(z0.float(), c0, transop_grad=self.header_cfg.enable_transop_prior_grad)
+            aggregate_header_out["z0_aug"] = z0_aug
+        elif self.header_cfg.enable_mixup_augmentation:
+            z0, z1 = header_input.feature_0, header_input.feature_1
+            mixup = torch.rand(len(z0), device=z0.device)
+            z0_aug = mixup*z1 + (1-mixup)*z0
+            aggregate_header_out["z0_aug"] = z0_aug
+        elif self.header_cfg.enable_gaussian_augmentation:
+            z0, z1 = header_input.feature_0, header_input.feature_1
+            dist = torch.linalg.norm(z0 - z1, dim=-1).detach()
+            noise = torch.randn(len(z0), device=z0.device) * torch.sqrt(dist)
+            z0_aug = z0 + noise
             aggregate_header_out["z0_aug"] = z0_aug
 
         if self.projection_header is not None:

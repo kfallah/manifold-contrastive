@@ -1,0 +1,11 @@
+defaults:
+  - transop_base
+  - dataloader/stl10@dataloader_cfg
+  - _self_
+
+exp_name: stl10_vi-A_prior-mse_ltemp5e-1_dict128_block64
+
+trainer_cfg:
+  num_epochs: 2000
+  optimizer_cfg:
+    initial_lr: 0.002

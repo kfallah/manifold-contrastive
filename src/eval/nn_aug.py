@@ -41,13 +41,15 @@ class AugmentationNNEval(EvalRunner):
             drop_last=False,
         )
         nn_features = encode_features(train_eval_input.model, unshuffle_dataloder, device)
-        z, x_im = nn_features.feature_list, nn_features.x
+        z, y, x_im = nn_features.feature_list, nn_features.labels, nn_features.x
 
         model = val_eval_input.model
         transop = model.contrastive_header.transop_header.transop
         coeff_enc = model.contrastive_header.transop_header.coefficient_encoder
-        start_idx = 4802
+        start_idx = 42023
         num_im, num_augs = self.get_config().num_images, self.get_config().num_augs
+        correct = 0
+        total = 0
 
         with torch.no_grad():
             aug_list = torch.zeros((num_im, num_augs, 512))
@@ -64,12 +66,17 @@ class AugmentationNNEval(EvalRunner):
                 pw_dist = pairwise_distances(z, aug_list[k])
                 nn_idx = torch.argmin(torch.tensor(pw_dist), dim=0)
                 ax[k, 0].imshow(x_im[start_idx + k].permute(1, 2, 0))
+                lab = y[start_idx + k]
                 for i in range(num_augs):
+                    if lab == y[nn_idx[i]]:
+                        correct += 1
+                    total += 1
                     ax[k, i + 1].imshow(x_im[nn_idx[i]].permute(1, 2, 0))
             [axi.set_axis_off() for axi in ax.ravel()]
             plt.subplots_adjust(wspace=0.0, hspace=0.0)
 
-        return {}, -1.0, {"aug_nn": fig}
+        acc = (correct / (total + 1e-6))
+        return {"prior_aug_acc": acc}, acc, {"aug_nn": fig}
 
     def get_config(self) -> AugmentationNN:
         return self.cfg

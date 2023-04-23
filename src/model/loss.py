@@ -68,13 +68,7 @@ class Loss(nn.Module):
 
         # InfoNCE Lie Loss on transport operator estimates
         if self.loss_cfg.ntxent_lie_loss_active and curr_iter >= self.loss_cfg.ntxent_lie_loss_start_iter:
-            # Contrast manifold point pair using ssamples from encoder
-            #z0, z1, zaug = header_dict["transop_z0"], header_dict["transop_z1"], header_dict["transop_z1hat"]
-
-            # Contrast manifold point pair using samples from prior
-            #z0, z1, zaug = header_dict["transop_z0"], header_dict["transop_z1"], header_dict["z0_aug"]
-
-            # Contrast two views of image using samples from prior
+            # Contrast point pair, using additional negative found via feature augmentation
             z0, z1, zaug = model_output.header_input.feature_0, model_output.header_input.feature_1, header_dict["z0_aug"]
 
             if self.loss_cfg.ntxent_lie_loss_mse:
@@ -87,7 +81,6 @@ class Loss(nn.Module):
                 lie_loss = lie_nt_xent_loss(
                     F.normalize(z0, dim=-1),
                     F.normalize(z1, dim=-1),
-                    # out_3=None,
                     F.normalize(zaug, dim=-1),
                     temperature=self.loss_cfg.ntxent_lie_temp,
                 )
@@ -98,10 +91,7 @@ class Loss(nn.Module):
         if self.loss_cfg.transop_loss_active:
             z1_hat, z1 = header_dict["transop_z1hat"], header_dict["transop_z1"]
             if self.loss_cfg.transop_loss_fn == "mse":
-                transop_loss = F.mse_loss(z1_hat, z1.detach(), reduction="none").mean()
-                if self.loss_cfg.transop_symmetric:
-                    z0_hat, z0 = header_dict["transop_z0hat"], header_dict["transop_z0"]
-                    transop_loss = 0.5 * transop_loss + 0.5 * F.mse_loss(z0_hat, z0.detach(), reduction="none").mean()
+                transop_loss = F.mse_loss(z1_hat, z1)
                 loss_meta["transop_loss"] = transop_loss.item()
             elif self.loss_cfg.transop_loss_fn == "cos":
                 transop_loss = (-(F.cosine_similarity(z1, z1_hat, dim=-1) ** 2)).exp().mean()

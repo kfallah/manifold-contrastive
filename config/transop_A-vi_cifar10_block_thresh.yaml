@@ -14,8 +14,8 @@ model_cfg:
       vi_cfg:
         enable_max_sampling: true
         max_sample_start_iter: 3000
-        samples_per_iter: 20
-        total_num_samples: 20
+        samples_per_iter: 50
+        total_num_samples: 100
         max_sample_l1_penalty: 0.0
   loss_cfg:
     ntxent_lie_temp: 0.5
