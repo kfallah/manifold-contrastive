@@ -31,7 +31,7 @@ def contrastive_loss(x0, x1, tau, norm=True):
     ) / 2
 
 
-def lie_nt_xent_loss(out_1, out_2, out_3=None, temperature=0.07, mse=False, eps=1e-6):
+def lie_nt_xent_loss(out_1, out_2, out_3=None, temperature=0.07, mse=False, eps=1e-8):
     """
     DOES NOT assume out_1 and out_2 are normalized
     out_1: [batch_size, dim]
@@ -52,24 +52,13 @@ def lie_nt_xent_loss(out_1, out_2, out_3=None, temperature=0.07, mse=False, eps=
 
     # cov and sim: [2 * batch_size, 3 * batch_size * world_size]
     # neg: [2 * batch_size]
-    if mse:
-        cov = -((out.unsqueeze(1) - out_dist.unsqueeze(0))**2).sum(dim=-1)
-    else:
-        cov = torch.mm(out, out_dist.t().contiguous())
-    sim = torch.exp(cov / temperature)
+    cov = torch.mm(out, out_dist.t().contiguous())
+    sim = torch.exp(cov / temperature).clamp(min=eps, max=1e6)
     neg = sim.sum(dim=-1)
 
-    if not mse:
-        row_sub = torch.exp(torch.norm(out, dim=-1) / temperature)
-        neg = torch.clamp(neg - row_sub, min=eps)  # clamp for numerical stability
-
     # Positive similarity, pos becomes [2 * batch_size]
-    if mse:
-        pos = -((out_1 - out_2)**2).sum(dim=-1)
-        pos = torch.exp(pos / temperature)
-    else:
-        pos = torch.exp(torch.sum(out_1 * out_2, dim=-1) / temperature)
-    pos = torch.cat([pos, pos], dim=0)
+    pos = torch.exp(torch.sum(out_1 * out_2, dim=-1) / temperature)
+    pos = torch.cat([pos, pos], dim=0).clamp(min=eps, max=1e6)
     loss = -torch.log(pos / (neg + eps)).mean()
     if loss < 0.0:
         print("Lie Contrastive loss can't be negative")

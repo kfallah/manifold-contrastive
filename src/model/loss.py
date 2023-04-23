@@ -77,20 +77,10 @@ class Loss(nn.Module):
             # Contrast two views of image using samples from prior
             z0, z1, zaug = model_output.header_input.feature_0, model_output.header_input.feature_1, header_dict["z0_aug"]
 
-            if self.loss_cfg.ntxent_lie_loss_mse:
-                lie_loss = lie_nt_xent_loss(
-                    z1, zaug, z0,
-                    mse=False,
-                    temperature=self.loss_cfg.ntxent_lie_temp,
-                )
-            else:
-                lie_loss = lie_nt_xent_loss(
-                    F.normalize(z0, dim=-1),
-                    F.normalize(z1, dim=-1),
-                    # out_3=None,
-                    F.normalize(zaug, dim=-1),
-                    temperature=self.loss_cfg.ntxent_lie_temp,
-                )
+            lie_loss = lie_nt_xent_loss(
+                zaug, z1, z0,
+                temperature=self.loss_cfg.ntxent_lie_temp,
+            )
             loss_meta["ntxent_lie_loss"] = lie_loss.item()
             total_loss += self.loss_cfg.ntxent_lie_loss_weight * lie_loss
 
@@ -100,7 +90,7 @@ class Loss(nn.Module):
             #     prior_lie_loss = lie_nt_xent_loss(
             #         z0, z1, out_3=None,
             #         mse=True,
-            #         temperature=self.loss_cfg.ntxent_lie_temp,
+            #         temperature=temp,
             #     )
             # else:
             #     prior_lie_loss = lie_nt_xent_loss(
@@ -116,7 +106,7 @@ class Loss(nn.Module):
         if self.loss_cfg.transop_loss_active:
             z1_hat, z1 = header_dict["transop_z1hat"], header_dict["transop_z1"]
             if self.loss_cfg.transop_loss_fn == "mse":
-                transop_loss = F.mse_loss(z1_hat, z1, reduction="none").mean()
+                transop_loss = F.mse_loss(z1_hat, z1.detach(), reduction="none").mean()
                 loss_meta["transop_loss"] = transop_loss.item()
             elif self.loss_cfg.transop_loss_fn == "cos":
                 transop_loss = (-(F.cosine_similarity(z1, z1_hat, dim=-1) ** 2)).exp().mean()
