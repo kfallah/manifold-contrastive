@@ -126,7 +126,7 @@ class CoefficientEncoder(nn.Module):
             )
         if self.vi_cfg.enable_learned_prior:
             z_prior = self.prior_feat_extract(x0)
-            prior_params["logscale"] = self.prior_scale(z_prior).clamp(max=2)
+            prior_params["logscale"] = self.prior_scale(z_prior).clamp(max=3)
             prior_params["logscale"] += torch.log(
                 torch.ones_like(prior_params["logscale"]) * self.vi_cfg.scale_prior
             )
@@ -175,7 +175,7 @@ class CoefficientEncoder(nn.Module):
                 enc_input = x0
 
             z_enc = self.enc_feat_extract(enc_input)
-            encoder_params["logscale"] = self.enc_scale(z_enc).clamp(min=-100, max=2)
+            encoder_params["logscale"] = self.enc_scale(z_enc).clamp(min=-100, max=3)
             encoder_params["logscale"] += torch.log(
                 torch.ones_like(encoder_params["logscale"]) * self.vi_cfg.scale_prior
             )

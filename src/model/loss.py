@@ -90,41 +90,8 @@ class Loss(nn.Module):
         # Transport operator loss terms
         if self.loss_cfg.transop_loss_active:
             z1_hat, z1 = header_dict["transop_z1hat"], header_dict["transop_z1"]
-            if self.loss_cfg.transop_loss_fn == "mse":
-                transop_loss = F.mse_loss(z1_hat, z1)
-                loss_meta["transop_loss"] = transop_loss.item()
-            elif self.loss_cfg.transop_loss_fn == "cos":
-                transop_loss = (-(F.cosine_similarity(z1, z1_hat, dim=-1) ** 2)).exp().mean()
-                loss_meta["transop_cos"] = transop_loss.item()
-            elif self.loss_cfg.transop_loss_fn == "huber":
-                transop_loss = F.huber_loss(z1_hat, z1, reduction="none", delta=0.5).mean()
-                loss_meta["transop_huber"] = transop_loss.item()
-            elif self.loss_cfg.transop_loss_fn == "ratio":
-                z0 = header_dict["transop_z0"]
-                transop_loss = F.mse_loss(z1_hat, z1.detach(), reduction="none").mean(dim=-1)
-                loss_meta["transop_loss"] = transop_loss.mean().item()
-                transop_loss /= F.mse_loss(z0, z1.detach(), reduction="none").mean(dim=-1) + 1.0e-4
-                transop_loss = transop_loss.mean()
-                loss_meta["transop_ratio"] = transop_loss.item()
-            elif self.loss_cfg.transop_loss_fn == "ce":
-                z0 = header_dict["transop_z0"]
-                transop_loss = F.mse_loss(z1_hat, z1, reduction="none").mean(dim=-1)
-                loss_meta["transop_loss"] = transop_loss.mean().item()
-                dist = F.mse_loss(z0, z1, reduction="none").mean(dim=-1)
-                distr = -torch.stack([transop_loss, dist], dim=-1)
-                labels = torch.zeros(len(transop_loss), device=transop_loss.device).long()
-                ce_loss = F.cross_entropy(distr / self.loss_cfg.transop_loss_ce_temp, labels)
-                transop_loss = transop_loss.mean() + 0.1 * ce_loss
-                loss_meta["transop_ce"] = ce_loss.item()
-            elif self.loss_cfg.transop_loss_fn == "diff":
-                z0 = header_dict["transop_z0"]
-                transop_loss = F.mse_loss(z1_hat, z1, reduction="none").mean(dim=-1)
-                loss_meta["transop_loss"] = transop_loss.mean().item()
-                transop_loss -= 0.01 * F.mse_loss(z0, z1, reduction="none").mean(dim=-1)
-                transop_loss = transop_loss.mean()
-                loss_meta["transop_diff"] = transop_loss.item()
-            else:
-                raise NotImplementedError
+            transop_loss = F.mse_loss(z1_hat, z1.detach())
+            loss_meta["transop_loss"] = transop_loss.item()
             total_loss += self.loss_cfg.transop_loss_weight * transop_loss
 
         if self.loss_cfg.c_refine_loss_active:
