@@ -76,7 +76,6 @@ class ContrastiveHeader(nn.Module):
             z0 = header_input.feature_0
             if self.transop_header.cfg.enable_direct:
                 z0 = z0[:, :self.transop_header.cfg.block_dim]
-            # Optimization: pass the prior params already computed
             c0 = enc.prior_sample(z0.detach(), curr_iter=curr_iter, distribution_params=distribution_data.prior_params)
             with autocast(enabled=False):
                 z0_aug = transop(z0.float(), c0, transop_grad=self.header_cfg.enable_transop_prior_grad)

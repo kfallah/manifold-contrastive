@@ -67,21 +67,20 @@ class Loss(nn.Module):
             loss_meta["ntxent_loss"] = ntxent_loss.item()
 
         # InfoNCE Lie Loss on transport operator estimates
-        if self.loss_cfg.ntxent_lie_loss_active and curr_iter >= self.loss_cfg.ntxent_lie_loss_start_iter:
+        if self.loss_cfg.ntxent_lie_loss_active:
             # Contrast point pair, using additional negative found via feature augmentation
             z0, z1, zaug = model_output.header_input.feature_0, model_output.header_input.feature_1, header_dict["z0_aug"]
 
-            if self.loss_cfg.ntxent_lie_loss_mse:
+            if self.loss_cfg.ntxent_lie_pos_aug:
                 lie_loss = lie_nt_xent_loss(
-                    z0, z1, zaug,
-                    mse=True,
+                    zaug, z1, #zaug,
+                    mse=self.loss_cfg.ntxent_lie_loss_mse,
                     temperature=self.loss_cfg.ntxent_lie_temp,
                 )
             else:
                 lie_loss = lie_nt_xent_loss(
-                    F.normalize(z0, dim=-1),
-                    F.normalize(z1, dim=-1),
-                    F.normalize(zaug, dim=-1),
+                    z0, z1, zaug,
+                    mse=self.loss_cfg.ntxent_lie_loss_mse,
                     temperature=self.loss_cfg.ntxent_lie_temp,
                 )
             loss_meta["ntxent_lie_loss"] = lie_loss.item()
@@ -90,7 +89,11 @@ class Loss(nn.Module):
         # Transport operator loss terms
         if self.loss_cfg.transop_loss_active:
             z1_hat, z1 = header_dict["transop_z1hat"], header_dict["transop_z1"]
-            transop_loss = F.mse_loss(z1_hat, z1.detach())
+            if self.loss_cfg.transop_loss_detach_z1:
+                z1_use = z1.detach()
+            else:
+                z1_use = z1
+            transop_loss = F.mse_loss(z1_hat, z1_use)
             loss_meta["transop_loss"] = transop_loss.item()
             total_loss += self.loss_cfg.transop_loss_weight * transop_loss
 

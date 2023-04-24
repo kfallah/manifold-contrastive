@@ -3,7 +3,7 @@ defaults:
   - _self_
 
 exp_name: transop_contrastive
-devices: [0, 1]
+devices: [0]
 
 model_cfg:
   header_cfg:
@@ -22,6 +22,7 @@ model_cfg:
       block_dim: 64
       enable_variational_inference: true
       vi_cfg:
+        enable_max_sampling: false
         max_sample_start_iter: 0
         samples_per_iter: 1
         total_num_samples: 1
@@ -48,7 +49,6 @@ model_cfg:
     shift_l2_weight: 1.0e-2
     transop_loss_active: true
     transop_loss_weight: 1.0
-    transop_loss_fn: mse
 
 trainer_cfg:
   metric_logger_cfg:

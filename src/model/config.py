@@ -23,10 +23,10 @@ class LossConfig:
     ntxent_symmetric: bool = False
 
     ntxent_lie_loss_active: bool = False
-    ntxent_lie_loss_mse: bool = False
+    ntxent_lie_loss_mse: bool = True
     ntxent_lie_loss_weight: float = 1.0
-    ntxent_lie_loss_start_iter: int = 0
     ntxent_lie_temp: float = 0.5
+    ntxent_lie_pos_aug: bool = True
 
     kl_loss_active: bool = False
     kl_loss_weight: float = 0.1
@@ -38,6 +38,7 @@ class LossConfig:
 
     transop_loss_active: bool = False
     transop_loss_weight: float = 1.0
+    transop_loss_detach_z1: bool = True
 
     c_refine_loss_active: bool = False
     c_refine_loss_weight: float = 10.0
