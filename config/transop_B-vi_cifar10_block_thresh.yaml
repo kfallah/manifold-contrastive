@@ -16,7 +16,7 @@ model_cfg:
     transop_header_cfg:
       batch_size: 256
       dictionary_size: 64
-      lambda_prior: 0.01
+      lambda_prior: 0.005
       vi_cfg:
         enable_max_sampling: true
         max_sample_start_iter: 3000

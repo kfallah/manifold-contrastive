@@ -73,7 +73,7 @@ class Loss(nn.Module):
 
             if self.loss_cfg.ntxent_lie_pos_aug:
                 lie_loss = lie_nt_xent_loss(
-                    zaug, z1, #zaug,
+                    zaug, z1, z0,
                     mse=self.loss_cfg.ntxent_lie_loss_mse,
                     temperature=self.loss_cfg.ntxent_lie_temp,
                 )

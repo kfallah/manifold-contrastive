@@ -24,11 +24,11 @@ model_cfg:
       vi_cfg:
         enable_max_sampling: false
         max_sample_start_iter: 0
-        samples_per_iter: 1
-        total_num_samples: 1
+        samples_per_iter: 10
+        total_num_samples: 10
         max_sample_l1_penalty: 0.0
         feature_dim: 512
-        scale_prior: 0.05
+        scale_prior: 0.01
         shift_prior: 0.05
         variational_encoder_lr: 0.0001
         variational_encoder_weight_decay: 1.0e-5
