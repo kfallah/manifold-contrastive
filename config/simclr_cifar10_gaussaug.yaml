@@ -2,7 +2,7 @@ defaults:
   - base
   - _self_
 
-exp_name: simclr_cifar10_gaussaug
+exp_name: cifar10_simclr_gaussaug
 model_cfg:
   header_cfg:
     enable_projection_header: false

@@ -3,7 +3,7 @@ defaults:
   - dataloader/stl10@dataloader_cfg  
   - _self_
 
-exp_name: simclr_stl10_gaussaug
+exp_name: stl10_simclr_gaussaug
 model_cfg:
   header_cfg:
     enable_projection_header: false
@@ -15,6 +15,5 @@ model_cfg:
     ntxent_lie_loss_weight: 1.0
     ntxent_lie_temp: 0.5
 trainer_cfg:
-  num_epochs: 2000
   optimizer_cfg:
     initial_lr: 0.002

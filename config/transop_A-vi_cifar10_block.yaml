@@ -1,5 +1,0 @@
-defaults:
-  - transop_base
-  - _self_
-
-exp_name: vi-A_prior-mse_ltemp5e-1_dict128_block64

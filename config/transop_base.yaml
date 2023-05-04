@@ -12,10 +12,10 @@ model_cfg:
     enable_transop_prior_grad: true
     enable_transop_header: true
     transop_header_cfg:
-      batch_size: 256
+      batch_size: 512
       start_iter: 0
       fine_tune_iter: 0
-      dictionary_size: 128
+      dictionary_size: 16
       lambda_prior: 0.0
       transop_weight_decay: 1.0e-3
       transop_lr: 0.001
@@ -45,10 +45,8 @@ model_cfg:
     kl_loss_weight: 1.0e-5
     kl_detach_shift: false
     kl_weight_warmup: Exponential
-    enable_shift_l2: false
-    shift_l2_weight: 1.0e-2
     transop_loss_active: true
-    transop_loss_weight: 1.0
+    transop_loss_weight: 10.0
 
 trainer_cfg:
   metric_logger_cfg:

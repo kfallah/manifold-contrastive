@@ -3,7 +3,7 @@ defaults:
   - dataloader/tinyimagenet@dataloader_cfg
   - _self_
 
-exp_name: simclr_tin_mixup
+exp_name: tin_simclr_mixup
 model_cfg:
   header_cfg:
     enable_projection_header: false
