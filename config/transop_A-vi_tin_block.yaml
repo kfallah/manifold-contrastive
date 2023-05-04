@@ -1,0 +1,10 @@
+defaults:
+  - transop_base
+  - dataloader/tinyimagenet@dataloader_cfg
+  - _self_
+
+exp_name: tin_vi-A_prior-mse_ltemp5e-1_dict128_block64
+
+trainer_cfg:
+  optimizer_cfg:
+    initial_lr: 0.002

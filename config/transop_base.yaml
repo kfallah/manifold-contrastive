@@ -60,6 +60,7 @@ trainer_cfg:
 evaluator_cfg:
   semisup_probe_eval_cfg:
     enable_runner: true
+    manifold_aug: true
     eval_freq: 1000
   aug_nn_eval_cfg:
     enable_runner: true

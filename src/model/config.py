@@ -27,6 +27,7 @@ class LossConfig:
     ntxent_lie_loss_weight: float = 1.0
     ntxent_lie_temp: float = 0.5
     ntxent_lie_pos_aug: bool = True
+    ntxent_lie_z0_neg: bool = False
 
     kl_loss_active: bool = False
     kl_loss_weight: float = 0.1

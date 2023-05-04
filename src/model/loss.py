@@ -69,20 +69,34 @@ class Loss(nn.Module):
         # InfoNCE Lie Loss on transport operator estimates
         if self.loss_cfg.ntxent_lie_loss_active:
             # Contrast point pair, using additional negative found via feature augmentation
-            z0, z1, zaug = model_output.header_input.feature_0, model_output.header_input.feature_1, header_dict["z0_aug"]
+            z0, z1 = model_output.header_input.feature_0, model_output.header_input.feature_1               
+            zaug, z1hat = header_dict["z0_aug"], header_dict["transop_z1hat"]    
 
-            if self.loss_cfg.ntxent_lie_pos_aug:
+            if 'proj' in args_dict.keys():
+                proj = args_dict['proj']
+                zaug_proj, z1_proj, z0_proj = proj(zaug), proj(z1), proj(z0)
                 lie_loss = lie_nt_xent_loss(
-                    zaug, z1, z0,
-                    mse=self.loss_cfg.ntxent_lie_loss_mse,
+                    F.normalize(zaug_proj, dim=-1), 
+                    F.normalize(z1_proj, dim=-1),
+                    F.normalize(z0_proj, dim=-1) if self.loss_cfg.ntxent_lie_z0_neg else None, 
+                    mse=False,
                     temperature=self.loss_cfg.ntxent_lie_temp,
                 )
             else:
-                lie_loss = lie_nt_xent_loss(
-                    z0, z1, zaug,
-                    mse=self.loss_cfg.ntxent_lie_loss_mse,
-                    temperature=self.loss_cfg.ntxent_lie_temp,
-                )
+                if self.loss_cfg.ntxent_lie_pos_aug:
+                    lie_loss = lie_nt_xent_loss(
+                        zaug, 
+                        z1, 
+                        z0 if self.loss_cfg.ntxent_lie_z0_neg else None,
+                        mse=self.loss_cfg.ntxent_lie_loss_mse,
+                        temperature=self.loss_cfg.ntxent_lie_temp,
+                    )
+                else:
+                    lie_loss = lie_nt_xent_loss(
+                        z0, z1, zaug,
+                        mse=self.loss_cfg.ntxent_lie_loss_mse,
+                        temperature=self.loss_cfg.ntxent_lie_temp,
+                    )
             loss_meta["ntxent_lie_loss"] = lie_loss.item()
             total_loss += self.loss_cfg.ntxent_lie_loss_weight * lie_loss
 

@@ -59,6 +59,8 @@ class Model(nn.Module):
         args_dict = {}
         if self.model_cfg.loss_cfg.real_eig_reg_active:
             args_dict["psi"] = self.contrastive_header.transop_header.transop.psi
+        if self.model_cfg.header_cfg.enable_projection_header:
+            args_dict["proj"] = self.contrastive_header.projection_header.projector
         return self.loss.compute_loss(curr_idx, model_output, args_dict)
 
     def get_param_groups(self):

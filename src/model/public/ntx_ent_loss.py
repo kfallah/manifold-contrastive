@@ -56,7 +56,7 @@ def lie_nt_xent_loss(out_1, out_2, out_3=None, temperature=0.07, mse=False, eps=
         cov = -((out.unsqueeze(1) - out_dist.unsqueeze(0))**2).mean(dim=-1)
     else:
         cov = torch.mm(out, out_dist.t().contiguous())
-    sim = torch.exp(cov / temperature)#.clamp(min=1e-12)
+    sim = torch.exp(cov / temperature).clamp(min=1e-18)
     neg = sim.sum(dim=-1)
 
     if not mse:
@@ -68,7 +68,7 @@ def lie_nt_xent_loss(out_1, out_2, out_3=None, temperature=0.07, mse=False, eps=
         pos = -((out_1 - out_2)**2).mean(dim=-1)
         pos = torch.exp(pos / temperature)
     else:
-        pos = torch.exp(torch.sum(out_1 * out_2, dim=-1) / temperature)#.clamp(min=1e-12)
+        pos = torch.exp(torch.sum(out_1 * out_2, dim=-1) / temperature).clamp(min=1e-18)
     pos = torch.cat([pos, pos], dim=0)
     loss = -torch.log(pos / (neg + eps)).mean()
     if loss < 0.0:
