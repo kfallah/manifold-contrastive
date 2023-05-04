@@ -11,7 +11,9 @@ from tqdm import tqdm
 import numpy as np
 import sklearn
 
-from datasets import AnimalClassificationDataset, TrialContrastiveDataset, PoseContrastiveDataset
+from datasets import AnimalClassificationDataset, TrialContrastiveDataset, PoseContrastiveDataset, generate_brainscore_train_test_split
+from evaluation import evaluate_linear_readout, evaluate_nn_classifier, evaluate_IT_explained_variance
+import torch.nn.functional as F
 
 class ContrastiveHead(torch.nn.Module):
     """
@@ -24,6 +26,7 @@ class ContrastiveHead(torch.nn.Module):
         super().__init__()
         self.model = torch.nn.Sequential(
             torch.nn.Linear(input_dim, hidden_dim),
+            torch.nn.Batchnorm1d(hidden_dim),
             torch.nn.ReLU(),
             torch.nn.Linear(hidden_dim, output_dim),
         )
@@ -37,95 +40,49 @@ class Backbone(torch.nn.Module):
         super().__init__()
         self.model = torch.nn.Sequential(
             torch.nn.Linear(input_dim, hidden_dim),
-            torch.nn.ReLU(),
+            torch.nn.Batchnorm1d(hidden_dim),
+            torch.nn.LeakyReLU(),
+            torch.nn.Linear(hidden_dim, hidden_dim),
+            torch.nn.Batchnorm1d(hidden_dim),
+            torch.nn.LeakyReLU(),
             torch.nn.Linear(hidden_dim, output_dim),
         )
     
     def forward(self, x):
         return self.model(x)
 
-def evaluate_linear_readout(backbone, train_dataset, test_dataset, args):
-    """
-        Evaluate the linear readout
-    """
-    # Embed each of the neuroid data using the backbone
-    train_embeddings = []
-    train_labels = []
-    for data in train_dataset:
-        neuroid_data, labels = data
-        neuroid_data = neuroid_data.to(args.device)
-        train_embeddings.append(
-            backbone(neuroid_data).detach().cpu().numpy()
-        )
-        train_labels.append(labels)
-    # Embed the test data
-    test_embeddings = []
-    test_labels = []
-    for data in test_dataset:
-        neuroid_data, labels = data
-        neuroid_data = neuroid_data.to(args.device)
-        test_embeddings.append(
-            backbone(neuroid_data).detach().cpu().numpy()
-        )
-        test_labels.append(labels)
-    # Train a logistic classifier on those data pairs 
-    # similar to what is done in `linear_readout_baseline`
-    clf = sklearn.linear_model.LogisticRegressionCV().fit(
-        train_embeddings,
-        train_labels
-    )
-    # Evaluate the model on the test set
-    accuracy = clf.score(
-        test_embeddings,
-        test_labels
-    )
-    # Predict f1 score
-    predicted_labels = clf.predict(test_embeddings)
-    fscore = sklearn.metrics.f1_score(test_labels, predicted_labels)
-
-    return accuracy, fscore
-
-def load_dataloaders(train_dataset, test_dataset, args):
-    """
-        Load the dataloaders
-    """
-    train_dataloader = torch.utils.data.DataLoader(
-        train_dataset,
-        batch_size=args.batch_size,
-        shuffle=True,
-        num_workers=args.num_workers,
-        drop_last=False,
-    )
-    test_dataloader = torch.utils.data.DataLoader(
-        test_dataset,
-        batch_size=args.batch_size,
-        shuffle=False,
-        num_workers=args.num_workers,
-        drop_last=False,
-    )
-
-    return train_dataloader, test_dataloader
-
 # ======================== Training code ========================
 
 class SimCLRTrainer():
 
-    def __init__(self, train_dataset, test_dataset, animals_train_dataset, animals_test_dataset, args):
+    def __init__(
+        self, 
+        neuroid_train_dataset, 
+        neuroid_eval_dataset, 
+        train_dataset, 
+        test_dataset, 
+        animals_train_dataset, 
+        animals_test_dataset, 
+        args
+    ):
+        self.neuroid_train_dataset = neuroid_train_dataset
+        self.neuroid_eval_dataset = neuroid_eval_dataset
         self.train_dataset = train_dataset
         self.test_dataset = test_dataset
         self.animals_train_dataset = animals_train_dataset
         self.animals_test_dataset = animals_test_dataset
         self.args = args
 
-    def nxent_loss(self, out_1, out_2, out_3=None, temperature=0.07, mse=False, eps=1e-6):
+    def nxent_loss(self, out_1, out_2, out_3=None, mse=False, eps=1e-18):
         """
         DOES NOT assume out_1 and out_2 are normalized
         out_1: [batch_size, dim]
         out_2: [batch_size, dim]
         out_3: [batch_size, dim]
-        """
-        out_1 = out_1 / (out_1.norm(dim=1, keepdim=True) + eps)
-        out_2 = out_2 / (out_2.norm(dim=1, keepdim=True) + eps)
+        # """
+        temperature = self.args.temperature
+        # out_1 = out_1 / (out_1.norm(dim=1, keepdim=True) + eps)
+        # out_2 = out_2 / (out_2.norm(dim=1, keepdim=True) + eps)
         # gather representations in case of distributed training
         # out_1_dist: [batch_size * world_size, dim]
         # out_2_dist: [batch_size * world_size, dim]
@@ -164,7 +121,7 @@ class SimCLRTrainer():
             raise ValueError("Lie Contrastive loss can't be negative")
         return loss
 
-    def run_simclr(self, backbone, contrastive_head, dataloaders, args):
+    def run_simclr(self, backbone, contrastive_head, args):
         """
             Train the model using simclr.
 
@@ -175,8 +132,6 @@ class SimCLRTrainer():
             3. We select positive pairs from different "presentations" of the same image ("stimulus")
         """
         print("Training the model using simclr")
-        # Unpack the dataloaders
-        train_dataloader, test_dataloader = dataloaders
         # Make an optimizer
         if args.optimizer == "adam":
             optim = torch.optim.Adam(
@@ -187,72 +142,88 @@ class SimCLRTrainer():
             optim = torch.optim.SGD(
                 list(backbone.parameters()) + list(contrastive_head.parameters()),
                 lr=args.learning_rate,
-                momentum=0.9,
-                weight_decay=1e-4,
+                weight_decay=args.weight_decay,
             )
         else:
             raise NotImplementedError(f"Optimizer {args.optimizer} not implemented")
         # Run the trianing
-        epoch_bar = tqdm(range(args.num_epochs))
-        for epoch in epoch_bar:
-            epoch_bar.set_description(f"Epoch {epoch}")
-            # Train the model
-            train_losses = []
-            for batch in tqdm(train_dataloader):
-                # Unpack the batch
-                item_a, item_b = batch
-                item_a = item_a.to(args.device)
-                item_b = item_b.to(args.device)
-                # Encode features using the backbone
-                a_contrast_out = contrastive_head(backbone(item_a))
-                b_contrast_out = contrastive_head(backbone(item_b))
-                # Compute the info nce loss in the output space
-                loss = self.nxent_loss(
-                    a_contrast_out,
-                    b_contrast_out
-                )
-                train_losses.append(
-                    loss.item()
-                )
-                # Backprop
-                optim.zero_grad()
-                loss.backward() 
-                optim.step()
-            train_loss = np.mean(train_losses)
+        iteration_bar = tqdm(range(args.num_iterations))
+        for iteration in iteration_bar:
+            iteration_bar.set_description(f"Iteration {iteration}")
+            # Load a batch
+            random_indices = np.random.choice(
+                len(self.train_dataset),
+                size=args.batch_size,
+            )
+            train_batch = [self.train_dataset[i] for i in random_indices]
+            train_batch = tuple(map(torch.stack, zip(*train_batch)))
+            item_a = train_batch[0].to(args.device)
+            item_b = train_batch[1].to(args.device)
+            # Encode features using the backbone
+            a_contrast_out = contrastive_head(
+                backbone(item_a)
+            )
+            b_contrast_out = contrastive_head(
+                backbone(item_b)
+            )
+            # Compute the info nce loss in the output space
+            train_loss = self.nxent_loss(
+                F.normalize(a_contrast_out, dim=-1),
+                F.normalize(b_contrast_out, dim=-1)
+            )
+            # Backprop
+            optim.zero_grad()
+            train_loss.backward() 
+            optim.step()
             # Run testing
-            test_losses = []
-            for batch in tqdm(test_dataloader):
-                # Unpack the batch
-                item_a, item_b = batch
-                item_a = item_a.to(args.device)
-                item_b = item_b.to(args.device)
-                # Encode features using the backbone
-                a_contrast_out = contrastive_head(backbone(item_a))
-                b_contrast_out = contrastive_head(backbone(item_b))
-                # Compute the info nce loss in the output space
-                loss = self.nxent_loss(
-                    a_contrast_out,
-                    b_contrast_out
-                )
-                test_losses.append(
-                    loss.item()
-                )
-            test_loss = np.mean(test_losses)
+            # Load a batch
+            random_indices = np.random.choice(
+                len(self.test_dataset),
+                size=args.batch_size,
+            )
+            test_batch = [self.test_dataset[i] for i in random_indices]
+            test_batch = tuple(map(torch.stack, zip(*test_batch)))
+            item_a = test_batch[0].to(args.device)
+            item_b = test_batch[1].to(args.device)
+            # Encode features using the backbone
+            a_contrast_out = contrastive_head(
+                backbone(item_a)
+            )
+            b_contrast_out = contrastive_head(
+                backbone(item_b)
+            )
+            # Compute the info nce loss in the output space
+            test_loss = self.nxent_loss(
+                F.normalize(a_contrast_out, dim=-1),
+                F.normalize(b_contrast_out, dim=-1)
+            )
             # Run the linear readout evaluation
             # TODO: Maybe change this from every epoch to every num iterations
-            if epoch % args.eval_readout_frequency == 0:
+            if iteration % args.eval_readout_frequency == 0:
                 accuracy, fscore = evaluate_linear_readout(
                     backbone,
                     self.animals_train_dataset, 
                     self.animals_test_dataset, 
                     args
                 )
+                evaluate_nn_classifier(
+                    backbone,
+                    self.animals_train_dataset,
+                    self.animals_test_dataset,
+                    args
+                )
+                evaluate_IT_explained_variance(
+                    backbone,
+                    self.neuroid_train_dataset,
+                    self.neuroid_eval_dataset,
+                    args
+                )
                 wandb.log({
-                    "epoch": epoch,
+                    "iteration": iteration,
                     "train_loss": train_loss,
                     "test_loss": test_loss,
-                    "accuracy": accuracy,   
-                    "fscore": fscore,
+                    "log_reg_accuracy": accuracy,   
+                    "log_reg_fscore": fscore,
                 })
             # Save the model at the end of each epoch
             # with open(args.model_save_path, "wb") as f:
@@ -268,15 +239,19 @@ if __name__ == "__main__":
     parser.add_argument("--hidden_dim", type=int, default=512, help="Hidden dimension of contrastive head") # Dim of V4 data
     parser.add_argument("--output_dim", type=int, default=64, help="Output dimension of contrastive head") # Dim of V4 data
     # NOTE: just doing eval every epoch rn
-    parser.add_argument("--eval_readout_frequency", type=int, default=1, help="Number of epochs between evaluating linear readout") 
+    parser.add_argument("--eval_readout_frequency", type=int, default=600, help="Number of epochs between evaluating linear readout") 
     parser.add_argument("--model_save_path", type=str, default="model_weights/model.pt", help="Path to save the model")
-    parser.add_argument("--num_epochs", type=int, default=100, help="Number of epochs to train for")
+    parser.add_argument("--num_iterations", type=int, default=30000, help="Number of epochs to train for")
     parser.add_argument("--batch_size", type=int, default=512, help="Batch size")
     parser.add_argument("--num_workers", type=int, default=4, help="Number of workers for dataloader")
-    parser.add_argument("--learning_rate", type=float, default=1e-3, help="Learning rate")
+    parser.add_argument("--learning_rate", type=float, default=0.3, help="Learning rate")
+    parser.add_argument("--weight_decay", type=float, default=1e-5, help="Weight decay")
     parser.add_argument("--optimizer", type=str, default="sgd", help="Optimizer to use")
-    parser.add_argument("--dataset_type", type=str, default="trial", help="Type of dataset used")
+    parser.add_argument("--temperature", type=float, default=0.5, help="Temperature for info nce loss")
     parser.add_argument("--device", type=str, default="cuda", help="Device to use")
+    parser.add_argument("--dataset_type", type=str, default="trial", help="Type of dataset used")
+    parser.add_argument("--average_trials", type=bool, default=True, help="Whether or not to average across trials")
+
 
     args = parser.parse_args()
     
@@ -288,43 +263,51 @@ if __name__ == "__main__":
         config=args,
     )
     # Load simclr dataset
+    neuroid_train_dataset, neuroid_eval_dataset = generate_brainscore_train_test_split()
+
     animals_train_dataset = AnimalClassificationDataset(split="train")
     animals_test_dataset = AnimalClassificationDataset(split="test")
     if args.dataset_type == "trial":
         train_dataset = TrialContrastiveDataset(split="train")
         test_dataset = TrialContrastiveDataset(split="test")
     elif args.dataset_type == "pose":
-        train_dataset = PoseContrastiveDataset(split="train")
-        test_dataset = PoseContrastiveDataset(split="test")
+        train_dataset = PoseContrastiveDataset(
+            split="train",
+        )
+        test_dataset = PoseContrastiveDataset(
+            split="test",
+        )
     else:
         raise NotImplementedError(f"Dataset type {args.dataset_type} not implemented")
     print(f"Dataset type: {type(train_dataset)}")
-    train_dataloader, test_dataloader = load_dataloaders(train_dataset, test_dataset, args)
+    # train_dataloader, test_dataloader = load_dataloaders(train_dataset, test_dataset, args)
     # Initialize the model
     contrastive_head = ContrastiveHead(
-        input_dim=512,
-        hidden_dim=512,
-        output_dim=64,
+        input_dim=32,
+        hidden_dim=256,
+        output_dim=2,
     ).to(args.device)
     # NOTE: Not sure what shapes this should be
     backbone = Backbone(
         input_dim=args.input_dim, # TBD
-        hidden_dim=512,
-        output_dim=512,
+        hidden_dim=256,
+        output_dim=32,
     ).to(args.device)
     # The backbone output =/= contrastive header here (in terms of dimension)
     # Run trianing
     trainer = SimCLRTrainer(
+        neuroid_train_dataset,
+        neuroid_eval_dataset,
         train_dataset,
-        test_dataset, 
-        animals_train_dataset, 
+        test_dataset,
+        animals_train_dataset,
         animals_test_dataset,
         args
     )
     trainer.run_simclr(
         backbone,
         contrastive_head,
-        (train_dataloader, test_dataloader),
+        # (train_dataloader, test_dataloader),
         args
     )
 

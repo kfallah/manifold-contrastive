@@ -12,6 +12,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
 import sklearn
 import matplotlib.pyplot as plt
+from evaluation import evaluate_nn_classifier
+
+import torch.nn as nn
 
 def load_animal_classification_dataset(split_percentage=0.8, average_across_stimuli=True):
     print("Loading brainscore dataset")
@@ -62,6 +65,16 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Linear readout baseline experiment")
     # Setup the data
-    train_data, test_data = load_animal_classification_dataset()
+    # train_data, test_data = load_animal_classification_dataset()
     # Train the logistic regression model
-    train_logistic_regression(train_data, test_data)
+    # train_logistic_regression(train_data, test_data)
+    animals_train_dataset = AnimalClassificationDataset(split="train")
+    animals_test_dataset = AnimalClassificationDataset(split="test")
+    
+    model = nn.Sequential(
+        nn.Identity(),
+    )
+
+    evaluate_nn_classifier(
+        model,
+    )
