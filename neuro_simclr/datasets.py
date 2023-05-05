@@ -8,6 +8,8 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning) 
 
 def generate_brainscore_train_test_split(random_seed=42, split_percentage=0.8):
+    # Set numpy seed
+    np.random.seed(random_seed)
     # Generates a consistent train test split of the brainscore dataset
     # along the presentation dimension
     neural_data = brainscore.get_assembly(name="dicarlo.MajajHong2015.public")
@@ -50,6 +52,7 @@ class AnimalClassificationDataset(Dataset):
     """
     
     def __init__(self, split="train", region="V4"):
+        self.dataset_name = "animal_binary"
         self.region = region
         if split == "train":
             neural_data, _ = generate_brainscore_train_test_split()
@@ -78,12 +81,13 @@ class AnimalClassificationDataset(Dataset):
     def __getitem__(self, index):
         return torch.Tensor(self.neuroid_data[index].to_numpy()), self.labels[index]
 
-class AllClassClassificationDataset(Dataset):
+class AllCategoryClassificationDataset(Dataset):
     """
         This is the dataset class for the neuroscience dataset
     """
     
     def __init__(self, split="Train", average_across_stimuli=True):
+        self.dataset_name = "all_category"
         if split == "Train":
             neural_data, _ = generate_brainscore_train_test_split()
         else:
@@ -100,6 +104,10 @@ class AllClassClassificationDataset(Dataset):
         # neuroid_data = neuroid_data.transpose('presentation', 'neuroid')
         # Get the indices where the category is animals
         labels = neuroid_data.coords['category_name'].to_numpy()
+        max_class_index = np.unique(labels)
+        self.labels_to_index = {
+            label: index for index, label in enumerate(np.unique(labels))
+        }
 
         self.neuroid_data, self.labels = neuroid_data, labels
 
@@ -109,7 +117,6 @@ class AllClassClassificationDataset(Dataset):
 
     def __getitem__(self, index):
         return torch.Tensor(self.neuroid_data[index].to_numpy()), self.labels[index]
-
 
 # ================== Contrastive Datasets ==================
 

@@ -94,8 +94,8 @@ def evaluate_nn_classifier(
 
     if wandb.run is not None:
         wandb.log({
-            "nn_eval_accuracy": correct/total,
-            "nn_eval_fscore": fscore
+            f"{train_dataset.dataset_name}_nn_eval_accuracy": correct/total,
+            f"{train_dataset.dataset_name}_nn_eval_fscore": fscore
         })
     print(f"Accuracy: {correct/total}")
     print(f"Fscore: {fscore}")
