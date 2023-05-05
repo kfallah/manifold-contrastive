@@ -23,22 +23,37 @@ class ContrastiveHead(torch.nn.Module):
         For a baseline, we can use two simple linear layers.
     """
 
-    def __init__(self, input_dim, hidden_dim, output_dim):
+    def __init__(self, input_dim, hidden_dim, output_dim, batchnorm):
         super().__init__()
-        self.model = torch.nn.Sequential(
+        layers = [
             torch.nn.Linear(input_dim, hidden_dim),
             torch.nn.BatchNorm1d(hidden_dim),
             torch.nn.ReLU(),
             torch.nn.Linear(hidden_dim, output_dim),
-        )
+        ]
+        if batchnorm:
+            layers.insert(1, torch.nn.Batchnorm1d(hidden_dim))
+
+        self.model = torch.nn.Sequential(*layers)
 
     def forward(self, x):
         return self.model(x)
 
 class Backbone(torch.nn.Module):
 
-    def __init__(self, input_dim, hidden_dim, output_dim):
+    def __init__(self, input_dim, hidden_dim, output_dim, num_hidden_layers, batchnorm):
         super().__init__()
+        def linear_block(dim_in, dim_out):
+            layers = [torch.nn.Linear(dim_in, dim_out)]
+            if batchnorm:
+                layers.append(torch.nn.Batchnorm1d(dim_out))
+            layers.append(torch.nn.LeakyReLU())
+            return layers
+
+        extra_hidden_layers = []
+        for _ in range(num_hidden_layers - 1):  # already have one
+            extra_hidden_layers.extend(linear_block(hidden_dim, hidden_dim))
+
         self.model = torch.nn.Sequential(
             torch.nn.Linear(input_dim, hidden_dim),
             torch.nn.BatchNorm1d(hidden_dim),
@@ -262,6 +277,8 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_type", type=str, default="trial", help="Type of dataset used")
     parser.add_argument("--average_trials", type=bool, default=True, help="Whether or not to average across trials")
 
+    parser.add_argument("--batchnorm", type=bool, default=True, help="Whether to use batchnorms after layers in contrastive head and backbone")
+    parser.add_argument("--hidden_layers", type=int, default=2, help="Number of hidden layers in backbone")
 
     args = parser.parse_args()
     
