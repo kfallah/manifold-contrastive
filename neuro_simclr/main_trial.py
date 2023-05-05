@@ -24,15 +24,15 @@ class ContrastiveHead(torch.nn.Module):
         For a baseline, we can use two simple linear layers.
     """
 
-    def __init__(self, input_dim, hidden_dim, output_dim, batchnorm=True):
+    def __init__(self, input_dim, hidden_dim, output_dim):
         super().__init__()
         layers = [
             torch.nn.Linear(input_dim, hidden_dim),
             torch.nn.ReLU(),
             torch.nn.Linear(hidden_dim, output_dim),
         ]
-        if batchnorm:
-            layers.insert(1, torch.nn.BatchNorm1d(hidden_dim))
+        # if batchnorm:
+            # layers.insert(1, torch.nn.BatchNorm1d(hidden_dim))
 
         self.model = torch.nn.Sequential(*layers)
 
@@ -55,8 +55,12 @@ class Backbone(torch.nn.Module):
             extra_hidden_layers.extend(linear_block(hidden_dim, hidden_dim))
 
         self.model = torch.nn.Sequential(
-            *linear_block(input_dim, hidden_dim),
-            *extra_hidden_layers,
+            torch.nn.Linear(input_dim, hidden_dim),
+            torch.nn.BatchNorm1d(hidden_dim),
+            torch.nn.LeakyReLU(),
+            torch.nn.Linear(hidden_dim, hidden_dim),
+            torch.nn.BatchNorm1d(hidden_dim),
+            torch.nn.LeakyReLU(),
             torch.nn.Linear(hidden_dim, output_dim),
         )
     
@@ -305,6 +309,7 @@ if __name__ == "__main__":
     # Initialize wandb
     wandb.init(
         project="neuro_simclr",
+        entity="helblazer811",
         config=args,
     )
     # Load simclr dataset
@@ -336,7 +341,7 @@ if __name__ == "__main__":
         input_dim=args.backbone_output_dim,
         hidden_dim=args.hidden_dim,
         output_dim=2,
-        batchnorm=args.batchnorm,
+        # batchnorm=args.batchnorm,
     ).to(args.device)
     # NOTE: Not sure what shapes this should be
     backbone = Backbone(
