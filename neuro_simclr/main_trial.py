@@ -274,7 +274,7 @@ if __name__ == "__main__":
     parser.add_argument("--average_trials", type=bool, default=True, help="Whether or not to average across trials")
 
     parser.add_argument("--batchnorm", type=bool, default=True, help="Whether to use batchnorms after layers in contrastive head and backbone")
-    parser.add_argument("--hidden_layers", type=int, default=2, help="Number of hidden layers in backbone")
+    parser.add_argument("--num_hidden_layers", type=int, default=2, help="Number of hidden layers in backbone")
 
     args = parser.parse_args()
     
@@ -311,12 +311,15 @@ if __name__ == "__main__":
         input_dim=32,
         hidden_dim=256,
         output_dim=2,
+        batchnorm=args.batchnorm,
     ).to(args.device)
     # NOTE: Not sure what shapes this should be
     backbone = Backbone(
         input_dim=args.input_dim, # TBD
         hidden_dim=256,
         output_dim=32,
+        num_hidden_layers=args.num_hidden_layers,
+        args.batchnorm,
     ).to(args.device)
     # The backbone output =/= contrastive header here (in terms of dimension)
     # Run trianing
