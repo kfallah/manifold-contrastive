@@ -134,7 +134,7 @@ class TrialContrastiveDataset(Dataset):
             # presentations = presentations.squeeze('time_bin')
             # presentations = presentations.transpose('presentation', 'neuroid')
             self.stimulus_to_v4_map[stimulus_id] = torch.Tensor(
-                presentations
+                presentations.to_numpy()
             )
 
     def __len__(self):
@@ -148,15 +148,16 @@ class TrialContrastiveDataset(Dataset):
         presentations = self.stimulus_to_v4_map[stimulus_id]
         # Choose two random presentations of that stimulus
         if presentations.shape[0] < 2:
-            print("Not enough presentations for stimulus_id: ", stimulus_id)
             return self.__getitem__(np.random.randint(len(self)))
         random_indices = np.random.choice(
             len(presentations),
             2,
             replace=False
         )
-        item_a = torch.Tensor(presentations[random_indices[0]].to_numpy())
-        item_b = torch.Tensor(presentations[random_indices[1]].to_numpy())
+        # item_a = torch.Tensor(presentations[random_indices[0]].to_numpy())
+        # item_b = torch.Tensor(presentations[random_indices[1]].to_numpy())
+        item_a = presentations[random_indices[0]]
+        item_b = presentations[random_indices[1]]
 
         return item_a, item_b
 

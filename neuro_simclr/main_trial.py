@@ -23,16 +23,15 @@ class ContrastiveHead(torch.nn.Module):
         For a baseline, we can use two simple linear layers.
     """
 
-    def __init__(self, input_dim, hidden_dim, output_dim, batchnorm):
+    def __init__(self, input_dim, hidden_dim, output_dim, batchnorm=True):
         super().__init__()
         layers = [
             torch.nn.Linear(input_dim, hidden_dim),
-            torch.nn.BatchNorm1d(hidden_dim),
             torch.nn.ReLU(),
             torch.nn.Linear(hidden_dim, output_dim),
         ]
         if batchnorm:
-            layers.insert(1, torch.nn.Batchnorm1d(hidden_dim))
+            layers.insert(1, torch.nn.BatchNorm1d(hidden_dim))
 
         self.model = torch.nn.Sequential(*layers)
 
@@ -41,12 +40,12 @@ class ContrastiveHead(torch.nn.Module):
 
 class Backbone(torch.nn.Module):
 
-    def __init__(self, input_dim, hidden_dim, output_dim, num_hidden_layers, batchnorm):
+    def __init__(self, input_dim, hidden_dim, output_dim, num_hidden_layers=2, batchnorm=True):
         super().__init__()
         def linear_block(dim_in, dim_out):
             layers = [torch.nn.Linear(dim_in, dim_out)]
             if batchnorm:
-                layers.append(torch.nn.Batchnorm1d(dim_out))
+                layers.append(torch.nn.BatchNorm1d(dim_out))
             layers.append(torch.nn.LeakyReLU())
             return layers
 
@@ -176,7 +175,6 @@ class SimCLRTrainer():
             train_batch = [torch.stack(self.train_dataset[i]) for i in random_indices]
             train_batch = torch.stack(train_batch)
             # train_batch = tuple(map(torch.stack, zip(*train_batch)))
-            print(train_batch.shape)
             item_a = train_batch[:, 0].to(args.device)
             item_b = train_batch[:, 1].to(args.device)
             # Encode features using the backbone
@@ -192,12 +190,9 @@ class SimCLRTrainer():
                 F.normalize(b_contrast_out, dim=-1)
             )
             # Backprop
-            start = time.time()
             optim.zero_grad()
             train_loss.backward() 
             optim.step()
-            end = time.time()
-            print(f"Time to backprop: {end - start}")
             # Run testing
             # Load a batch
             random_indices = np.random.choice(
@@ -224,6 +219,7 @@ class SimCLRTrainer():
             )
             # Run the linear readout evaluation
             # TODO: Maybe change this from every epoch to every num iterations
+            continue
             if iteration % args.eval_readout_frequency == 0:
                 accuracy, fscore = evaluate_linear_readout(
                     backbone,
