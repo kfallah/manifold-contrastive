@@ -10,20 +10,25 @@ def evaluate_nn_classifier(
     test_dataset, 
     args,
     num_epochs=100,
-    batch_size=32
+    batch_size=32,
+    num_classes=2
 ):
     """
         Trains a simple single layer linear nn classifier using
         the frozen backbone representations. 
     """
+    # Set the backbone to eval mode
+    backbone.eval()
+
     max_class_index = -1
     train_data = []
     # Embed the train dataset of images using the backbone
     for data in train_dataset:
         image, label = data
         max_class_index = max(max_class_index, label)
+        label = np.eye(num_classes)[label]
         image = image.to(args.device)
-        embedding = backbone(image)
+        embedding = backbone(image.unsqueeze(0)).squeeze()
         train_data.append(
             (embedding.detach().cpu(), label)
         )
@@ -31,15 +36,18 @@ def evaluate_nn_classifier(
     test_data = []
     for data in test_dataset:
         image, label = data
+        # Convert label to a one-hot vector
+        # label = np.eye(num_classes)[label]
         image = image.to(args.device)
-        embedding = backbone(image)
+        embedding = backbone(image.unsqueeze(0)).squeeze()
         test_data.append(
             (embedding.detach().cpu(), label)
         )
     # Train a single layer linear nn classifier on the train dataset
     print(f"Test data shape: {test_data[0][0].shape}")
     neural_network = nn.Sequential(
-        nn.Linear(test_data[0][0].shape[-1], 2)
+        nn.Linear(test_data[0][0].shape[-1], num_classes),
+        nn.Softmax()
     ).to(args.device)
     # Train the model using an adam optimizer
     optim = torch.optim.Adam(neural_network.parameters(), lr=1e-3)
@@ -75,8 +83,8 @@ def evaluate_nn_classifier(
                 embeddings = embeddings.to(args.device)
                 labels = labels.to(args.device)
                 output = neural_network(embeddings)
-                _, predicted = torch.max(output.data, 1)
-                total += labels.size(0)
+                _, predicted = torch.max(output.data, -1)
+                total += labels.size(-1)
                 correct += (predicted == labels).sum().item()
 
                 preds.extend(predicted.detach().cpu().numpy())
@@ -100,14 +108,19 @@ def evaluate_linear_readout(backbone, train_dataset, test_dataset, args):
     """
         Evaluate the linear readout
     """
+    # Put the backbone in eval mode
+    backbone.eval()
     # Embed each of the neuroid data using the backbone
     train_embeddings = []
     train_labels = []
     for data in train_dataset:
         neuroid_data, labels = data
         neuroid_data = neuroid_data.to(args.device)
+        if len(neuroid_data.shape) == 1:
+            neuroid_data = neuroid_data.unsqueeze(0)
+        backbone_out = backbone(neuroid_data).detach().cpu().numpy()
         train_embeddings.append(
-            backbone(neuroid_data).detach().cpu().numpy()
+            backbone_out.squeeze()
         )
         train_labels.append(labels)
     # Embed the test data
@@ -116,8 +129,12 @@ def evaluate_linear_readout(backbone, train_dataset, test_dataset, args):
     for data in test_dataset:
         neuroid_data, labels = data
         neuroid_data = neuroid_data.to(args.device)
+        if len(neuroid_data.shape) == 1:
+            neuroid_data = neuroid_data.unsqueeze(0)
+
+        backbone_out = backbone(neuroid_data).detach().cpu().numpy()
         test_embeddings.append(
-            backbone(neuroid_data).detach().cpu().numpy()
+            backbone_out.squeeze()
         )
         test_labels.append(labels)
     # Train a logistic classifier on those data pairs 
@@ -146,6 +163,9 @@ def evaluate_IT_explained_variance(backbone, neuroid_train_dataset, neuroid_eval
             site recordings.
         (3) Return the R^2 score for each of the linear regression models.
     """
+    # Put the backbone in eval mode
+    backbone.eval()
+
     v4_train_dataset = neuroid_train_dataset.sel(region='V4')
     it_train_dataset = neuroid_train_dataset.sel(region='IT')
     v4_test_dataset = neuroid_eval_dataset.sel(region='V4')
@@ -154,14 +174,16 @@ def evaluate_IT_explained_variance(backbone, neuroid_train_dataset, neuroid_eval
     train_embeddings = []
     for neuroid_data in v4_train_dataset:
         neuroid_data = torch.Tensor(neuroid_data.to_numpy()).to(args.device)
+        neuroid_data = neuroid_data.unsqueeze(0)
         train_embeddings.append(
-            backbone(neuroid_data).detach().cpu().numpy()
+            backbone(neuroid_data).detach().cpu().numpy().squeeze()
         )
     test_embeddings = []
     for neuroid_data in v4_test_dataset:
         neuroid_data = torch.Tensor(neuroid_data.to_numpy()).to(args.device)
+        neuroid_data = neuroid_data.unsqueeze(0)
         test_embeddings.append(
-            backbone(neuroid_data).detach().cpu().numpy()
+            backbone(neuroid_data).detach().cpu().numpy().squeeze()
         )
     # Fit a linear regression model for each of the IT neuronal site recordings
     num_neuronal_sites = it_test_dataset.shape[-1]

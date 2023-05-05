@@ -10,10 +10,11 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 import numpy as np
 import sklearn
+import time
+import torch.nn.functional as F
 
 from datasets import AnimalClassificationDataset, TrialContrastiveDataset, PoseContrastiveDataset, generate_brainscore_train_test_split
 from evaluation import evaluate_linear_readout, evaluate_nn_classifier, evaluate_IT_explained_variance
-import torch.nn.functional as F
 
 class ContrastiveHead(torch.nn.Module):
     """
@@ -26,7 +27,7 @@ class ContrastiveHead(torch.nn.Module):
         super().__init__()
         self.model = torch.nn.Sequential(
             torch.nn.Linear(input_dim, hidden_dim),
-            torch.nn.Batchnorm1d(hidden_dim),
+            torch.nn.BatchNorm1d(hidden_dim),
             torch.nn.ReLU(),
             torch.nn.Linear(hidden_dim, output_dim),
         )
@@ -40,10 +41,10 @@ class Backbone(torch.nn.Module):
         super().__init__()
         self.model = torch.nn.Sequential(
             torch.nn.Linear(input_dim, hidden_dim),
-            torch.nn.Batchnorm1d(hidden_dim),
+            torch.nn.BatchNorm1d(hidden_dim),
             torch.nn.LeakyReLU(),
             torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.Batchnorm1d(hidden_dim),
+            torch.nn.BatchNorm1d(hidden_dim),
             torch.nn.LeakyReLU(),
             torch.nn.Linear(hidden_dim, output_dim),
         )
@@ -155,10 +156,14 @@ class SimCLRTrainer():
                 len(self.train_dataset),
                 size=args.batch_size,
             )
-            train_batch = [self.train_dataset[i] for i in random_indices]
-            train_batch = tuple(map(torch.stack, zip(*train_batch)))
-            item_a = train_batch[0].to(args.device)
-            item_b = train_batch[1].to(args.device)
+            # train_batch = [self.train_dataset[i] for i in random_indices]
+            # train_batch = tuple(map(torch.stack, zip(*train_batch)))
+            train_batch = [torch.stack(self.train_dataset[i]) for i in random_indices]
+            train_batch = torch.stack(train_batch)
+            # train_batch = tuple(map(torch.stack, zip(*train_batch)))
+            print(train_batch.shape)
+            item_a = train_batch[:, 0].to(args.device)
+            item_b = train_batch[:, 1].to(args.device)
             # Encode features using the backbone
             a_contrast_out = contrastive_head(
                 backbone(item_a)
@@ -172,17 +177,22 @@ class SimCLRTrainer():
                 F.normalize(b_contrast_out, dim=-1)
             )
             # Backprop
+            start = time.time()
             optim.zero_grad()
             train_loss.backward() 
             optim.step()
+            end = time.time()
+            print(f"Time to backprop: {end - start}")
             # Run testing
             # Load a batch
             random_indices = np.random.choice(
                 len(self.test_dataset),
                 size=args.batch_size,
             )
-            test_batch = [self.test_dataset[i] for i in random_indices]
-            test_batch = tuple(map(torch.stack, zip(*test_batch)))
+            # test_batch = [self.test_dataset[i] for i in random_indices]
+            # test_batch = tuple(map(torch.trainstack, zip(*test_batch)))
+            test_batch = [torch.stack(self.test_dataset[i]) for i in random_indices]
+            test_batch = torch.stack(test_batch)
             item_a = test_batch[0].to(args.device)
             item_b = test_batch[1].to(args.device)
             # Encode features using the backbone
@@ -273,9 +283,11 @@ if __name__ == "__main__":
     elif args.dataset_type == "pose":
         train_dataset = PoseContrastiveDataset(
             split="train",
+            average_trials=args.average_trials,
         )
         test_dataset = PoseContrastiveDataset(
             split="test",
+            average_trials=args.average_trials,
         )
     else:
         raise NotImplementedError(f"Dataset type {args.dataset_type} not implemented")
