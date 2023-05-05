@@ -219,7 +219,6 @@ class SimCLRTrainer():
             )
             # Run the linear readout evaluation
             # TODO: Maybe change this from every epoch to every num iterations
-            continue
             if iteration % args.eval_readout_frequency == 0:
                 accuracy, fscore = evaluate_linear_readout(
                     backbone,
@@ -319,7 +318,7 @@ if __name__ == "__main__":
         hidden_dim=256,
         output_dim=32,
         num_hidden_layers=args.num_hidden_layers,
-        args.batchnorm,
+        batchnorm=args.batchnorm,
     ).to(args.device)
     # The backbone output =/= contrastive header here (in terms of dimension)
     # Run trianing
