@@ -315,14 +315,14 @@ if __name__ == "__main__":
         input_dim=32,
         hidden_dim=256,
         output_dim=2,
-        args.batchnorm,
+        batchnorm=args.batchnorm,
     ).to(args.device)
     # NOTE: Not sure what shapes this should be
     backbone = Backbone(
         input_dim=args.input_dim, # TBD
         hidden_dim=256,
         output_dim=32,
-        args.num_hidden_layers,
+        num_hidden_layers=args.num_hidden_layers,
         args.batchnorm,
     ).to(args.device)
     # The backbone output =/= contrastive header here (in terms of dimension)
