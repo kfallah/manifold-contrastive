@@ -66,7 +66,7 @@ def lie_nt_xent_loss(out_1, out_2, out_3=None, temperature=0.07, mse=False, eps=
     # Positive similarity, pos becomes [2 * batch_size]
     if mse:
         pos = -((out_1 - out_2)**2).mean(dim=-1)
-        pos = torch.exp(pos / temperature)
+        pos = torch.exp(pos / temperature).clamp(min=1e-18)
     else:
         pos = torch.exp(torch.sum(out_1 * out_2, dim=-1) / temperature).clamp(min=1e-18)
     pos = torch.cat([pos, pos], dim=0)
