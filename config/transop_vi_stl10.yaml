@@ -1,0 +1,14 @@
+defaults:
+  - transop_base
+  - dataloader/stl10@dataloader_cfg
+  - _self_
+
+exp_name: stl10_vi_dict64
+
+trainer_cfg:
+  optimizer_cfg:
+    initial_lr: 0.002
+model_cfg:
+  header_cfg:
+    transop_header_cfg:
+      dictionary_size: 64

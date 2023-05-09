@@ -5,10 +5,29 @@ Utility functions used for evaluator runners.
 @Author      Kion
 @Created     09/05/22
 """
+import numpy as np
 import torch
 import torch.nn as nn
 
 from eval.type import EvaluationInput
+
+
+def get_feature_split(labels_per_class, features, labels, num_classes=10, seed=0):
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+
+    labeled_idx = []
+    for i in range(num_classes):
+        idx = torch.where(labels == i)[0]
+        subset_idx = np.random.choice(idx.detach().cpu().numpy(), labels_per_class, replace=False)
+        labeled_idx.append(subset_idx)
+    labeled_idx = np.concatenate(labeled_idx)
+    unlabel_idx = np.arange(len(features))[~np.in1d(np.arange(len(features)), labeled_idx)]
+
+    zl, yl = features[labeled_idx], labels[labeled_idx]
+    zul, yul = features[unlabel_idx], labels[unlabel_idx]
+
+    return (zl, yl), (zul, yul)
 
 
 def num_correct(output, target, topk=(1,)):

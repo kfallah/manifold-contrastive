@@ -22,10 +22,27 @@ class EvalRunnerConfig:
 
 
 @dataclass
+class AugmentationNN(EvalRunnerConfig):
+    num_images: int = 20
+    num_augs: int = 8
+
+
+@dataclass
 class LinearProbeConfig(EvalRunnerConfig):
     optimizer_cfg: OptimizerConfig = OptimizerConfig(initial_lr=0.2, weight_decay=0.0, enable_nesterov=True)
     scheduler_cfg: SchedulerConfig = SchedulerConfig()
     num_epochs: int = 100
+
+
+@dataclass
+class SemiSupConfig(EvalRunnerConfig):
+    num_iters: int = 10000
+    batchsize_label: int = 32
+    batchsize_unlabel: int = 224
+    labels_per_class: int = 5
+    num_trials: int = 5
+    manifold_aug: bool = False
+
 
 @dataclass
 class ClusteringEvalConfig(EvalRunnerConfig):
@@ -40,9 +57,16 @@ class KNNEvalConfig(EvalRunnerConfig):
 
 @dataclass
 class EvaluatorConfig:
+    # Whether to locally save eval figures
+    save_figure_local: bool = True
     # Clustering accuracy in the feature space of test features
     clustering_eval_cfg: ClusteringEvalConfig = ClusteringEvalConfig()
     # k-NN accuracy in the feature space of test features
     knn_eval_cfg: KNNEvalConfig = KNNEvalConfig()
     # Linear classification probe on top of frozen backbone features.
     linear_probe_eval_cfg: LinearProbeConfig = LinearProbeConfig()
+    # Plot the nearest neighbor of augmentations sampled from the prior.
+    aug_nn_eval_cfg: AugmentationNN = AugmentationNN()
+    # Perform semi-supervised learning in the feature space by either using
+    # consistency regularizations or feature augmentations from the operators
+    semisup_probe_eval_cfg: SemiSupConfig = SemiSupConfig()

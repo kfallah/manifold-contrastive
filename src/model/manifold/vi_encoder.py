@@ -11,40 +11,6 @@ from model.manifold.reparameterize import draw_noise_samples, reparameterize
 from model.type import DistributionData
 
 
-class SparseCodeAttn(nn.Module):
-    def __init__(self, vi_cfg: VariationalEncoderConfig, input_size: int, dict_size: int):
-        super(SparseCodeAttn, self).__init__()
-        self.vi_cfg = vi_cfg
-        self.dict_size = dict_size
-        feat_dim = vi_cfg.feature_dim
-
-        self.psi_extract = nn.Sequential(
-            nn.Linear(input_size**2, feat_dim * 4),
-            nn.LeakyReLU(),
-            nn.Linear(feat_dim * 4, feat_dim),
-        )
-
-        self.attn = nn.MultiheadAttention(feat_dim, num_heads=8, dropout=0.1, batch_first=True)
-        self.pre_norm = nn.LayerNorm(feat_dim)
-        self.mlp = nn.Sequential(
-            nn.Linear(feat_dim, feat_dim * 4),
-            nn.LeakyReLU(),
-            nn.Linear(feat_dim * 4, feat_dim),
-        )
-        self.post_norm = nn.LayerNorm(feat_dim)
-
-    def forward(self, z, psi):
-        # extract features for operators
-        psi_feat = self.psi_extract(psi.reshape(self.dict_size, -1))
-        psi_feat = psi_feat.unsqueeze(0).repeat(len(z), 1, 1)
-        # Run through attention layer
-        z_attn, _ = self.attn(z, psi_feat, psi_feat)
-        z = self.pre_norm(z + z_attn)
-        z_mlp = self.mlp(z)
-        z = self.post_norm(z + z_mlp)
-        return z
-
-
 class CoefficientEncoder(nn.Module):
     def __init__(
         self,
@@ -96,31 +62,22 @@ class CoefficientEncoder(nn.Module):
             self.enc_scale = nn.Linear(feat_dim, dict_size)
             self.enc_shift = nn.Linear(feat_dim, dict_size)
 
-        self.attn = None
-        if self.vi_cfg.enable_enc_attn:
-            self.attn = SparseCodeAttn(self.vi_cfg, input_size, dict_size)
-
     def initialize_prior_params(self, input_size, feat_dim, dict_size):
         self.prior_params = {}
         self.prior_params["logscale"] = torch.log(torch.tensor(self.vi_cfg.scale_prior))
         self.prior_params["shift"] = torch.tensor(self.vi_cfg.shift_prior)
 
         if self.vi_cfg.enable_learned_prior:
-            input_dim = 2 * input_size if self.vi_cfg.enable_det_prior else input_size
-            if self.vi_cfg.enable_prior_block_encoding:
-                input_dim += 1
-            final_dim = dict_size if self.vi_cfg.enable_det_prior else feat_dim
             self.prior_feat_extract = nn.Sequential(
-                nn.Linear(input_dim, 4 * feat_dim),
+                nn.Linear(input_size, 4 * feat_dim),
                 nn.LeakyReLU(),
                 nn.Linear(4 * feat_dim, 2 * feat_dim),
                 nn.LeakyReLU(),
-                nn.Linear(2 * feat_dim, final_dim),
+                nn.Linear(2 * feat_dim, feat_dim),
             )
-            if not self.vi_cfg.enable_det_prior:
-                self.prior_scale = nn.Linear(feat_dim, dict_size)
-                if self.vi_cfg.enable_prior_shift:
-                    self.prior_shift = nn.Linear(feat_dim, dict_size)
+            self.prior_scale = nn.Linear(feat_dim, dict_size)
+            if self.vi_cfg.enable_prior_shift:
+                self.prior_shift = nn.Linear(feat_dim, dict_size)
 
     def fista_encoder(self, x0, x1, psi, prior_params, curr_iter):
         if self.vi_cfg.enable_max_sampling and curr_iter > self.vi_cfg.max_sample_start_iter:
@@ -150,7 +107,7 @@ class CoefficientEncoder(nn.Module):
         c = c_refine.detach().clamp(min=-2.0, max=2.0).nan_to_num(nan=0.01).reshape(c.shape)
         return {"shift": c, "logscale": torch.ones_like(c) * self.prior_params["logscale"]}
 
-    def get_prior_params(self, x0, x1=None):
+    def get_prior_params(self, x0, curr_iter=100000, x1=None):
         prior_params = {}
         hyperprior_params = {}
         if len(x0.shape) > 2:
@@ -168,24 +125,28 @@ class CoefficientEncoder(nn.Module):
                 torch.ones((len(x0), self.dictionary_size), device=x0.device) * self.prior_params["shift"]
             )
         if self.vi_cfg.enable_learned_prior:
-            if self.vi_cfg.enable_det_prior:
-                c_det = self.prior_feat_extract(torch.cat((x0.detach(), x1.detach()), dim=-1))
-                prior_params["shift"] = c_det.clamp(min=-5.0, max=5.0)
-                prior_params["logscale"] = hyperprior_params["logscale"]
+            z_prior = self.prior_feat_extract(x0)
+            prior_params["logscale"] = self.prior_scale(z_prior).clamp(max=3)
+            prior_params["logscale"] += torch.log(
+                torch.ones_like(prior_params["logscale"]) * self.vi_cfg.scale_prior
+            )
+            if self.vi_cfg.enable_prior_shift:
+                prior_params["shift"] = self.prior_shift(z_prior).clamp(min=-5.0, max=5.0)
             else:
-                if self.vi_cfg.enable_prior_block_encoding:
-                    block_encoding = torch.arange(x0.shape[1], device=x0.device)
-                    block_encoding = block_encoding.view(1, x0.shape[1], 1).repeat(len(x0), 1, 1)
-                    x0 = torch.cat((x0, block_encoding), dim=-1)
-                z_prior = self.prior_feat_extract(x0)
-                prior_params["logscale"] = self.prior_scale(z_prior).clamp(max=2)
-                prior_params["logscale"] += torch.log(
-                    torch.ones_like(prior_params["logscale"]) * self.vi_cfg.scale_prior
+                prior_params["shift"] = hyperprior_params["shift"]
+
+            if self.vi_cfg.enable_prior_warmup:
+                warmup = min(curr_iter / self.vi_cfg.prior_warmup_iters, 1.0)
+                #warmup = (5e-2) ** (1 - warmup)
+                prior_params["logscale"] = (
+                    warmup * prior_params["logscale"] + (1 - warmup) * hyperprior_params["logscale"]
                 )
-                if self.vi_cfg.enable_prior_shift:
-                    prior_params["shift"] = self.prior_shift(z_prior).clamp(min=-5.0, max=5.0)
-                else:
-                    prior_params["shift"] = hyperprior_params["shift"]
+                prior_params["shift"] = (
+                    warmup * prior_params["shift"]
+                    + (1 - warmup)
+                    * hyperprior_params["shift"]
+                    * torch.sign(warmup * prior_params["shift"]).detach()
+                )
         else:
             prior_params = hyperprior_params.copy()
         return prior_params, hyperprior_params
@@ -195,7 +156,7 @@ class CoefficientEncoder(nn.Module):
     def get_distribution_params(
         self, x0, x1, psi, curr_iter
     ) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
-        prior_params, hyperprior_params = self.get_prior_params(x0, x1)
+        prior_params, hyperprior_params = self.get_prior_params(x0, curr_iter=curr_iter, x1=x1)
 
         encoder_params = {}
         if self.vi_cfg.enable_fista_enc:
@@ -214,9 +175,7 @@ class CoefficientEncoder(nn.Module):
                 enc_input = x0
 
             z_enc = self.enc_feat_extract(enc_input)
-            if self.vi_cfg.enable_enc_attn:
-                z_enc = self.attn(z_enc, psi)
-            encoder_params["logscale"] = self.enc_scale(z_enc).clamp(min=-100, max=2)
+            encoder_params["logscale"] = self.enc_scale(z_enc).clamp(min=-100, max=3)
             encoder_params["logscale"] += torch.log(
                 torch.ones_like(encoder_params["logscale"]) * self.vi_cfg.scale_prior
             )
@@ -225,74 +184,31 @@ class CoefficientEncoder(nn.Module):
 
         return encoder_params, prior_params, hyperprior_params
 
-    def prior_sample(self, x, distribution_params=None) -> torch.Tensor:
+    def prior_sample(self, x, curr_iter=100000, distribution_params=None) -> torch.Tensor:
         if distribution_params is None:
-            distribution_params, _ = self.get_prior_params(x)
+            distribution_params, _ = self.get_prior_params(x, curr_iter=curr_iter)
         noise = draw_noise_samples(self.vi_cfg.distribution, distribution_params["logscale"].shape, x.device)
-        samples = reparameterize(self.vi_cfg.distribution, distribution_params, noise, self.thresh_warmup * self.lambda_prior)
+        samples = reparameterize(
+            self.vi_cfg.distribution, distribution_params, noise, self.thresh_warmup * self.lambda_prior
+        )
         return samples
 
-    def per_block_max_elbo_sample(self, encoder_params, psi, x0, x1) -> torch.Tensor:
-        logscale, shift = encoder_params["logscale"], encoder_params["shift"]
+    def max_elbo_sample(self, encoder_params, transop, x0, x1) -> torch.Tensor:
         with torch.no_grad():
             noise_list = []
             loss_list = []
             l1_list = []
-            logscale_expanded = logscale.unsqueeze(0).repeat(self.vi_cfg.samples_per_iter, 1, 1, 1)
+            noise_shape = [self.vi_cfg.samples_per_iter] + list(encoder_params['logscale'].shape)
             for _ in range(self.vi_cfg.total_num_samples // self.vi_cfg.samples_per_iter):
-                noise = draw_noise_samples(self.vi_cfg.distribution, logscale_expanded.shape, logscale_expanded.device)
+                noise = draw_noise_samples(self.vi_cfg.distribution, noise_shape, x0.device)
                 c = reparameterize(
                     self.vi_cfg.distribution, encoder_params, noise, self.thresh_warmup * self.lambda_prior
                 )
-                # Handle the case where we have a single dictionary
-                T = torch.matrix_exp(torch.einsum("sblm,mpk->sblpk", c, psi))
-                x1_hat = (T @ x0.unsqueeze(0).unsqueeze(-1)).squeeze(-1)
-                transop_loss = torch.nn.functional.mse_loss(
-                    x1_hat, x1.unsqueeze(0).repeat(self.vi_cfg.samples_per_iter, 1, 1, 1), reduction="none"
-                ).mean(dim=-1)
-
-                noise_list.append(noise)
-                loss_list.append(transop_loss)
-                l1_list.append(c.abs().sum(dim=-1))
-
-            noise_list = torch.cat(noise_list, dim=0)
-            loss_list = torch.cat(loss_list, dim=0)
-            l1_list = torch.cat(l1_list, dim=0)
-            max_elbo = torch.argmin(loss_list + self.vi_cfg.max_sample_l1_penalty * l1_list, dim=0).detach()
-            # Pick out best noise sample for each batch entry for reparameterization
-            max_elbo = max_elbo.reshape(-1)
-            n_samples, n_batch, n_seq, n_feat = noise_list.shape
-            noise_list = noise_list.reshape(n_samples, -1, n_feat)
-            optimal_noise = noise_list[max_elbo, torch.arange(n_batch * n_seq)]
-            return optimal_noise.reshape(n_batch, n_seq, n_feat)
-
-    def max_elbo_sample(self, encoder_params, psi, x0, x1) -> torch.Tensor:
-        logscale, shift = encoder_params["logscale"], encoder_params["shift"]
-        with torch.no_grad():
-            noise_list = []
-            loss_list = []
-            l1_list = []
-            logscale_expanded = logscale.unsqueeze(0).repeat(self.vi_cfg.samples_per_iter, 1, 1, 1)
-            for _ in range(self.vi_cfg.total_num_samples // self.vi_cfg.samples_per_iter):
-                noise = draw_noise_samples(self.vi_cfg.distribution, logscale_expanded.shape, logscale_expanded.device)
-                # s x l x b x m
-                c = reparameterize(
-                    self.vi_cfg.distribution, encoder_params, noise, self.thresh_warmup * self.lambda_prior
-                )
-                # Handle the case where we have a dictionary per block
-                T = torch.einsum("slbm,lmpk->sblpk", c, psi)
-                s, b, l, n, _ = T.shape
-                # s x b x l x d x d
-                T = torch.matrix_exp(T.reshape(-1, n, n)).reshape(s, b, l, n ,n)
-                # b x l x d
-                x0_block = x0.reshape(len(x0), l, n)
-                # s x b x l x d
-                x1_hat_block = (T @ x0_block.unsqueeze(0).unsqueeze(-1)).squeeze(-1)
-                # s x b x D
-                x1_hat = x1_hat_block.reshape(s, len(x0), -1)
+                # s x b x d
+                x1_hat = transop(x0.float(), c, transop_grad=False)
                 # s x b
                 transop_loss = torch.nn.functional.mse_loss(
-                    x1_hat, x1.unsqueeze(0).expand(s, -1, -1), reduction="none"
+                    x1_hat, x1.unsqueeze(0).expand(len(x1_hat), -1, -1), reduction="none"
                 ).mean(dim=-1)
 
                 noise_list.append(noise.squeeze(1))
@@ -305,7 +221,7 @@ class CoefficientEncoder(nn.Module):
             loss_list = torch.cat(loss_list, dim=0)
             # S x b
             l1_list = torch.cat(l1_list, dim=0)
-            # S x b
+            # b
             max_elbo = torch.argmin(loss_list + self.vi_cfg.max_sample_l1_penalty * l1_list, dim=0).detach()
             optimal_noise = noise_list[max_elbo, torch.arange(len(max_elbo))]
             return optimal_noise
@@ -324,11 +240,7 @@ class CoefficientEncoder(nn.Module):
             samples = encoder_params["shift"]
         else:
             if self.vi_cfg.enable_max_sampling and curr_iter >= self.vi_cfg.max_sample_start_iter:
-                psi_use = transop.psi.detach()
-                if len(psi_use.shape) == 3:
-                    noise = self.per_block_max_elbo_sample(encoder_params, psi_use, x0, x1)
-                else:
-                    noise = self.max_elbo_sample(encoder_params, psi_use, x0, x1)
+                noise = self.max_elbo_sample(encoder_params, transop, x0, x1)
             else:
                 noise = draw_noise_samples(self.vi_cfg.distribution, encoder_params["shift"].shape, x0.device)
             samples = reparameterize(

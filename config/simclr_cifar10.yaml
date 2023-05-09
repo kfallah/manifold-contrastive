@@ -2,12 +2,12 @@ defaults:
   - base
   - _self_
 
-exp_name: SimCLR_CIFAR10
+exp_name: cifar10_simclr
 model_cfg:
   header_cfg:
     enable_projection_header: true
     projection_header_cfg:
       header_name: SimCLR
       projection_type: MLP
-      output_dim: 64
+      output_dim: 128
       enable_final_batchnorm: true

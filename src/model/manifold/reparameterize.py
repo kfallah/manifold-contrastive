@@ -21,46 +21,31 @@ def reparameterize(
     noise: torch.Tensor,
     lambda_prior: float,
 ):
-    if distribution == "Laplacian" or distribution == "Laplacian+Gamma":
+    if distribution == "Laplacian":
         assert "logscale" in distribution_params.keys() and "shift" in distribution_params.keys()
         logscale, shift = distribution_params["logscale"], distribution_params["shift"]
-        # NOTE: this is going to break if not using block diagonal constraint...
-        # may need to change just for that ablation
-        if len(noise.shape) >= 4:
-            logscale = logscale.view(1, *logscale.shape).expand(len(noise), -1, -1, -1)
-            shift = shift.view(1, *shift.shape).expand(len(noise), -1, -1, -1)
         scale = torch.exp(logscale)
         eps = -scale * torch.sign(noise) * torch.log((1.0 - 2.0 * torch.abs(noise)).clamp(min=1e-6, max=1e6))
         c = shift + eps
-    if distribution == "Gaussian" or distribution == "Gaussian+Gamma":
+    if distribution == "Gaussian":
         assert "logscale" in distribution_params.keys() and "shift" in distribution_params.keys()
         logscale, shift = distribution_params["logscale"], distribution_params["shift"]
-        if len(noise.shape) >= 4:
-            logscale = logscale.view(1, *logscale.shape).expand(len(noise), -1, -1, -1)
-            shift = shift.view(1, *shift.shape).expand(len(noise), -1, -1, -1)
         scale = torch.exp(0.5 * logscale)
         eps = scale * noise
         c = shift + eps
 
-    if distribution == "Laplacian+Gamma" or distribution == "Gaussian+Gamma":
-        assert "gamma_a" in distribution_params.keys() and "gamma_b" in distribution_params.keys()
-        gamma_a, gamma_b = (
-            distribution_params["gamma_a"],
-            distribution_params["gamma_b"],
-        )
-        gamma_distr = gamma.Gamma(gamma_a, gamma_b)
-        if len(noise.shape) >= 3:
-            lambda_ = gamma_distr.rsample([len(noise)])
-        else:
-            lambda_ = gamma_distr.rsample()
-    else:
-        lambda_ = torch.ones_like(eps) * lambda_prior
+    # In the case where there are multiple noise samples per datum
+    # Used for max elbo sampling
+    if len(noise.shape) != len(logscale.shape):
+        repeat_len = torch.ones(len(logscale.shape), dtype=int)
+        logscale = logscale.view(1, *logscale.shape).repeat(len(noise), *repeat_len)
+        shift = shift.view(1, *shift.shape).repeat(len(noise), *repeat_len)
 
     # We do this weird detaching pattern because in certain cases we want gradient to flow through lambda_
     # In the case where lambda_ is constant, this is the same as c_thresh.detach() in the final line.
-    c_thresh = soft_threshold(eps.detach(), lambda_)
+    c_thresh = soft_threshold(eps.detach(), lambda_prior)
     non_zero = torch.nonzero(c_thresh, as_tuple=True)
-    c_thresh[non_zero] = (shift[non_zero].detach()) + c_thresh[non_zero]
+    c_thresh[non_zero] = shift[non_zero].detach() + c_thresh[non_zero]
     c = c + c_thresh - c.detach()
     return c
 
@@ -83,25 +68,16 @@ def compute_kl(
     prior_shift, prior_logscale = prior_params["shift"], prior_params["logscale"]
     encoder_scale, prior_scale = torch.exp(encoder_logscale), torch.exp(prior_logscale)
 
-    if distribution == "Laplacian" or distribution == "Laplacian+Gamma":
+    if distribution == "Laplacian":
         encoder_scale, prior_scale = torch.exp(encoder_logscale), torch.exp(prior_logscale)
         laplace_kl = ((encoder_shift - prior_shift).abs() / prior_scale) + prior_logscale - encoder_logscale - 1
         laplace_kl += (encoder_scale / prior_scale) * (-((encoder_shift - prior_shift).abs() / encoder_scale)).exp()
         kl_loss += laplace_kl.sum(dim=-1)
 
-    if distribution == "Gaussian" or distribution == "Gaussian+Gamma":
+    if distribution == "Gaussian":
         gauss_kl = (encoder_scale + ((encoder_shift - prior_shift) ** 2)) / (2 * prior_scale)
         gauss_kl += 0.5 * (prior_logscale - encoder_logscale - 1)
         kl_loss += gauss_kl.sum(dim=-1)
 
-    if distribution == "Laplacian+Gamma" or distribution == "Gaussian+Gamma":
-        assert "gamma_a" in encoder_params.keys() and "gamma_b" in encoder_params.keys()
-        assert "gamma_a" in prior_params.keys() and "gamma_b" in prior_params.keys()
-        enc_gamma_a, enc_gamma_b = encoder_params["gamma_a"], encoder_params["gamma_b"]
-        prior_gamma_a, prior_gamma_b = prior_params["gamma_a"], prior_params["gamma_b"]
-        gamma_enc = gamma.Gamma(enc_gamma_a, enc_gamma_b)
-        gamma_prior = gamma.Gamma(prior_gamma_a, prior_gamma_b)
-        gamma_kl = torch.distributions.kl.kl_divergence(gamma_enc, gamma_prior)
-        kl_loss += 5 * gamma_kl
 
     return kl_loss

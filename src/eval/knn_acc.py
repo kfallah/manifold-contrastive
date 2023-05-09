@@ -30,7 +30,7 @@ class KNNEval(EvalRunner):
         feat_knn_acc = pred.eq(val_eval_input.labels).sum().item() / len(val_eval_input.feature_list)
         knn_metrics["feat_knn_acc"] = feat_knn_acc
 
-        return knn_metrics, feat_knn_acc
+        return knn_metrics, feat_knn_acc, {}
 
     def get_config(self) -> KNNEvalConfig:
         return self.cfg

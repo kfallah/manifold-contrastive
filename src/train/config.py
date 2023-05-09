@@ -65,3 +65,4 @@ class TrainerConfig:
     coeffenc_grad_clip: float = 1.0
     enable_backbone_grad_clip: bool = False
     backbone_grad_clip: float = 1.0
+

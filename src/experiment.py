@@ -32,6 +32,7 @@ from train.trainer import Trainer
 
 warnings.filterwarnings("ignore")
 
+
 @dataclass
 class ExperimentConfig:
     # Hierarchical configurations used for experiment
@@ -93,7 +94,8 @@ def run_experiment(
     current_best = 1e99
     for epoch in range(cfg.trainer_cfg.num_epochs):
         # Run eval metrics on the model
-        run_eval(epoch, current_best, trainer, evaluator, dataset)
+        if epoch > 0:
+            run_eval(epoch, current_best, trainer, evaluator, dataset)
 
         # Perform a training epoch
         _ = trainer.train_epoch(epoch, dataset.train_dataloader)

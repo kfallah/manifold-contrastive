@@ -47,7 +47,7 @@ class ClusteringEval(EvalRunner):
         # Save to metadata dictionary
         cluster_metrics["feat_cluster_acc"] = feature_cluster_acc
 
-        return cluster_metrics, feature_cluster_acc
+        return cluster_metrics, feature_cluster_acc, {}
 
     def get_config(self) -> ClusteringEvalConfig:
         return self.cfg
