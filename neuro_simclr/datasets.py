@@ -125,24 +125,20 @@ class TrialContrastiveDataset(Dataset):
     def __init__(self, split="train", random_seed=42, split_percentage=0.8):
         # Load the data from brainscore and group it
         if split == "train":
-            neural_data, _ = generate_brainscore_train_test_split()
+            neural_data, _ = generate_brainscore_train_test_split(random_seed, split_percentage)
         else:
-            _, neural_data = generate_brainscore_train_test_split()
+            _, neural_data = generate_brainscore_train_test_split(random_seed, split_percentage)
  
         neuroid_data = neural_data.sel(region='V4')
         stimulus_id_list = neuroid_data.coords['stimulus_id'].to_numpy()
         self.stimulus_ids = np.unique(stimulus_id_list)
-        # load stimulus to v4 map
-        self.stimulus_to_v4_map = {}
+        # store indices of presentations for each stimulus
+        self.stimulus_to_presentations_idx_map = {}
+        self.data = torch.Tensor(neuroid_data.values)
         for stimulus_id in self.stimulus_ids:
-            presentations = neuroid_data.sel(
-                stimulus_id=stimulus_id
-            )
-            # presentations = presentations.squeeze('time_bin')
-            # presentations = presentations.transpose('presentation', 'neuroid')
-            self.stimulus_to_v4_map[stimulus_id] = torch.Tensor(
-                presentations.to_numpy()
-            )
+            presentations_idx = (neuroid_data.stimulus_id == stimulus_id).values
+            presentations_idx = np.argwhere(presentations_idx).reshape((-1,))
+            self.stimulus_to_presentations_idx_map[stimulus_id] = presentations_idx
 
     def __len__(self):
         # Length is the number of stimuli
@@ -151,20 +147,19 @@ class TrialContrastiveDataset(Dataset):
     def __getitem__(self, index):
         # For a given stimulus index 
         stimulus_id = self.stimulus_ids[index]
-        # Choose two random presentations of that stimulus
-        presentations = self.stimulus_to_v4_map[stimulus_id]
-        # Choose two random presentations of that stimulus
-        if presentations.shape[0] < 2:
+        # get indices of presentations of that stimulus
+        presentations_idx = self.stimulus_to_presentations_idx_map[stimulus_id]
+        if len(presentations_idx) < 2:
             return self.__getitem__(np.random.randint(len(self)))
+
+        # Choose two random presentations of that stimulus
         random_indices = np.random.choice(
-            len(presentations),
+            presentations_idx,
             2,
             replace=False
         )
-        # item_a = torch.Tensor(presentations[random_indices[0]].to_numpy())
-        # item_b = torch.Tensor(presentations[random_indices[1]].to_numpy())
-        item_a = presentations[random_indices[0]]
-        item_b = presentations[random_indices[1]]
+        item_a = self.data[random_indices[0]]
+        item_b = self.data[random_indices[1]]
 
         return item_a, item_b
 
@@ -234,4 +229,5 @@ class PoseContrastiveDataset(Dataset):
         return item_a, item_b
 
 if __name__ == "__main__":
-    generate_brainscore_train_test_split()
+    # generate_brainscore_train_test_split()
+    train_dataset = TrialContrastiveDataset(split="train")
