@@ -6,9 +6,7 @@ import argparse
 import random
 import time
 
-import brainscore
 import numpy as np
-import sklearn
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -19,12 +17,10 @@ from evaluation import (
     evaluate_logistic_regression,
 )
 from linear_warmup_cos_anneal import LinearWarmupCosineAnnealingLR
-from torch.utils.data import Dataset
 from tqdm import tqdm
 
-import datasets
 import wandb
-from datasets import generate_brainscore_train_test_split
+from datasets import get_dataset
 
 
 class ContrastiveHead(torch.nn.Module):
@@ -85,23 +81,23 @@ class SimCLRTrainer:
         v4_test,
         label_train,
         label_test,
-        it_train,
-        it_test,
+        objectid_train,
+        objectid_test,
         args,
     ):
         self.v4_train = v4_train
         self.v4_test = v4_test
         self.label_train = label_train
         self.label_test = label_test
-        self.it_train = it_train
-        self.it_test = it_test
+        self.objectid_train = objectid_train
+        self.objectid_test = objectid_test
         self.args = args
 
         self.train_idx, self.test_idx = {}, {}
-        for i in np.unique(self.label_train):
-            idx = torch.where(self.label_train == i)[0]
+        for i in np.unique(self.objectid_train):
+            idx = torch.where(self.objectid_train == i)[0]
             self.train_idx[i] = idx
-            idx = torch.where(self.label_test == i)[0]
+            idx = torch.where(self.objectid_test == i)[0]
             self.test_idx[i] = idx
 
     def nxent_loss(self, out_1, out_2, out_3=None, temperature=0.07, mse=False, eps=1e-6):
@@ -192,7 +188,7 @@ class SimCLRTrainer:
             for i in range(len(self.v4_train) // args.batch_size):
                 # Load batch
                 x0 = self.v4_train[indices_perm[i * args.batch_size : (i + 1) * args.batch_size]].to(args.device)
-                y0 = self.label_train[indices_perm[i * args.batch_size : (i + 1) * args.batch_size]]
+                y0 = self.objectid_train[indices_perm[i * args.batch_size : (i + 1) * args.batch_size]]
                 # TODO: remove current index as a candidate for point pair
                 x1_idx = torch.tensor([random.choice(self.train_idx[y_inst.item()]) for y_inst in y0])
                 x1 = self.v4_train[x1_idx].to(args.device)
@@ -302,39 +298,9 @@ if __name__ == "__main__":
     )
 
     # Load dataset
-    neuroid_train_data, neuroid_test_data = generate_brainscore_train_test_split(random_seed=args.seed)
-    if args.average_trials:
-        train_avg = neuroid_train_data.multi_groupby(["category_name", "object_name", "stimulus_id"]).mean(
-            dim="presentation"
-        )
-        v4_train = train_avg.sel(region="V4").to_numpy()
-        it_train = train_avg.sel(region="IT").to_numpy()
-        train_category = train_avg.coords["category_name"].to_numpy()
-        _, label_train = np.unique(train_category, return_inverse=True)
-
-        test_avg = neuroid_test_data.multi_groupby(["category_name", "object_name", "stimulus_id"]).mean(
-            dim="presentation"
-        )
-        v4_test = test_avg.sel(region="V4").to_numpy()
-        it_test = test_avg.sel(region="IT").to_numpy()
-        test_category = test_avg.coords["category_name"].to_numpy()
-        _, label_test = np.unique(test_category, return_inverse=True)
-    else:
-        v4_train = neuroid_train_data.sel(region="V4").to_numpy()
-        it_train = neuroid_train_data.sel(region="IT").to_numpy()
-        train_category = neuroid_train_data.coords["category_name"].to_numpy()
-        _, label_train = np.unique(train_category, return_inverse=True)
-
-        v4_test = neuroid_test_data.sel(region="V4").to_numpy()
-        it_test = neuroid_test_data.sel(region="IT").to_numpy()
-        test_category = neuroid_test_data.coords["category_name"].to_numpy()
-        _, label_test = np.unique(test_category, return_inverse=True)
-    v4_train = torch.tensor(v4_train).float()
-    v4_test = torch.tensor(v4_test).float()
-    label_train = torch.tensor(label_train).long()
-    it_train = torch.tensor(it_train).float()
-    it_test = torch.tensor(it_test).float()
-    label_test = torch.tensor(label_test).long()
+    (v4_train, it_train, label_train, objectid_train), (v4_test, it_test, label_test, objectid_test) = get_dataset(
+        args.average_trials, args.seed
+    )
 
     # train_dataloader, test_dataloader = load_dataloaders(train_dataset, test_dataset, args)
     # Initialize the model
@@ -363,8 +329,8 @@ if __name__ == "__main__":
         v4_test,
         label_train,
         label_test,
-        it_train,
-        it_test,
+        objectid_train,
+        objectid_test,
         args,
     )
     trainer.run_simclr(
