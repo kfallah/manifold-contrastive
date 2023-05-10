@@ -6,30 +6,87 @@
     an animal or not using the V4 data. 
 """
 import argparse
-import brainscore
-from compute_positive_pairs import load_brainscore_data
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix
-import sklearn
-import matplotlib.pyplot as plt
-
-from evaluation import evaluate_linear_classifier
-
 import torch.nn as nn
+import tabulate
+
+from datasets import AllCategoryClassificationDataset
+from evaluation import evaluate_linear_classifier
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Linear readout baseline experiment")
-    # Setup the data
-    # train_data, test_data = load_animal_classification_dataset()
-    # Train the logistic regression model
-    # train_logistic_regression(train_data, test_data)
-    animals_train_dataset = AnimalClassificationDataset(split="train")
-    animals_test_dataset = AnimalClassificationDataset(split="test")
-    
+
+    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--device", type=str, default="cuda")
+
+    args = parser.parse_args()
+
     model = nn.Sequential(
         nn.Identity(),
     )
 
-    evaluate_linear_classifier(
+    print("Evaluating V4")
+    v4_accuracy, v4_fscore = evaluate_linear_classifier(
         model,
+        AllCategoryClassificationDataset(
+            split="train",
+            region="V4",
+        ),
+        AllCategoryClassificationDataset(
+            split="test",
+            region="V4",
+        ),
+        args
     )
+    print("Evaluating IT")
+    it_accuracy, it_fscore = evaluate_linear_classifier(
+        model,
+        AllCategoryClassificationDataset(
+            split="train",
+            region="IT",
+        ),
+        AllCategoryClassificationDataset(
+            split="test",
+            region="IT",
+        ),
+        args
+    )
+    print("Evaluating V4 Averaged")
+    v4_averaged_accuracy, v4_averaged_fscore = evaluate_linear_classifier(
+        model,
+        AllCategoryClassificationDataset(
+            split="train",
+            region="V4",
+            average_presentations=True,
+        ),
+        AllCategoryClassificationDataset(
+            split="test",
+            region="V4",
+            average_presentations=True,
+        ),
+        args
+    )
+    print("Evaluating IT Averaged")
+    it_averaged_accuracy, it_averaged_fscore = evaluate_linear_classifier(
+        model,
+        AllCategoryClassificationDataset(
+            split="train",
+            region="IT",
+            average_presentations=True,
+        ),
+        AllCategoryClassificationDataset(
+            split="test",
+            region="IT",
+            average_presentations=True,
+        ),
+        args
+    )
+
+    # Make table with tabulate
+    table = [
+        ["Model", "Accuracy", "F1 Score"],
+        ["V4", v4_accuracy, v4_fscore],
+        ["IT", it_accuracy, it_fscore],
+        ["V4 Averaged", v4_averaged_accuracy, v4_averaged_fscore],
+        ["IT Averaged", it_averaged_accuracy, it_averaged_fscore],
+    ]
+    print(tabulate.tabulate(table, headers="firstrow", tablefmt="github"))
