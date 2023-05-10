@@ -222,6 +222,7 @@ class SimCLRTrainer:
                 evaluate_linear_classifier(train_feat, self.label_train, test_feat, self.label_test, args)
 
                 if args.eval_explained_variance:
+                    raise NotImplementedError("Explained variance not implemented for the new dataset structure")
                     evaluate_IT_explained_variance(
                         backbone, self.neuroid_train_dataset, self.neuroid_eval_dataset, args
                     )

@@ -6,7 +6,6 @@ from tqdm import tqdm
 
 import wandb
 
-
 def embed_v4_data(data, backbone, device, batch_size=1000):
     embeddings = []
     with torch.no_grad():
@@ -19,7 +18,6 @@ def embed_v4_data(data, backbone, device, batch_size=1000):
             embeddings.append(z.detach().cpu())
         embeddings = torch.cat(embeddings)
     return embeddings
-
 
 def evaluate_linear_classifier(
     train_data,
@@ -64,19 +62,13 @@ def evaluate_linear_classifier(
             }
         )
 
-    print(f"Accuracy: {acc}")
-    print(f"Fscore: {fscore}")
-
-
-def evaluate_knn(backbone, train_dataset, test_dataset, args):
-    # Return accuracy
-    pass
-
+    return acc, fscore
 
 def evaluate_logistic_regression(backbone, train_dataset, test_dataset, args):
     """
     Evaluate the linear readout
     """
+    raise NotImplementedError("This function is not yet implemented with the new dataset paradigm.")
     # Put the backbone in eval mode
     backbone.eval()
     # Embed each of the neuroid data using the backbone

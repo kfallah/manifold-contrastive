@@ -9,7 +9,7 @@ import argparse
 import torch.nn as nn
 import tabulate
 
-from datasets import AllCategoryClassificationDataset
+from datasets import get_dataset
 from evaluation import evaluate_linear_classifier
 
 if __name__ == "__main__":
@@ -24,63 +24,48 @@ if __name__ == "__main__":
         nn.Identity(),
     )
 
+    # Load up the datasets
+    # Averaged
+    averaged_train, averaged_test = get_dataset(average_trials=True)
+    averaged_v4_train, averaged_it_train, averaged_label_train, averaged_objectid_train = averaged_train
+    averaged_v4_test, averaged_it_test, averaged_label_test, averaged_objectid_test = averaged_test
+    # Non averaged
+    train, test = get_dataset(average_trials=False)
+    v4_train, it_train, label_train, objectid_train = train
+    v4_test, it_test, label_test, objectid_test = test
+    # Run the linear evaluation
     print("Evaluating V4")
     v4_accuracy, v4_fscore = evaluate_linear_classifier(
-        model,
-        AllCategoryClassificationDataset(
-            split="train",
-            region="V4",
-        ),
-        AllCategoryClassificationDataset(
-            split="test",
-            region="V4",
-        ),
+        v4_train,
+        label_train,
+        v4_test,
+        label_test,
         args
     )
     print("Evaluating IT")
     it_accuracy, it_fscore = evaluate_linear_classifier(
-        model,
-        AllCategoryClassificationDataset(
-            split="train",
-            region="IT",
-        ),
-        AllCategoryClassificationDataset(
-            split="test",
-            region="IT",
-        ),
+        it_train,
+        label_train,
+        it_test,
+        label_test,
         args
     )
     print("Evaluating V4 Averaged")
     v4_averaged_accuracy, v4_averaged_fscore = evaluate_linear_classifier(
-        model,
-        AllCategoryClassificationDataset(
-            split="train",
-            region="V4",
-            average_presentations=True,
-        ),
-        AllCategoryClassificationDataset(
-            split="test",
-            region="V4",
-            average_presentations=True,
-        ),
+        averaged_v4_train,
+        averaged_label_train,
+        averaged_v4_test,
+        averaged_label_test,
         args
-    )
+    ) 
     print("Evaluating IT Averaged")
     it_averaged_accuracy, it_averaged_fscore = evaluate_linear_classifier(
-        model,
-        AllCategoryClassificationDataset(
-            split="train",
-            region="IT",
-            average_presentations=True,
-        ),
-        AllCategoryClassificationDataset(
-            split="test",
-            region="IT",
-            average_presentations=True,
-        ),
+        averaged_it_train,
+        averaged_label_train,
+        averaged_it_test,
+        averaged_label_test,
         args
     )
-
     # Make table with tabulate
     table = [
         ["Model", "Accuracy", "F1 Score"],
