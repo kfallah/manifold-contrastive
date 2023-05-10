@@ -111,7 +111,6 @@ def evaluate_logistic_regression(backbone, train_dataset, test_dataset, args):
             }
         )
 
-
 def evaluate_IT_explained_variance(backbone, neuroid_train_dataset, neuroid_eval_dataset, args):
     """
     Measures the explained variance of the IT data.
@@ -121,6 +120,7 @@ def evaluate_IT_explained_variance(backbone, neuroid_train_dataset, neuroid_eval
         site recordings.
     (3) Return the R^2 score for each of the linear regression models.
     """
+    raise NotImplementedError("This function is not yet implemented with the new dataset paradigm.")
     # Put the backbone in eval mode
     backbone.eval()
 
@@ -157,7 +157,6 @@ def evaluate_IT_explained_variance(backbone, neuroid_train_dataset, neuroid_eval
         "median_IT_explained_variance": np.median(r2_values)
     })
 
-
 def _regress_posechange_onto_diffvecs(train_diffs, train_posechange, test_diffs, test_posechange):
     """
         Regress the posechange onto the difference vectors
@@ -178,7 +177,6 @@ def _regress_posechange_onto_diffvecs(train_diffs, train_posechange, test_diffs,
 
     return r2
 
-
 def evaluate_pose_regression(backbone, train_data, test_data, train_meta, test_meta, args, encoder=None):
 
     # ====== baseline tests ======
@@ -192,3 +190,4 @@ def evaluate_pose_regression(backbone, train_data, test_data, train_meta, test_m
 
     if encoder is not None:
         # encoder coefficients
+        pass

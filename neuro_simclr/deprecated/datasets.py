@@ -18,7 +18,6 @@ class StimulusIDClassificationDataset(Dataset):
     def load_stimulus_id_classification_dataset(self):
         pass
 
-
 class AnimalClassificationDataset(Dataset):
     """
     This is the dataset class for the neuroscience dataset
