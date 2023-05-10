@@ -13,9 +13,10 @@ import sklearn
 import time
 import torch.nn.functional as F
 
-from datasets import AnimalClassificationDataset, TrialContrastiveDataset, PoseContrastiveDataset, generate_brainscore_train_test_split
+import datasets
+from datasets import AnimalClassificationDataset, TrialContrastiveDataset, PoseContrastiveDataset, generate_brainscore_train_test_split, NewPoseContrastiveDataset
 from datasets import AllCategoryClassificationDataset
-from evaluation import evaluate_linear_readout, evaluate_nn_classifier, evaluate_IT_explained_variance
+from evaluation import evaluate_logistic_regression, evaluate_linear_classifier, evaluate_IT_explained_variance
 
 class ContrastiveHead(torch.nn.Module):
     """
@@ -24,15 +25,15 @@ class ContrastiveHead(torch.nn.Module):
         For a baseline, we can use two simple linear layers.
     """
 
-    def __init__(self, input_dim, hidden_dim, output_dim):
+    def __init__(self, input_dim, hidden_dim, output_dim, batchnorm=False):
         super().__init__()
         layers = [
             torch.nn.Linear(input_dim, hidden_dim),
             torch.nn.ReLU(),
             torch.nn.Linear(hidden_dim, output_dim),
         ]
-        # if batchnorm:
-            # layers.insert(1, torch.nn.BatchNorm1d(hidden_dim))
+        if batchnorm:
+            layers.insert(1, torch.nn.BatchNorm1d(hidden_dim))
 
         self.model = torch.nn.Sequential(*layers)
 
@@ -55,12 +56,8 @@ class Backbone(torch.nn.Module):
             extra_hidden_layers.extend(linear_block(hidden_dim, hidden_dim))
 
         self.model = torch.nn.Sequential(
-            torch.nn.Linear(input_dim, hidden_dim),
-            torch.nn.BatchNorm1d(hidden_dim),
-            torch.nn.LeakyReLU(),
-            torch.nn.Linear(hidden_dim, hidden_dim),
-            torch.nn.BatchNorm1d(hidden_dim),
-            torch.nn.LeakyReLU(),
+            *linear_block(input_dim, hidden_dim),
+            *extra_hidden_layers, 
             torch.nn.Linear(hidden_dim, output_dim),
         )
     
@@ -183,6 +180,7 @@ class SimCLRTrainer():
                 # train_batch = tuple(map(torch.stack, zip(*train_batch)))
                 train_batch = [torch.stack(self.train_dataset[i]) for i in batch_indices]
                 train_batch = torch.stack(train_batch)
+                # train_batch = self.train_dataset[batch_indices]
                 # train_batch = tuple(map(torch.stack, zip(*train_batch)))
                 item_a = train_batch[:, 0].to(args.device)
                 item_b = train_batch[:, 1].to(args.device)
@@ -207,8 +205,10 @@ class SimCLRTrainer():
 
             train_loss = np.mean(train_losses)
             # Run testing
+            # Do integeer division
             test_losses = []
-            for batch_start_index in range(0, len(self.test_dataset), args.batch_size):
+            for batch_index in tqdm(range(0, len(self.test_dataset) // args.batch_size)):
+                batch_start_index = batch_index * args.batch_size
                 batch_indices = torch.arange(
                     batch_start_index, 
                     min(len(self.test_dataset), batch_start_index + args.batch_size),
@@ -230,46 +230,44 @@ class SimCLRTrainer():
                     F.normalize(b_contrast_out, dim=-1)
                 )
                 test_losses.append(test_loss.item())
+
             test_loss = np.mean(test_losses)
 
-            if args.eval_logistic_regression:
-                accuracy, fscore = evaluate_linear_readout(
+            if epoch % args.eval_frequency == 0:
+                print(f"Running evaluation")
+                if args.eval_logistic_regression:
+                    evaluate_logistic_regression(
+                        backbone,
+                        self.animals_train_dataset, 
+                        self.animals_test_dataset, 
+                        args
+                    )
+                    
+                evaluate_linear_classifier(
                     backbone,
-                    self.animals_train_dataset, 
-                    self.animals_test_dataset, 
+                    self.animals_train_dataset,
+                    self.animals_test_dataset,
                     args
                 )
-            else:
-                accuracy = 0.0
-                fscore = 0.0
-                
-            evaluate_nn_classifier(
-                backbone,
-                self.animals_train_dataset,
-                self.animals_test_dataset,
-                args
-            )
-            # evaluate_nn_classifier(
-            #     backbone,
-            #     self.all_category_train_dataset,
-            #     self.all_category_test_dataset,
-            #     args
-            # )
+                evaluate_linear_classifier(
+                    backbone,
+                    self.all_category_train_dataset,
+                    self.all_category_test_dataset,
+                    args
+                )
 
-            if args.eval_explained_variance:
-                evaluate_IT_explained_variance(
-                    backbone,
-                    self.neuroid_train_dataset,
-                    self.neuroid_eval_dataset,
-                    args
-                )
+                if args.eval_explained_variance:
+                    evaluate_IT_explained_variance(
+                        backbone,
+                        self.neuroid_train_dataset,
+                        self.neuroid_eval_dataset,
+                        args
+                    )
 
             wandb.log({
                 "epoch": epoch,
                 "train_loss": train_loss,
                 "test_loss": test_loss,
-                "log_reg_accuracy": accuracy,   
-                "log_reg_fscore": fscore,
             })
             # Save the model at the end of each epoch
             # with open(args.model_save_path, "wb") as f:
@@ -282,8 +280,12 @@ if __name__ == "__main__":
 
     parser.add_argument("--dataset", type=str, default="brainscore", help="Dataset to use")
     parser.add_argument("--input_dim", type=int, default=88, help="Input dimension") # Dim of V4 data
-    parser.add_argument("--hidden_dim", type=int, default=256, help="Hidden dimension of contrastive head") # Dim of V4 data
-    parser.add_argument("--backbone_output_dim", type=int, default=32, help="Output dimension of contrastive head") # Dim of V4 data
+    parser.add_argument("--hidden_dim", type=int, default=512, help="Hidden dimension of contrastive head") # Dim of V4 data
+    parser.add_argument("--backbone_output_dim", type=int, default=512, help="Output dimension of backbone head") # Dim of V4 data
+    parser.add_argument("--contrastive_output_dim", type=int, default=64, help="Output dimension of contrastive head") # Dim of V4 data
+    parser.add_argument("--contrastive_head_batchnorm", type=bool, default=False, help="Whether to use batchnorms after layers in contrastive head and backbone")
+    parser.add_argument("--backbone_batchnorm", type=bool, default=False, help="Whether to use batchnorms after layers in contrastive head and backbone")
+    parser.add_argument("--num_hidden_layers", type=int, default=2, help="Number of hidden layers in backbone")
     # NOTE: just doing eval every epoch rn
     # parser.add_argument("--eval_readout_frequency", type=int, default=600, help="Number of epochs between evaluating linear readout") 
     parser.add_argument("--model_save_path", type=str, default="model_weights/model.pt", help="Path to save the model")
@@ -295,13 +297,11 @@ if __name__ == "__main__":
     parser.add_argument("--optimizer", type=str, default="sgd", help="Optimizer to use")
     parser.add_argument("--temperature", type=float, default=0.5, help="Temperature for info nce loss")
     parser.add_argument("--device", type=str, default="cuda", help="Device to use")
-    parser.add_argument("--dataset_type", type=str, default="trial", help="Type of dataset used")
-    parser.add_argument("--average_trials", type=bool, default=True, help="Whether or not to average across trials")
+    parser.add_argument("--dataset_type", type=str, default="pose", help="Type of dataset used")
+    parser.add_argument("--average_trials", type=bool, default=False, help="Whether or not to average across trials")
     parser.add_argument("--eval_explained_variance", type=bool, default=False, help="Whether or not to evaluate explained variance")
     parser.add_argument("--eval_logistic_regression", type=bool, default=False, help="Whether or not to evaluate logistic regression")
-
-    parser.add_argument("--batchnorm", type=bool, default=True, help="Whether to use batchnorms after layers in contrastive head and backbone")
-    parser.add_argument("--num_hidden_layers", type=int, default=2, help="Number of hidden layers in backbone")
+    parser.add_argument("--eval_frequency", default=1)
 
     args = parser.parse_args()
     
@@ -309,26 +309,27 @@ if __name__ == "__main__":
     # Initialize wandb
     wandb.init(
         project="neuro_simclr",
-        entity="helblazer811",
         config=args,
     )
     # Load simclr dataset
-    neuroid_train_dataset, neuroid_eval_dataset = generate_brainscore_train_test_split()
-
     animals_train_dataset = AnimalClassificationDataset(split="train")
     animals_test_dataset = AnimalClassificationDataset(split="test")
     all_category_train_dataset = AllCategoryClassificationDataset(split="train")
     all_category_test_dataset = AllCategoryClassificationDataset(split="test")
 
     if args.dataset_type == "trial":
-        train_dataset = TrialContrastiveDataset(split="train")
-        test_dataset = TrialContrastiveDataset(split="test")
+        train_dataset = TrialContrastiveDataset(
+            split="train"
+        )
+        test_dataset = TrialContrastiveDataset(
+            split="test"
+        )
     elif args.dataset_type == "pose":
-        train_dataset = PoseContrastiveDataset(
+        train_dataset = NewPoseContrastiveDataset(
             split="train",
             average_trials=args.average_trials,
         )
-        test_dataset = PoseContrastiveDataset(
+        test_dataset = NewPoseContrastiveDataset(
             split="test",
             average_trials=args.average_trials,
         )
@@ -340,8 +341,8 @@ if __name__ == "__main__":
     contrastive_head = ContrastiveHead(
         input_dim=args.backbone_output_dim,
         hidden_dim=args.hidden_dim,
-        output_dim=2,
-        # batchnorm=args.batchnorm,
+        output_dim=args.contrastive_output_dim,
+        batchnorm=args.contrastive_head_batchnorm,
     ).to(args.device)
     # NOTE: Not sure what shapes this should be
     backbone = Backbone(
@@ -349,14 +350,14 @@ if __name__ == "__main__":
         hidden_dim=args.hidden_dim,
         output_dim=args.backbone_output_dim,
         num_hidden_layers=args.num_hidden_layers,
-        batchnorm=args.batchnorm,
+        batchnorm=args.backbone_batchnorm,
     ).to(args.device)
     print(backbone)
     # The backbone output =/= contrastive header here (in terms of dimension)
     # Run trianing
     trainer = SimCLRTrainer(
-        neuroid_train_dataset,
-        neuroid_eval_dataset,
+        datasets.neuroid_train_data,
+        datasets.neuroid_test_data,
         train_dataset,
         test_dataset,
         animals_train_dataset,

@@ -3,61 +3,64 @@ import torch
 import torch.nn as nn
 import wandb
 import numpy as np
+from tqdm import tqdm
 
-def evaluate_nn_classifier(
+def embed_v4_data(dataset, backbone, batch_size=32, one_hot=False, args=None):
+    dataloader = torch.utils.data.DataLoader(
+        dataset,
+        batch_size=batch_size,
+    )
+
+    embeddings = []
+    labels = []
+    for data in dataloader:
+        image, label = data
+        if one_hot:
+            label = torch.eye(dataset.num_classes)[label]
+        image = image.to(args.device)
+        embedding = backbone(image.unsqueeze(0)).squeeze()
+        embedding = list(embedding.detach().cpu())
+        embeddings.extend(embedding)
+        labels.extend(label)
+
+    embeddings = torch.stack(embeddings)
+    labels = torch.stack(labels)
+
+    return embeddings, labels
+
+def evaluate_linear_classifier(
     backbone, 
     train_dataset, 
     test_dataset, 
     args,
     num_epochs=100,
     batch_size=32,
-    num_classes=2
 ):
     """
         Trains a simple single layer linear nn classifier using
         the frozen backbone representations. 
     """
+    num_classes = train_dataset.num_classes
     # Set the backbone to eval mode
     backbone.eval()
-
     max_class_index = -1
-    train_data = []
     # Embed the train dataset of images using the backbone
-    for data in train_dataset:
-        image, label = data
-        max_class_index = max(max_class_index, label)
-        label = np.eye(num_classes)[label]
-        image = image.to(args.device)
-        embedding = backbone(image.unsqueeze(0)).squeeze()
-        train_data.append(
-            (embedding.detach().cpu(), label)
-        )
+    train_data = embed_v4_data(train_dataset, backbone, batch_size=batch_size, one_hot=True, args=args)
     # Embed the test dataset of images using the backbone
-    test_data = []
-    for data in test_dataset:
-        image, label = data
-        # Convert label to a one-hot vector
-        # label = np.eye(num_classes)[label]
-        image = image.to(args.device)
-        embedding = backbone(image.unsqueeze(0)).squeeze()
-        test_data.append(
-            (embedding.detach().cpu(), label)
-        )
+    test_data = embed_v4_data(test_dataset, backbone, batch_size=batch_size, one_hot=False, args=args)
     # Train a single layer linear nn classifier on the train dataset
-    print(f"Test data shape: {test_data[0][0].shape}")
     neural_network = nn.Sequential(
         nn.Linear(test_data[0][0].shape[-1], num_classes),
-        nn.Softmax()
     ).to(args.device)
     # Train the model using an adam optimizer
     optim = torch.optim.Adam(neural_network.parameters(), lr=1e-3)
     loss_fn = nn.CrossEntropyLoss()
     train_data_loader = torch.utils.data.DataLoader(
-        train_data,
+        torch.utils.data.TensorDataset(*train_data),
         batch_size=batch_size,
     )
     test_dataloader = torch.utils.data.DataLoader(
-        test_data,
+        torch.utils.data.TensorDataset(*test_data),
         batch_size=batch_size,
     )
     for epoch in range(100):
@@ -89,14 +92,18 @@ def evaluate_nn_classifier(
 
                 preds.extend(predicted.detach().cpu().numpy())
                 labs.extend(labels.detach().cpu().numpy())
-            
-            fscore = sklearn.metrics.f1_score(labs, preds)
+
+            if num_classes == 2: 
+                fscore = sklearn.metrics.f1_score(labs, preds)
+            else:
+                fscore = sklearn.metrics.f1_score(labs, preds, average="macro")
 
     if wandb.run is not None:
         wandb.log({
-            f"{train_dataset.dataset_name}_nn_eval_accuracy": correct/total,
-            f"{train_dataset.dataset_name}_nn_eval_fscore": fscore
+            f"{train_dataset.dataset_name}_linear_eval_accuracy": correct/total,
+            f"{train_dataset.dataset_name}_linear_eval_fscore": fscore
         })
+
     print(f"Accuracy: {correct/total}")
     print(f"Fscore: {fscore}")
 
@@ -104,7 +111,7 @@ def evaluate_knn(backbone, train_dataset, test_dataset, args):
     # Return accuracy
     pass
 
-def evaluate_linear_readout(backbone, train_dataset, test_dataset, args):
+def evaluate_logistic_regression(backbone, train_dataset, test_dataset, args):
     """
         Evaluate the linear readout
     """
@@ -152,7 +159,11 @@ def evaluate_linear_readout(backbone, train_dataset, test_dataset, args):
     predicted_labels = clf.predict(test_embeddings)
     fscore = sklearn.metrics.f1_score(test_labels, predicted_labels)
 
-    return accuracy, fscore
+    if wandb.run is not None:
+        wandb.log({
+            f"{train_dataset.dataset_name}_logistic_regression_accuracy": accuracy,
+            f"{train_dataset.dataset_name}_logistic_regression_fscore": fscore
+        })
 
 def evaluate_IT_explained_variance(backbone, neuroid_train_dataset, neuroid_eval_dataset, args):
     """
