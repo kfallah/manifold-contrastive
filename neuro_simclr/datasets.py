@@ -1,46 +1,47 @@
-import brainscore
-import torch
-from torch.utils.data import Dataset
-import numpy as np
-from sklearn.model_selection import train_test_split
-from tqdm import tqdm
 import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning) 
+
+import brainscore
+import numpy as np
+import torch
+from sklearn.model_selection import train_test_split
+from torch.utils.data import Dataset
+from tqdm import tqdm
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 
 def generate_brainscore_train_test_split(random_seed=42, split_percentage=0.8):
     # Set numpy seed
     np.random.seed(random_seed)
+    torch.manual_seed(random_seed)
     # Generates a consistent train test split of the brainscore dataset
     # along the presentation dimension
     neural_data = brainscore.get_assembly(name="dicarlo.MajajHong2015.public")
-    neural_data = neural_data.squeeze('time_bin')
-    neural_data = neural_data.transpose('presentation', 'neuroid')
+    neural_data = neural_data.squeeze("time_bin")
+    neural_data = neural_data.transpose("presentation", "neuroid")
     # Randomly select 80% of the presentations to be the train set
     train_indices = np.random.choice(
-        np.arange(len(neural_data)), 
-        size=int(len(neural_data) * split_percentage), 
-        replace=False
+        np.arange(len(neural_data)), size=int(len(neural_data) * split_percentage), replace=False
     )
     # Subtract train_indices to get test indices
-    test_indices = np.setdiff1d(
-        np.arange(len(neural_data)), 
-        train_indices
-    )
+    test_indices = np.setdiff1d(np.arange(len(neural_data)), train_indices)
     # Set the data
     train_data = neural_data[train_indices]
     test_data = neural_data[test_indices]
 
     return train_data, test_data
 
+
 # Code for loading up the split that is used for the rest of the dataset objects
-neuroid_train_data, neuroid_test_data = generate_brainscore_train_test_split()
+# neuroid_train_data, neuroid_test_data = generate_brainscore_train_test_split()
 
 # ================== Evaluation datasets ==================
 
+
 class StimulusIDClassificationDataset(Dataset):
     """
-        Dataset to see if you can predict the stimulus id
-        from a V4 vector. 
+    Dataset to see if you can predict the stimulus id
+    from a V4 vector.
     """
 
     def __init__(self, split="train"):
@@ -49,11 +50,12 @@ class StimulusIDClassificationDataset(Dataset):
     def load_stimulus_id_classification_dataset(self):
         pass
 
+
 class AnimalClassificationDataset(Dataset):
     """
-        This is the dataset class for the neuroscience dataset
+    This is the dataset class for the neuroscience dataset
     """
-    
+
     def __init__(self, split="train", region="V4"):
         self.num_classes = 2
         self.dataset_name = "animal_binary"
@@ -63,17 +65,15 @@ class AnimalClassificationDataset(Dataset):
         else:
             neural_data = neuroid_test_data
 
-        neuroid_data = neural_data.multi_groupby([
-            'category_name', 
-            'object_name', 
-            'stimulus_id'
-        ]).mean(dim='presentation')
+        neuroid_data = neural_data.multi_groupby(["category_name", "object_name", "stimulus_id"]).mean(
+            dim="presentation"
+        )
         # Use the rest as test
         neuroid_data = neuroid_data.sel(region=self.region)
         # neuroid_data = neuroid_data.squeeze('time_bin')
         # neuroid_data = neuroid_data.transpose('presentation', 'neuroid')
         # Get the indices where the category is animals
-        animal_labels = (neuroid_data.coords['category_name'] == 'Animals').to_numpy().astype(int)
+        animal_labels = (neuroid_data.coords["category_name"] == "Animals").to_numpy().astype(int)
 
         self.neuroid_data = neuroid_data
         self.labels = animal_labels
@@ -84,7 +84,7 @@ class AnimalClassificationDataset(Dataset):
         #     self.tensor_data.append(
         #         torch.Tensor(self.neuroid_data[index].to_numpy())
         #     )
-        
+
     def __len__(self):
         # Return the number of stimuli
         return len(self.tensor_data)
@@ -92,11 +92,12 @@ class AnimalClassificationDataset(Dataset):
     def __getitem__(self, index):
         return self.tensor_data[index], self.labels[index]
 
+
 class AllCategoryClassificationDataset(Dataset):
     """
-        This is the dataset class for the neuroscience dataset
+    This is the dataset class for the neuroscience dataset
     """
-    
+
     def __init__(self, split="train", average_across_stimuli=True):
         self.dataset_name = "all_category"
         self.num_classes = 8
@@ -105,21 +106,17 @@ class AllCategoryClassificationDataset(Dataset):
         else:
             neural_data = neuroid_test_data
 
-        neuroid_data = neural_data.multi_groupby([
-            'category_name', 
-            'object_name', 
-            'stimulus_id'
-        ]).mean(dim='presentation')
+        neuroid_data = neural_data.multi_groupby(["category_name", "object_name", "stimulus_id"]).mean(
+            dim="presentation"
+        )
         # Use the rest as test
-        neuroid_data = neuroid_data.sel(region='V4')
+        neuroid_data = neuroid_data.sel(region="V4")
         # neuroid_data = neuroid_data.squeeze('time_bin')
         # neuroid_data = neuroid_data.transpose('presentation', 'neuroid')
         # Get the indices where the category is animals
-        labels = neuroid_data.coords['category_name'].to_numpy()
+        labels = neuroid_data.coords["category_name"].to_numpy()
         max_class_index = np.unique(labels)
-        self.labels_to_index = {
-            label: index for index, label in enumerate(np.unique(labels))
-        }
+        self.labels_to_index = {label: index for index, label in enumerate(np.unique(labels))}
 
         self.neuroid_data, self.labels = neuroid_data, labels
         self.tensor_data = torch.Tensor(self.neuroid_data.to_numpy())
@@ -136,18 +133,19 @@ class AllCategoryClassificationDataset(Dataset):
     def __getitem__(self, index):
         return self.tensor_data[index], self.labels_to_index[self.labels[index]]
 
+
 # ================== Contrastive Datasets ==================
 
-class TrialContrastiveDataset(Dataset):
 
+class TrialContrastiveDataset(Dataset):
     def __init__(self, split="train", random_seed=42, split_percentage=0.8):
         # Load the data from brainscore and group it
         if split == "train":
             neural_data = neuroid_train_data
         else:
             neural_data = neuroid_test_data
-        neuroid_data = neural_data.sel(region='V4')
-        stimulus_id_list = neuroid_data.coords['stimulus_id'].to_numpy()
+        neuroid_data = neural_data.sel(region="V4")
+        stimulus_id_list = neuroid_data.coords["stimulus_id"].to_numpy()
         self.stimulus_ids = np.unique(stimulus_id_list)
         # store indices of presentations for each stimulus
         self.stimulus_to_presentations_idx_map = {}
@@ -162,7 +160,7 @@ class TrialContrastiveDataset(Dataset):
         return len(self.stimulus_ids)
 
     def __getitem__(self, index):
-        # For a given stimulus index 
+        # For a given stimulus index
         stimulus_id = self.stimulus_ids[index]
         # get indices of presentations of that stimulus
         presentations_idx = self.stimulus_to_presentations_idx_map[stimulus_id]
@@ -170,15 +168,12 @@ class TrialContrastiveDataset(Dataset):
             return self.__getitem__(np.random.randint(len(self)))
 
         # Choose two random presentations of that stimulus
-        random_indices = np.random.choice(
-            presentations_idx,
-            2,
-            replace=False
-        )
+        random_indices = np.random.choice(presentations_idx, 2, replace=False)
         item_a = self.data[random_indices[0]]
         item_b = self.data[random_indices[1]]
 
         return item_a, item_b
+
 
 class NewPoseContrastiveDataset(Dataset):
     """
@@ -194,8 +189,11 @@ class NewPoseContrastiveDataset(Dataset):
             neural_data = neuroid_test_data
 
         if average_trials:
-            neural_data = neural_data.multi_groupby(["category_name", "object_name", "stimulus_id"]).mean(
-                dim="presentation"
+            neural_data = (
+                neuroid_train_data.multi_groupby(["category_name", "object_name", "stimulus_id"])
+                .mean(dim="presentation")
+                .sel(region="V4")
+                .to_numpy()
             )
         neuroid_data = neural_data.sel(region="V4")
         # Get list of "object_name"
@@ -228,18 +226,13 @@ class NewPoseContrastiveDataset(Dataset):
         x1 = self.presentations[rand_neighbor]
         return x0, x1
 
+
 class PoseContrastiveDataset(Dataset):
     """
-        Dataset for contrastive learning basedon pose. 
+    Dataset for contrastive learning basedon pose.
     """
 
-    def __init__(
-        self, 
-        split="train", 
-        random_seed=42, 
-        split_percentage=0.8,
-        average_trials=False
-    ):
+    def __init__(self, split="train", random_seed=42, split_percentage=0.8, average_trials=False):
         # self.neuroid_data, self.labels = self.data
         # Load the data from brainscore and group it
         if split == "train":
@@ -248,50 +241,41 @@ class PoseContrastiveDataset(Dataset):
             neural_data = neuroid_test_data
 
         if average_trials:
-            neural_data = neural_data.multi_groupby([
-                'category_name', 
-                'object_name', 
-                'stimulus_id'
-            ]).mean(dim='presentation')
-        neuroid_data = neural_data.sel(region='V4')
+            neural_data = neural_data.multi_groupby(["category_name", "object_name", "stimulus_id"]).mean(
+                dim="presentation"
+            )
+        neuroid_data = neural_data.sel(region="V4")
         # Get list of "object_name"
-        object_name_list = neuroid_data.coords['object_name'].to_numpy()
+        object_name_list = neuroid_data.coords["object_name"].to_numpy()
         object_name_list = np.unique(object_name_list)
         self.object_names = object_name_list
         # Load up a dictionary of the form object_name -> [presentation1, presentation2, ...]
-        self.presentations_map = {} 
+        self.presentations_map = {}
         for object_name in self.object_names:
-            presentations = neuroid_data.sel(
-                object_name=object_name
-            )
+            presentations = neuroid_data.sel(object_name=object_name)
             # presentations.sel()
             # presentations = presentations.squeeze('time_bin')
             # presentations = presentations.transpose('presentation', 'neuroid')
-            self.presentations_map[object_name] = torch.Tensor(
-                presentations.to_numpy()
-            )
+            self.presentations_map[object_name] = torch.Tensor(presentations.to_numpy())
 
     def __len__(self):
         # Length is the number of stimuli
         return len(self.object_names)
 
     def __getitem__(self, index):
-        # For a given object name index 
+        # For a given object name index
         object_name = self.object_names[index]
         # Choose two random presentations of that stimulus
         # presentations = self.neuroid_data.sel(object_name=object_name)
         # presentations = presentations.squeeze('time_bin')
         # presentations = presentations.transpose('presentation', 'neuroid')
         # Choose two random presentations of that stimulus
-        random_indices = np.random.choice(
-            len(self.presentations_map[object_name]),
-            2,
-            replace=False
-        )
+        random_indices = np.random.choice(len(self.presentations_map[object_name]), 2, replace=False)
         item_a = self.presentations_map[object_name][random_indices[0]]
         item_b = self.presentations_map[object_name][random_indices[1]]
 
         return item_a, item_b
+
 
 if __name__ == "__main__":
     # generate_brainscore_train_test_split()
