@@ -44,10 +44,8 @@ class VariationalEncoderConfig:
     encode_point_pair: bool = True
     # warmup the threshold parameter -- start with dense coefficients and anneal to sparse
     enable_thresh_warmup: bool = False
-    # Use attention layer to refine features before drawing samples
-    enable_enc_attn: bool = False
 
-    enable_max_sampling: bool = True
+    enable_max_sampling: bool = False
     max_sample_l1_penalty: float = 1.0e-2
     max_sample_start_iter: int = 50000
     total_num_samples: int = 20
@@ -57,9 +55,9 @@ class VariationalEncoderConfig:
     # Required for transop augmentations
     enable_learned_prior: bool = False
     enable_prior_shift: bool = False
-    enable_prior_block_encoding: bool = False
-    # Use a deterministic prior for shift
-    enable_det_prior: bool = False
+    # Warmup prior params from fixed to those output by a DNN
+    enable_prior_warmup: bool = False
+    prior_warmup_iters: int = 5000
 
     # Use deterministic encoder
     enable_det_enc: bool = False
@@ -87,9 +85,6 @@ class TransportOperatorConfig:
     # Learning rate for operators
     transop_lr: float = 0.1
     transop_weight_decay: float = 1e-6
-    # Use the negative coefficients from z0 to z1
-    # to transport from z1 to z0
-    symmmetric_transport: bool = False
 
     stable_operator_initialization: bool = True
     real_range_initialization: float = 0.0001
@@ -99,9 +94,9 @@ class TransportOperatorConfig:
 
     # Option to splice input to create BDM constraint on transop
     enable_block_diagonal: bool = True
+    # Only estimate transport for the top block
+    enable_direct: bool = False
     block_dim: int = 64
-    # Use a separate dictionary for each block of features
-    enable_dict_per_block: bool = False
 
     # Option for alternating minimization between
     enable_alternating_min: bool = False
@@ -122,6 +117,8 @@ class ContrastiveHeaderConfig:
 
     enable_transop_header: bool = False
     enable_transop_augmentation: bool = False
+    enable_gaussian_augmentation: bool = False
+    enable_mixup_augmentation: bool = False
     enable_transop_prior_grad: bool = True
     transop_header_cfg: TransportOperatorConfig = TransportOperatorConfig()
 

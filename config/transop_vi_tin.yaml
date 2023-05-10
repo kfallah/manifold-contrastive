@@ -1,0 +1,14 @@
+defaults:
+  - transop_base
+  - dataloader/tinyimagenet@dataloader_cfg
+  - _self_
+
+exp_name: tin_vi_dict128
+
+trainer_cfg:
+  optimizer_cfg:
+    initial_lr: 0.002
+model_cfg:
+  header_cfg:
+    transop_header_cfg:
+      dictionary_size: 128

@@ -1,0 +1,5 @@
+defaults:
+  - transop_base
+  - _self_
+
+exp_name: cifar10_vi_dict16

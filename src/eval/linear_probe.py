@@ -27,7 +27,7 @@ class LinearProbeEval(EvalRunner):
     ) -> None:
         backbone_feat_dim = train_eval_input.feature_list.shape[1]
         self.clf = nn.Linear(backbone_feat_dim, num_classes).to(device)
-        
+
         """
         num_epoch_iters = len(train_eval_input.feature_list) // self.get_config().num_epochs
         self.optimizer = initialize_optimizer(self.get_config().optimizer_cfg, self.clf.parameters())
@@ -75,7 +75,7 @@ class LinearProbeEval(EvalRunner):
             "val_top5_acc": acc[5],
         }
 
-        return metrics, acc[1]
+        return metrics, acc[1], {}
 
     def get_config(self) -> LinearProbeConfig:
         return self.cfg

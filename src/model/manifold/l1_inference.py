@@ -9,9 +9,10 @@ def soft_threshold(c, zeta):
 
 
 def compute_loss(c, x0, x1, psi):
-    T = torch.einsum("tbm,mpk->tbpk", c, psi)
-    x1_hat = (torch.matrix_exp(T) @ x0.unsqueeze(-1)).squeeze(-1)
-    # x1_hat = (expm(T) @ x0.unsqueeze(-1)).squeeze(-1)
+    dict_count = psi.shape[-2]
+    T = torch.matrix_exp(torch.einsum("...m,mspk->...spk", c, psi))
+    x1_hat = (T @ x0.view(*x0.shape[:-1], dict_count, -1, 1))
+    x1_hat = x1_hat.view(*x1_hat.shape[:-3], x0.shape[-1])
     loss = F.mse_loss(x1_hat, x1, reduction="none")
     return loss
 
@@ -19,37 +20,6 @@ def compute_loss(c, x0, x1, psi):
 def get_lr(optimizer):
     for param_group in optimizer.param_groups:
         return param_group["lr"]
-
-
-def get_c_l2(x0, x1, c, psi):
-    c = nn.Parameter(c.detach(), requires_grad=True)
-    T = torch.einsum("tbm,mpk->tbpk", c, psi)
-    x1_hat = (T @ x0.unsqueeze(-1)).squeeze(-1)
-    loss = F.mse_loss(x1_hat, x1, reduction="none").mean()
-    loss.backward()
-    return loss, c.grad
-
-
-def differentiable_infer_coefficients(x0, x1, c, psi, zeta, num_iter=20, lr=5e-2, decay=0.99):
-    c_momentum = None
-    for i in range(num_iter):
-        loss, c_update = get_c_l2(x0.detach(), x1.detach(), c.clone().detach(), psi.detach())
-
-        if c_momentum is None:
-            c_momentum = c_update.clone()
-        else:
-            c_momentum = 0.9 * c_momentum + 0.1 * c_update
-            c_update = c_momentum.clone()
-
-        c -= lr * c_update
-
-        c_thresh = soft_threshold(c.detach(), lr * zeta)
-        c = c + (c_thresh - c).detach()
-
-        lr *= decay
-        #print(f"{loss.item():.3E} {torch.count_nonzero(c, dim=-1).float().mean()}")
-    #print()
-    return c
 
 def infer_coefficients(
     x0,
