@@ -161,4 +161,42 @@ def evaluate_IT_explained_variance(backbone, neuroid_train_dataset, neuroid_eval
         r2 = linear_regression_model.score(test_embeddings, neuroid_eval_dataset[:, neuron_site_index])
         r2_values.append(r2)
     # Log the R^2 values to wandb
-    wandb.log({"median_IT_explained_variance": np.median(r2_values)})
+    wandb.log({
+        "median_IT_explained_variance": np.median(r2_values)
+    })
+
+
+def _regress_posechange_onto_diffvecs(train_diffs, train_posechange, test_diffs, test_posechange):
+    """
+        Regress the posechange onto the difference vectors
+    """
+    # Fit a linear regression model to the data
+    linear_regression_model = sklearn.linear_model.LinearRegression().fit(
+        train_diffs,
+        train_posechange
+    )
+    # R^2 = 1 - u/v
+    # u = sum_i (y_i - ypred_i)^2
+    # v = sum_i (y_i - ymean)^2
+    ypred = linear_regression_model.predict(test_diffs)
+    ytrue = test_posechange
+    # sum just over rows to get per-dimension R^2
+    u = np.sum((ytrue - ypred) ** 2, axis=0)
+    v = np.sum((ytrue - np.mean(ytrue, axis=0)) ** 2, axis=0)
+
+    return r2
+
+
+def evaluate_pose_regression(backbone, train_data, test_data, train_meta, test_meta, args, encoder=None):
+
+    # ====== baseline tests ======
+    # raw pixel regression
+    # regression from V4
+    # regression from IT
+
+    # backbone feature differences
+    # Put the backbone in eval mode
+    backbone.eval()
+
+    if encoder is not None:
+        # encoder coefficients
