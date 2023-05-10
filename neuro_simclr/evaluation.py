@@ -1,8 +1,9 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import sklearn
 import torch
 import torch.nn as nn
-from tqdm import tqdm
+from sklearn.manifold import TSNE
 
 import wandb
 
@@ -21,6 +22,24 @@ def embed_v4_data(data, backbone, device, batch_size=1000):
     return embeddings
 
 
+def tsne_plot(train_data, train_label, ex_per_class=800):
+    data = []
+    label = []
+    for i in np.unique(train_label):
+        idx = torch.where(train_label == i)[0]
+        data.append(train_data[idx[:ex_per_class]])
+        label.append(train_label[idx[:ex_per_class]])
+    data = torch.cat(data)
+    label = torch.cat(label)
+
+    fig = plt.figure(figsize=(8, 8))
+    feat_embed = TSNE(n_components=2, init="random", perplexity=3).fit_transform(data)
+    for i in np.unique(train_label):
+        label_idx = i == label
+        plt.scatter(*feat_embed[label_idx].T)
+    return fig
+
+
 def evaluate_linear_classifier(
     train_data,
     train_label,
@@ -33,22 +52,26 @@ def evaluate_linear_classifier(
     the frozen backbone representations.
     """
     num_classes = len(np.unique(train_label))
-    max_class_index = -1
     clf = nn.Linear(train_data.shape[-1], num_classes).to(args.device)
     # Train the model using an adam optimizer
-    optim = torch.optim.Adam(clf.parameters(), lr=1e-3)
+    lr_start, lr_end = 1e-2, 1e-6
+    gamma = (lr_end / lr_start) ** (1 / 500)
+    opt = torch.optim.Adam(clf.parameters(), lr=lr_start, weight_decay=5e-6)
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(opt, gamma=gamma)
     loss_fn = nn.CrossEntropyLoss()
 
-    for epoch in range(100):
-        optim.zero_grad()
+    for epoch in range(500):
         indices_perm = torch.randperm(len(train_data))
         for i in range(len(train_data) // 1000):
             x = train_data[indices_perm[i * 1000 : (i + 1) * 1000]].to(args.device)
             labels = train_label[indices_perm[i * 1000 : (i + 1) * 1000]].to(args.device)
             output = clf(x)
+
             loss = loss_fn(output, labels)
+            opt.zero_grad()
             loss.backward()
-            optim.step()
+            opt.step()
+        scheduler.step()
 
     y_pred = clf(test_data.to(args.device))
     pred = y_pred.topk(1, 1, largest=True, sorted=True).indices[:, 0].detach().cpu().numpy()
@@ -56,16 +79,7 @@ def evaluate_linear_classifier(
 
     fscore = sklearn.metrics.f1_score(test_label, pred, average="macro")
 
-    if wandb.run is not None:
-        wandb.log(
-            {
-                f"linear_eval_accuracy": acc,
-                f"linear_eval_fscore": fscore,
-            }
-        )
-
-    print(f"Accuracy: {acc}")
-    print(f"Fscore: {fscore}")
+    return acc, fscore
 
 
 def evaluate_knn(backbone, train_dataset, test_dataset, args):
