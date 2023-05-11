@@ -299,7 +299,7 @@ if __name__ == "__main__":
     )
 
     # Load dataset
-    (v4_train, it_train, label_train, objectid_train), (v4_test, it_test, label_test, objectid_test) = get_dataset(
+    (v4_train, it_train, label_train, objectid_train, pose_train), (v4_test, it_test, label_test, objectid_test, pose_test) = get_dataset(
         args.average_trials, args.seed
     )
 

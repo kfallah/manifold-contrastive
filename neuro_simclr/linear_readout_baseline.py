@@ -27,12 +27,12 @@ if __name__ == "__main__":
     # Load up the datasets
     # Averaged
     averaged_train, averaged_test = get_dataset(average_trials=True)
-    averaged_v4_train, averaged_it_train, averaged_label_train, averaged_objectid_train = averaged_train
-    averaged_v4_test, averaged_it_test, averaged_label_test, averaged_objectid_test = averaged_test
+    averaged_v4_train, averaged_it_train, averaged_label_train, averaged_objectid_train, averaged_pose_train = averaged_train
+    averaged_v4_test, averaged_it_test, averaged_label_test, averaged_objectid_test, averaged_pose_test = averaged_test
     # Non averaged
     train, test = get_dataset(average_trials=False)
-    v4_train, it_train, label_train, objectid_train = train
-    v4_test, it_test, label_test, objectid_test = test
+    v4_train, it_train, label_train, objectid_train, pose_train = train
+    v4_test, it_test, label_test, objectid_test, pose_test = test
     # Run the linear evaluation
     print("Evaluating V4")
     v4_accuracy, v4_fscore = evaluate_linear_classifier(
