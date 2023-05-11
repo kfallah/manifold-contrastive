@@ -95,15 +95,32 @@ def get_pixel_dataset(
 
     return (pixel_train, label_train, object_id_train), (pixel_test, label_test, object_id_test)
 
+def load_cache(average_trials):
+    """
+        Loads the cache if it exists
+    """
+    if average_trials:
+        cache_file = "avgd-data.pt"
+    else:
+        cache_file = "data.pt"
+    try:
+        return torch.load(cache_file)
+    except FileNotFoundError:
+        return None
+
 pose_dims = ['s', 'ty', 'tz', 'rxy', 'rxz', 'ryz']
 
 def get_dataset(average_trials=False, random_seed=0):
+    cache = load_cache(average_trials) 
+    if cache is not None:
+        return cache
+
     neuroid_train_data, neuroid_test_data = generate_brainscore_train_test_split(random_seed=random_seed)
     if average_trials:
-        train_data = neuroid_train_data.multi_groupby(["category_name", "object_name", "stimulus_id"]).mean(
+        train_data = neuroid_train_data.multi_groupby(["category_name", "object_name", "stimulus_id", *pose_dims]).mean(
             dim="presentation"
         )
-        test_data = neuroid_test_data.multi_groupby(["category_name", "object_name", "stimulus_id"]).mean(
+        test_data = neuroid_test_data.multi_groupby(["category_name", "object_name", "stimulus_id", *pose_dims]).mean(
             dim="presentation"
         )
     else:
@@ -136,10 +153,17 @@ def get_dataset(average_trials=False, random_seed=0):
     objectid_test = torch.tensor(objectid_test).long()
     pose_test = torch.tensor(pose_test).float()
 
-    return (
+    data = (
         (v4_train, it_train, label_train, objectid_train, pose_train),
         (v4_test, it_test, label_test, objectid_test, pose_test)
     )
+
+    if average_trials:
+        torch.save(data, "avgd-data.pt")
+    else:
+        torch.save(data, "data.pt")
+    
+    return data
 
 
 if __name__ == "__main__":

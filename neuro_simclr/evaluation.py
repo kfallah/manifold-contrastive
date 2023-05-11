@@ -3,6 +3,7 @@ import numpy as np
 import sklearn
 import torch
 import torch.nn as nn
+from torch import Tensor
 from sklearn.manifold import TSNE
 
 import wandb
@@ -179,31 +180,45 @@ def evaluate_IT_explained_variance(backbone, neuroid_train_dataset, neuroid_eval
     # Log the R^2 values to wandb
     wandb.log({"median_IT_explained_variance": np.median(r2_values)})
 
+def tnp(tensor: Tensor):
+    return tensor.detach().cpu().numpy()
 
-def _regress_posechange_onto_diffvecs(train_diffs, train_posechange, test_diffs, test_posechange):
+def _eval_pose_regression_from_diffs(
+        train_diffs: Tensor, train_posechange: Tensor, 
+        test_diffs: Tensor, test_posechange: Tensor):
     """
     Regress the posechange onto the difference vectors
     """
+    assert train_diffs.shape[0] == train_posechange.shape[0]
+    assert test_diffs.shape[0] == test_posechange.shape[0]
+    assert train_diffs.shape[1] == test_diffs.shape[1]
+    assert train_posechange.shape[1] == test_posechange.shape[1]
+
+    pose_dim = train_posechange.shape[1]
     # Fit a linear regression model to the data
-    linear_regression_model = sklearn.linear_model.LinearRegression().fit(train_diffs, train_posechange)
+    linear_regression_model = sklearn.linear_model.LinearRegression().fit(
+        tnp(train_diffs),
+        tnp(train_posechange)
+    )
+    ypred = linear_regression_model.predict(tnp(test_diffs))
+    ytrue = tnp(test_posechange)
+
     # R^2 = 1 - u/v
     # u = sum_i (y_i - ypred_i)^2
     # v = sum_i (y_i - ymean)^2
-    ypred = linear_regression_model.predict(test_diffs)
-    ytrue = test_posechange
     # sum just over rows to get per-dimension R^2
     u = np.sum((ytrue - ypred) ** 2, axis=0)
     v = np.sum((ytrue - np.mean(ytrue, axis=0)) ** 2, axis=0)
+    r2 = 1 - u/v
+    assert r2.shape == (pose_dim,)
 
-    return r2
+    tot_r2 = 1 - np.sum((ytrue - ypred) ** 2) / np.sum((ytrue - np.mean(ytrue)) ** 2)
+    med_r2 = np.median(r2)
+
+    return tot_r2, med_r2, r2
 
 
-def evaluate_pose_regression(backbone, train_data, test_data, train_meta, test_meta, args, encoder=None):
-    # ====== baseline tests ======
-    # raw pixel regression
-    # regression from V4
-    # regression from IT
-
+def evaluate_pose_regression(backbone, train_data, train_pose, test_data, test_pose, args, encoder=None):
     # backbone feature differences
     # Put the backbone in eval mode
     backbone.eval()
