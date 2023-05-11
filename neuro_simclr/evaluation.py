@@ -3,6 +3,7 @@ import numpy as np
 import sklearn
 import torch
 import torch.nn as nn
+from torch import Tensor
 from sklearn.manifold import TSNE
 
 import wandb
@@ -179,31 +180,45 @@ def evaluate_IT_explained_variance(backbone, neuroid_train_dataset, neuroid_eval
     # Log the R^2 values to wandb
     wandb.log({"median_IT_explained_variance": np.median(r2_values)})
 
+def tnp(tensor: Tensor):
+    return tensor.detach().cpu().numpy()
 
-def _regress_posechange_onto_diffvecs(train_diffs, train_posechange, test_diffs, test_posechange):
+def _eval_pose_regression_from_diffs(
+        train_diffs: Tensor, train_posechange: Tensor, 
+        test_diffs: Tensor, test_posechange: Tensor):
     """
     Regress the posechange onto the difference vectors
     """
+    assert train_diffs.shape[0] == train_posechange.shape[0]
+    assert test_diffs.shape[0] == test_posechange.shape[0]
+    assert train_diffs.shape[1] == test_diffs.shape[1]
+    assert train_posechange.shape[1] == test_posechange.shape[1]
+
+    pose_dim = train_posechange.shape[1]
     # Fit a linear regression model to the data
-    linear_regression_model = sklearn.linear_model.LinearRegression().fit(train_diffs, train_posechange)
+    linear_regression_model = sklearn.linear_model.LinearRegression().fit(
+        tnp(train_diffs),
+        tnp(train_posechange)
+    )
+    ypred = linear_regression_model.predict(tnp(test_diffs))
+    ytrue = tnp(test_posechange)
+
     # R^2 = 1 - u/v
     # u = sum_i (y_i - ypred_i)^2
     # v = sum_i (y_i - ymean)^2
-    ypred = linear_regression_model.predict(test_diffs)
-    ytrue = test_posechange
     # sum just over rows to get per-dimension R^2
     u = np.sum((ytrue - ypred) ** 2, axis=0)
     v = np.sum((ytrue - np.mean(ytrue, axis=0)) ** 2, axis=0)
+    r2 = 1 - u/v
+    assert r2.shape == (pose_dim,)
 
-    return r2
+    tot_r2 = 1 - np.sum((ytrue - ypred) ** 2) / np.sum((ytrue - np.mean(ytrue)) ** 2)
+    med_r2 = np.median(r2)
+
+    return tot_r2, med_r2, r2
 
 
-def evaluate_pose_regression(backbone, train_data, test_data, train_meta, test_meta, args, encoder=None):
-    # ====== baseline tests ======
-    # raw pixel regression
-    # regression from V4
-    # regression from IT
-
+def evaluate_pose_regression(backbone, train_data, train_pose, test_data, test_pose, args, encoder=None):
     # backbone feature differences
     # Put the backbone in eval mode
     backbone.eval()
@@ -211,3 +226,88 @@ def evaluate_pose_regression(backbone, train_data, test_data, train_meta, test_m
     if encoder is not None:
         # encoder coefficients
         pass
+
+
+def sweep_psi_path_plot(psi: torch.tensor, z0: np.array, c_mag: int):
+    z = torch.tensor(z0).float().to(psi.device)[: psi.shape[-1]]
+
+    # z = model.backbone(x_gpu[0])[0]
+    # z = torch.tensor(z0[0][0]).to(default_device)
+    # psi = model.contrastive_header.transop_header.transop.psi
+    psi_norm = (psi.reshape(len(psi), -1) ** 2).sum(dim=-1)
+    psi_idx = torch.argsort(psi_norm)
+    latent_dim = len(z)
+
+    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(20, 12))
+    plt.subplots_adjust(hspace=0.4, top=0.9)
+
+    for i in range(ax.size):
+        row = int(i / 2)
+        column = int(i % 2)
+        curr_psi = psi_idx[-(i + 1)]
+
+        coeff = torch.linspace(-c_mag, c_mag, 30, device=psi.device)
+        T = torch.matrix_exp(coeff[:, None, None] * psi[None, curr_psi])
+        z1_hat = (T @ z).squeeze(dim=-1)
+
+        for z_dim in range(latent_dim):
+            ax[row, column].plot(
+                np.linspace(-c_mag, c_mag, 30),
+                z1_hat[:, z_dim].detach().cpu().numpy(),
+            )
+        ax[row, column].title.set_text(f"Psi {curr_psi} - F-norm: {psi_norm[curr_psi]:.2E}")
+
+    return fig
+
+
+def transop_plots(coefficients: np.array, psi: torch.tensor, z0: np.array):
+    psi_norms = ((psi.reshape(len(psi), -1)) ** 2).sum(dim=-1).detach().cpu().numpy()
+    count_nz = np.zeros(len(psi) + 1, dtype=int)
+    total_nz = np.count_nonzero(coefficients, axis=1)
+    for z in range(len(total_nz)):
+        count_nz[total_nz[z]] += 1
+    number_operator_uses = np.count_nonzero(coefficients, axis=0) / len(coefficients)
+
+    psi_mag_fig = plt.figure(figsize=(20, 4))
+    plt.bar(np.arange(len(psi)), psi_norms, width=1)
+    plt.xlabel("Transport Operator Index", fontsize=18)
+    plt.ylabel("F-Norm", fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
+    plt.title("F-Norm of Transport Operators", fontsize=20)
+
+    coeff_use_fig = plt.figure(figsize=(20, 4))
+    plt.bar(np.arange(len(psi) + 1), count_nz, width=1)
+    plt.xlabel("Number of Coefficients Used per Point Pair", fontsize=18)
+    plt.ylabel("Occurences", fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
+    plt.title("Number of Non-Zero Coefficients", fontsize=20)
+
+    psi_use_fig = plt.figure(figsize=(20, 4))
+    plt.bar(np.arange(len(psi)), number_operator_uses, width=1)
+    plt.xlabel("Percentage of Point Pairs an Operator is Used For", fontsize=18)
+    plt.ylabel("% Of Point Pairs", fontsize=18)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
+    plt.title("Transport Operator Index", fontsize=20)
+
+    psi_eig_plt = plt.figure(figsize=(8, 8))
+    L = torch.linalg.eigvals(psi.detach())
+    plt.scatter(torch.real(L).detach().cpu().numpy(), torch.imag(L).detach().cpu().numpy())
+    plt.xlabel("Real Components of Eigenvalues", fontsize=18)
+    plt.ylabel("Imag Components of Eigenvalues", fontsize=18)
+
+    psi_sweep_1c_fig = sweep_psi_path_plot(psi.detach(), z0, 1)
+    psi_sweep_5c_fig = sweep_psi_path_plot(psi.detach(), z0, 5)
+
+    figure_dict = {
+        "psi_mag_iter": psi_mag_fig,
+        "coeff_use_iter": coeff_use_fig,
+        "psi_use_iter": psi_use_fig,
+        "psi_eig_plt": psi_eig_plt,
+        "psi_sweep_1c": psi_sweep_1c_fig,
+        "psi_sweep_5c": psi_sweep_5c_fig,
+    }
+
+    return figure_dict

@@ -33,7 +33,7 @@ class ProjectionHeaderConfig:
 
 @dataclass
 class VariationalEncoderConfig:
-    variational_encoder_lr: float = 0.001
+    variational_encoder_lr: float = 0.0001
     variational_encoder_weight_decay: float = 1e-5
 
     distribution: str = "Laplacian"

@@ -95,13 +95,32 @@ def get_pixel_dataset(
 
     return (pixel_train, label_train, object_id_train), (pixel_test, label_test, object_id_test)
 
+def load_cache(average_trials):
+    """
+        Loads the cache if it exists
+    """
+    if average_trials:
+        cache_file = "avgd-data.pt"
+    else:
+        cache_file = "data.pt"
+    try:
+        return torch.load(cache_file)
+    except FileNotFoundError:
+        return None
+
+pose_dims = ['s', 'ty', 'tz', 'rxy', 'rxz', 'ryz']
+
 def get_dataset(average_trials=False, random_seed=0):
+    cache = load_cache(average_trials) 
+    if cache is not None:
+        return cache
+
     neuroid_train_data, neuroid_test_data = generate_brainscore_train_test_split(random_seed=random_seed)
     if average_trials:
-        train_data = neuroid_train_data.multi_groupby(["category_name", "object_name", "stimulus_id"]).mean(
+        train_data = neuroid_train_data.multi_groupby(["category_name", "object_name", "stimulus_id", *pose_dims]).mean(
             dim="presentation"
         )
-        test_data = neuroid_test_data.multi_groupby(["category_name", "object_name", "stimulus_id"]).mean(
+        test_data = neuroid_test_data.multi_groupby(["category_name", "object_name", "stimulus_id", *pose_dims]).mean(
             dim="presentation"
         )
     else:
@@ -113,6 +132,7 @@ def get_dataset(average_trials=False, random_seed=0):
     _, label_train = np.unique(train_category, return_inverse=True)
     train_object = train_data.object_name.to_numpy()
     _, objectid_train = np.unique(train_object, return_inverse=True)
+    pose_train = np.column_stack([train_data[d].values for d in pose_dims])
 
     v4_test = test_data.sel(region="V4").to_numpy()
     it_test = test_data.sel(region="IT").to_numpy()
@@ -120,15 +140,31 @@ def get_dataset(average_trials=False, random_seed=0):
     _, label_test = np.unique(test_category, return_inverse=True)
     test_object = test_data.object_name.to_numpy()
     _, objectid_test = np.unique(test_object, return_inverse=True)
+    pose_test = np.column_stack([test_data[d].values for d in pose_dims])
 
     v4_train = torch.tensor(v4_train).float()
     v4_test = torch.tensor(v4_test).float()
     label_train = torch.tensor(label_train).long()
     objectid_train = torch.tensor(objectid_train).long()
+    pose_train = torch.tensor(pose_train).float()
     it_train = torch.tensor(it_train).float()
     it_test = torch.tensor(it_test).float()
     label_test = torch.tensor(label_test).long()
     objectid_test = torch.tensor(objectid_test).long()
+    pose_test = torch.tensor(pose_test).float()
 
-    return (v4_train, it_train, label_train, objectid_train), (v4_test, it_test, label_test, objectid_test)
+    data = (
+        (v4_train, it_train, label_train, objectid_train, pose_train),
+        (v4_test, it_test, label_test, objectid_test, pose_test)
+    )
 
+    if average_trials:
+        torch.save(data, "avgd-data.pt")
+    else:
+        torch.save(data, "data.pt")
+    
+    return data
+
+
+if __name__ == "__main__":
+    get_dataset()
