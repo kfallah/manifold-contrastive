@@ -275,7 +275,19 @@ class SimCLRTrainer:
                 acc, fscore = evaluate_linear_classifier(
                     train_feat, self.label_train, test_feat, self.label_test, args
                 )
-                tsne = tsne_plot(train_feat, self.label_train)
+                # Eval object id linear
+                if args.eval_object_id_linear:
+                    acc, fscore = evaluate_linear_classifier(
+                        train_feat, self.objectid_train, test_feat, self.objectid_test, args
+                    )
+                    wandb_dict.update({
+                        "eval/linear_acc_objid": acc, 
+                        "eval/linear_fscore_objid": fscore, 
+                    })
+                # Make a tnse plot based on category
+                category_tsne = tsne_plot(train_feat, self.label_train)
+                # Make a tsne plot based on object id
+                object_id_tsne = tsne_plot(train_feat, self.objectid_train)
 
                 if args.eval_explained_variance:
                     raise NotImplementedError("Explained variance not implemented for the new dataset structure")
@@ -283,9 +295,12 @@ class SimCLRTrainer:
                         backbone, self.neuroid_train_dataset, self.neuroid_eval_dataset, args
                     )
 
-                wandb_dict.update(
-                    {"eval/linear_acc": acc, "eval/linear_fscore": fscore, "figs/tsne": wandb.Image(tsne)}
-                )
+                wandb_dict.update({
+                    "eval/linear_acc": acc, 
+                    "eval/linear_fscore": fscore, 
+                    "figs/category_tsne": wandb.Image(category_tsne),
+                    "figs/object_id_tsne": wandb.Image(object_id_tsne),
+                })
 
             wandb.log(wandb_dict, step=epoch)
 
@@ -341,6 +356,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--eval_logistic_regression", type=bool, default=False, help="Whether or not to evaluate logistic regression"
+    )
+    parser.add_argument(
+        "--eval_object_id_linear", type=bool, default=False, help="Whether or not to evaluate object id linear"
     )
     parser.add_argument("--eval_frequency", default=100)
 
