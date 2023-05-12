@@ -60,19 +60,25 @@ class ContrastiveHead(torch.nn.Module):
 
 
 class SkipBlock(torch.nn.Module):
-    def __init__(self, in_dim, out_dim):
+    def __init__(self, dim, norm=False):
         super().__init__()
-        self.layer = nn.Sequential(nn.Linear(in_dim, out_dim), nn.GELU())
+        self.layer = nn.Sequential(nn.Linear(dim, dim), nn.GELU())
+        self.ln = None
+        if norm:
+            self.ln = nn.LayerNorm(dim)
 
     def forward(self, x):
-        return x + self.layer(x)
+        out = x + self.layer(x)
+        if self.ln is not None:
+            out = self.ln(out)
+        return out
 
 
 class Backbone(torch.nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, num_hidden_layers=2, norm=False):
         super().__init__()
         self.enc = nn.Sequential(nn.Linear(input_dim, hidden_dim), nn.GELU())
-        self.skip_list = nn.ModuleList(SkipBlock(hidden_dim, hidden_dim) for _ in range(num_hidden_layers))
+        self.skip_list = nn.ModuleList(SkipBlock(hidden_dim, norm=norm) for _ in range(num_hidden_layers))
         self.decode = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, x):
@@ -126,12 +132,12 @@ class SimCLRTrainer:
         self.objectid_test = objectid_test
         self.args = args
 
-        self.train_idx, self.test_idx = {}, {}
-        for i in np.unique(self.objectid_train):
-            idx = torch.where(self.objectid_train == i)[0]
-            self.train_idx[i] = idx
-            idx = torch.where(self.objectid_test == i)[0]
-            self.test_idx[i] = idx
+        self.train_idx = {}
+        for i in range(len(v4_train)):
+            label = self.objectid_train[i]
+            idx = torch.where(self.objectid_train == label)[0]
+            # Add all neighbors except the object itself
+            self.train_idx[i] = torch.tensor([nn.item() for nn in idx if nn.item() is not i])
 
     def nxent_loss(self, out_1, out_2, out_3=None, temperature=0.07, mse=False, eps=1e-6):
         """
@@ -197,13 +203,13 @@ class SimCLRTrainer:
         ]
 
         transop, coeff_enc = None, None
-        if manifold_model is not None:
+        if args.enable_manifoldclr:
             transop, coeff_enc = manifold_model
             param_groups += [
                 {
                     "params": transop.parameters(),
                     "lr": 1.0e-3,
-                    "weight_decay": 1.0e-3,
+                    "weight_decay": 1.0e-5,
                 }
             ]
             param_groups += [
@@ -221,7 +227,7 @@ class SimCLRTrainer:
                 param_groups,
                 lr=args.learning_rate,
             )
-            eta_min = 1.0e-5
+            eta_min = 1.0e-6
         elif args.optimizer == "sgd":
             optim = torch.optim.SGD(
                 param_groups,
@@ -234,7 +240,7 @@ class SimCLRTrainer:
 
         iters_per_epoch = len(self.v4_train) // args.batch_size
         scheduler = LinearWarmupCosineAnnealingLR(
-            optim, warmup_epochs=10 * iters_per_epoch, max_epochs=args.num_epochs * iters_per_epoch, eta_min=eta_min
+            optim, warmup_epochs=100 * iters_per_epoch, max_epochs=args.num_epochs * iters_per_epoch, eta_min=eta_min
         )
 
         # Run the trianing
@@ -247,13 +253,14 @@ class SimCLRTrainer:
             kl_loss_list = []
             epoch_bar.set_description(f"Epoch {epoch}")
             # Go through the train dataset
+            backbone.train()
+            contrastive_head.train()
             indices_perm = torch.randperm(len(self.v4_train))
             for i in range(len(self.v4_train) // args.batch_size):
                 # Load batch
-                x0 = self.v4_train[indices_perm[i * args.batch_size : (i + 1) * args.batch_size]].to(args.device)
-                y0 = self.objectid_train[indices_perm[i * args.batch_size : (i + 1) * args.batch_size]]
-                # TODO: remove current index as a candidate for point pair
-                x1_idx = torch.tensor([random.choice(self.train_idx[y_inst.item()]) for y_inst in y0])
+                current_idx = indices_perm[i * args.batch_size : (i + 1) * args.batch_size]
+                x0 = self.v4_train[current_idx].to(args.device)
+                x1_idx = torch.tensor([random.choice(self.train_idx[inst_idx.item()]) for inst_idx in current_idx])
                 x1 = self.v4_train[x1_idx].to(args.device)
 
                 # Encode features using the backbone
@@ -280,19 +287,27 @@ class SimCLRTrainer:
                         distribution_params=distribution_data.prior_params,
                     )
                     z0_aug = transop(z0.float(), c0)
+                    h0_unaug = contrastive_head(z0)
                 else:
                     z0_aug = z0.clone()
 
                 # Compute the info nce loss in the output space
                 h0, h1 = contrastive_head(z0_aug), contrastive_head(z1)
                 if args.no_contrastive_head:
-                    train_loss = self.nxent_loss(h0, h1, mse=True)
+                    train_loss = self.nxent_loss(
+                        h0, h1, out_3=h0_unaug if (args.enable_manifoldclr and args.z0_neg) else None, mse=True
+                    )
                 else:
                     train_loss = self.nxent_loss(F.normalize(h0, dim=-1), F.normalize(h1, dim=-1))
 
                 # Backprop
                 optim.zero_grad()
-                (train_loss + transop_loss + args.kl_weight * kl_loss).backward()
+                (train_loss + args.to_weight * transop_loss + args.kl_weight * kl_loss).backward()
+
+                if args.enable_manifoldclr:
+                    torch.nn.utils.clip_grad_norm_(coeff_enc.parameters(), 1.0)
+                    torch.nn.utils.clip_grad_norm_(transop.parameters(), 0.1)
+
                 optim.step()
                 scheduler.step()
 
@@ -308,7 +323,7 @@ class SimCLRTrainer:
             }
 
             # Add transport operator logging
-            if manifold_model is not None:
+            if args.enable_manifoldclr:
                 to_dist = F.mse_loss(z1_hat, z1, reduction="none").sum(-1)
                 dist = F.mse_loss(z0, z1, reduction="none").sum(-1)
                 dist_improve = (to_dist / (dist + 1e-3)).mean().item()
@@ -338,14 +353,29 @@ class SimCLRTrainer:
 
             if epoch % args.eval_frequency == 0 or epoch == (args.num_epochs - 1):
                 print(f"Running evaluation")
+                backbone.eval()
+                contrastive_head.eval()
                 if args.eval_logistic_regression:
                     evaluate_logistic_regression(backbone, self.animals_train_dataset, self.animals_test_dataset, args)
 
                 train_feat = embed_v4_data(self.v4_train, backbone, args.device)
                 test_feat = embed_v4_data(self.v4_test, backbone, args.device)
-                acc, fscore = evaluate_linear_classifier(
+
+                # # TODO: Delete
+                # train_cat_acc, _ = evaluate_linear_classifier(
+                #     train_feat, self.label_train, train_feat, self.label_train, args
+                # )
+                # train_obj_acc, _ = evaluate_linear_classifier(
+                #     train_feat, self.objectid_train, train_feat, self.objectid_train, args
+                # )
+
+                category_acc, category_fscore = evaluate_linear_classifier(
                     train_feat, self.label_train, test_feat, self.label_test, args
                 )
+                object_acc, object_fscore = evaluate_linear_classifier(
+                    train_feat, self.objectid_train, test_feat, self.objectid_test, args
+                )
+
                 tsne = tsne_plot(train_feat, self.label_train)
 
                 if args.eval_explained_variance:
@@ -355,16 +385,35 @@ class SimCLRTrainer:
                     )
 
                 wandb_dict.update(
-                    {"eval/linear_acc": acc, "eval/linear_fscore": fscore, "figs/tsne": wandb.Image(tsne)}
+                    {
+                        # "eval/train_cat_acc": train_cat_acc,
+                        # "eval/train_obj_acc": train_obj_acc,
+                        "eval/cat_linear_acc": category_acc,
+                        "eval/cat_linear_fscore": category_fscore,
+                        "eval/obj_linear_acc": object_acc,
+                        "eval/obj_linear_fscore": object_fscore,
+                        "figs/tsne": wandb.Image(tsne),
+                    }
                 )
 
-                if manifold_model is not None:
+                if args.enable_manifoldclr:
                     # TODO: modify passing psi if incorporating block diagonal constraint
                     fig_plots = transop_plots(
                         c.detach().cpu().numpy(), transop.psi[:, 0].detach().cpu(), z0.detach().cpu().numpy()
                     )
                     for fig_name in fig_plots.keys():
                         wandb_dict.update({"transop_plt/" + fig_name: wandb.Image(fig_plots[fig_name])})
+
+                torch.save(
+                    {
+                        "args": args,
+                        "backbone": backbone.state_dict(),
+                        "header": contrastive_head.state_dict(),
+                        "transop": transop.state_dict() if args.enable_manifoldclr else None,
+                        "coeff_enc": coeff_enc.state_dict() if args.enable_manifoldclr else None,
+                    },
+                    args.save_dir + f"/model_weights_epoch{epoch}.pt",
+                )
 
             wandb.log(wandb_dict, step=epoch)
 
@@ -373,7 +422,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run simclr on the neuroscience dataset")
 
     parser.add_argument("--dataset", type=str, default="brainscore", help="Dataset to use")
-    parser.add_argument("--seed", type=int, default=0, help="Random seed")  # Dim of V4 data
+    parser.add_argument("--seed", type=int, default=747, help="Random seed")  # Dim of V4 data
     parser.add_argument("--input_dim", type=int, default=88, help="Input dimension")  # Dim of V4 data
     parser.add_argument(
         "--hidden_dim", type=int, default=512, help="Hidden dimension of contrastive head"
@@ -393,7 +442,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--backbone_batchnorm",
         type=bool,
-        default=False,
+        default=True,
         help="Whether to use batchnorms after layers in contrastive head and backbone",
     )
     parser.add_argument(
@@ -402,36 +451,44 @@ if __name__ == "__main__":
         default=True,
         help="Whether or not to include a contrastive head",
     )
-    parser.add_argument("--num_hidden_layers", type=int, default=4, help="Number of hidden layers in backbone")
+    parser.add_argument("--num_hidden_layers", type=int, default=6, help="Number of hidden layers in backbone")
     # NOTE: just doing eval every epoch rn
     # parser.add_argument("--eval_readout_frequency", type=int, default=600, help="Number of epochs between evaluating linear readout")
-    parser.add_argument("--model_save_path", type=str, default="model_weights/model.pt", help="Path to save the model")
-    parser.add_argument("--num_epochs", type=int, default=1000, help="Number of epochs to train for")
+    parser.add_argument("--save_dir", type=str, default="./neuro_results/", help="Path to save the model")
+    parser.add_argument("--num_epochs", type=int, default=10000, help="Number of epochs to train for")
     parser.add_argument("--batch_size", type=int, default=512, help="Batch size")
-    parser.add_argument("--learning_rate", type=float, default=0.003, help="Learning rate")
-    parser.add_argument("--weight_decay", type=float, default=1e-5, help="Weight decay")
+    parser.add_argument("--learning_rate", type=float, default=5.0e-4, help="Learning rate")
+    parser.add_argument("--weight_decay", type=float, default=1e-4, help="Weight decay")
     parser.add_argument("--optimizer", type=str, default="adam", help="Optimizer to use")
-    parser.add_argument("--temperature", type=float, default=5e-1, help="Temperature for info nce loss")
+    parser.add_argument("--temperature", type=float, default=1e-1, help="Temperature for info nce loss")
     parser.add_argument("--device", type=str, default="cuda:1", help="Device to use")
     parser.add_argument("--dataset_type", type=str, default="pose", help="Type of dataset used")
-    parser.add_argument("--average_trials", type=bool, default=False, help="Whether or not to average across trials")
+    parser.add_argument("--average_trials", type=bool, default=True, help="Whether or not to average across trials")
     parser.add_argument(
         "--eval_explained_variance", type=bool, default=False, help="Whether or not to evaluate explained variance"
     )
     parser.add_argument(
         "--eval_logistic_regression", type=bool, default=False, help="Whether or not to evaluate logistic regression"
     )
-    parser.add_argument("--eval_frequency", default=100)
+    parser.add_argument("--eval_frequency", default=500)
 
     # ManifoldCLR args
-    parser.add_argument("--enable_manifoldclr", type=bool, default=False, help="Enable ManifoldCLR")
-    parser.add_argument("--dict_size", type=int, default=10, help="Dictionary size")
+    parser.add_argument("--enable_manifoldclr", type=bool, default=True, help="Enable ManifoldCLR")
+    parser.add_argument("--dict_size", type=int, default=64, help="Dictionary size")
+    parser.add_argument("--z0_neg", type=bool, default=False, help="Whether to use z0 as a negative.")
+    parser.add_argument("--to_weight", type=float, default=0.1, help="Transop loss weight")
     parser.add_argument("--kl_weight", type=float, default=1.0e-5, help="KL Div weight")
     parser.add_argument("--threshold", type=float, default=0.0, help="Reparam threshold")
+    parser.add_argument("--run_name", type=str, default="vi_avg_to1e-1_dict64", help="runname")
 
     args = parser.parse_args()
+    args.save_dir = args.save_dir + args.run_name
 
-    print("Running simclr experiment")
+    if not os.path.exists(args.save_dir):
+        os.makedirs(args.save_dir)
+        print("Created directory for figures at {}".format(args.save_dir))
+
+    print(f"Running simclr experiment in {args.save_dir}")
     # Initialize wandb
     wandb.init(
         project="neuro_simclr",
@@ -476,11 +533,12 @@ if __name__ == "__main__":
             dict_count=1,
         ).to(args.device)
         vi_cfg = VariationalEncoderConfig(
-            scale_prior=0.01,
-            shift_prior=0.05,
+            scale_prior=0.001,
+            shift_prior=0.005,
             enable_learned_prior=True,
             enable_prior_shift=True,
             enable_prior_warmup=True,
+            prior_warmup_iters=500,
         )
         coeff_enc = CoefficientEncoder(vi_cfg, args.backbone_output_dim, args.dict_size, args.threshold).to(
             args.device
