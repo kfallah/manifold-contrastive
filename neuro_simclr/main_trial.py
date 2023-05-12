@@ -235,16 +235,6 @@ class SimCLRTrainer:
             # Go through the train dataset
             indices_perm = torch.randperm(len(self.v4_train))
             for i in range(len(self.v4_train) // args.batch_size):
-                # Let object_to_stim = {} be of the form object_id -> [stimulus_id_1, stimulus_id_2, ...]
-                # Let stim_to_data = {} be of the form stimulus_id -> [presentation_1, presentation_2, ...]
-                # Select batch_size random object ids with replacement
-                # For i in batch select a random pair of stimuli from object_to_stim[object_id] without replacement
-                # For each stimulus choose num_average_trials from the stimulus' presentations with replacement
-                # i.e. stim_to_data[stimulus_id][random_indices[:num_average_trials]]
-                # Average over these chosen stimuli
-
-                # For each element in the batch form a pair
-                # Select two stimulus id's of the corresponding objects
                 # Load batch
                 x0 = self.v4_train[indices_perm[i * args.batch_size : (i + 1) * args.batch_size]].to(args.device)
                 y0 = self.objectid_train[indices_perm[i * args.batch_size : (i + 1) * args.batch_size]]
