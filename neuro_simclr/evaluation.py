@@ -244,8 +244,8 @@ def evaluate_pose_change_regression(manifold_model, train_data, train_pose, test
         )
         c_test.append(dist_data_test.samples)
 
-    c_train = tnp(torch.cat(c_train, dim=0))
-    c_test = tnp(torch.cat(c_test, dim=0))
+    c_train = torch.cat(c_train, dim=0)
+    c_test = torch.cat(c_test, dim=0)
 
     return _eval_regression(
         c_train,
