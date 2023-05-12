@@ -185,25 +185,21 @@ def evaluate_IT_explained_variance(backbone, neuroid_train_dataset, neuroid_eval
 def tnp(tensor: Tensor):
     return tensor.detach().cpu().numpy()
 
-def _eval_pose_regression_from_diffs(
-        train_diffs: Tensor, train_posechange: Tensor, 
-        test_diffs: Tensor, test_posechange: Tensor):
-    """
-    Regress the posechange onto the difference vectors
-    """
-    assert train_diffs.shape[0] == train_posechange.shape[0]
-    assert test_diffs.shape[0] == test_posechange.shape[0]
-    assert train_diffs.shape[1] == test_diffs.shape[1]
-    assert train_posechange.shape[1] == test_posechange.shape[1]
+def _eval_regression(
+        train_X: Tensor, train_Y: Tensor, 
+        test_X: Tensor, test_Y: Tensor):
+    assert train_X.shape[0] == train_Y.shape[0]
+    assert test_X.shape[0] == test_Y.shape[0]
+    assert train_X.shape[1] == test_X.shape[1]
+    assert train_Y.shape[1] == test_Y.shape[1]
 
-    pose_dim = train_posechange.shape[1]
     # Fit a linear regression model to the data
     linear_regression_model = sklearn.linear_model.LinearRegression().fit(
-        tnp(train_diffs),
-        tnp(train_posechange)
+        tnp(train_X),
+        tnp(train_Y)
     )
-    ypred = linear_regression_model.predict(tnp(test_diffs))
-    ytrue = tnp(test_posechange)
+    ypred = linear_regression_model.predict(tnp(test_X))
+    ytrue = tnp(test_Y)
 
     # R^2 = 1 - u/v
     # u = sum_i (y_i - ypred_i)^2
@@ -212,22 +208,32 @@ def _eval_pose_regression_from_diffs(
     u = np.sum((ytrue - ypred) ** 2, axis=0)
     v = np.sum((ytrue - np.mean(ytrue, axis=0)) ** 2, axis=0)
     r2 = 1 - u/v
-    assert r2.shape == (pose_dim,)
 
-    tot_r2 = 1 - np.sum((ytrue - ypred) ** 2) / np.sum((ytrue - np.mean(ytrue)) ** 2)
-    med_r2 = np.median(r2)
-
-    return tot_r2, med_r2, r2
+    return np.mean(r2), np.median(r2), *r2
 
 
-def evaluate_pose_regression(backbone, train_data, train_pose, test_data, test_pose, args, encoder=None):
-    # backbone feature differences
-    # Put the backbone in eval mode
-    backbone.eval()
+def evaluate_pose_regression(train_feat, train_pose, test_data, test_pose, args):
+    return _eval_regression(train_feat, train_pose, test_data, test_pose)
 
-    if encoder is not None:
-        # encoder coefficients
-        pass
+def evaluate_pose_change_regression(manifold_model, train_data, train_pose, test_data, test_pose, args):
+    rng = np.random.default_rng(args.seed)
+    n = args.eval_pose_change_regr_n_pairs
+    i_train_a = rng.choice(len(train_data), size=n, replace=True)
+    i_train_b = rng.choice(len(train_data), size=n, replace=True)
+    i_test_a = rng.choice(len(test_data), size=n, replace=True)
+    i_test_b = rng.choice(len(test_data), size=n, replace=True)
+
+    transop, coeff_enc = manifold_model
+
+    dist_data_train = coeff_enc(
+        train_data[i_train_a].detach(),
+        train_data[i_train_b].detach(),
+        transop,
+    )
+
+    return _eval_regression(
+        encoder(train_data[i_train_a]), train_pose[i_train_a],
+    )
 
 
 def sweep_psi_path_plot(psi: torch.tensor, z0: np.array, c_mag: int):

@@ -15,13 +15,22 @@ from evaluation import (
     evaluate_IT_explained_variance,
     evaluate_linear_classifier,
     evaluate_logistic_regression,
+    evaluate_pose_change_regression,
+    evaluate_pose_regression,
+    transop_plots,
     tsne_plot,
 )
 from linear_warmup_cos_anneal import LinearWarmupCosineAnnealingLR
 from tqdm import tqdm
 
 import wandb
-from datasets import get_dataset
+from datasets import get_dataset, pose_dims
+from model.contrastive.config import VariationalEncoderConfig
+from model.manifold.reparameterize import compute_kl
+from model.manifold.transop import TransOp_expm
+from model.manifold.vi_encoder import CoefficientEncoder
+
+warnings.filterwarnings("ignore")
 
 
 class ContrastiveHead(torch.nn.Module):
@@ -104,6 +113,8 @@ class SimCLRTrainer:
         label_test,
         objectid_train,
         objectid_test,
+        pose_train,
+        pose_test,
         args,
     ):
         self.v4_train = v4_train
@@ -112,6 +123,8 @@ class SimCLRTrainer:
         self.label_test = label_test
         self.objectid_train = objectid_train
         self.objectid_test = objectid_test
+        self.pose_train = pose_train
+        self.pose_test = pose_test
         self.args = args
 
         self.train_idx, self.test_idx = {}, {}
@@ -292,6 +305,20 @@ class SimCLRTrainer:
                 # Make a tsne plot based on object id
                 object_id_tsne = tsne_plot(train_feat, self.objectid_train)
 
+                # pose regression: assuming this is what pose change regression would
+                # converge to with many pairs
+                pose_r2 = evaluate_pose_regression(train_feat, self.pose_train, test_feat, self.pose_test, args)
+                wandb_dict['eval/pose_R2_mean'] = pose_r2[0]
+                wandb_dict['eval/pose_R2_median'] = pose_r2[1]
+                for i, dim in enumerate(pose_dims):
+                    wandb_dict[f'eval/pose_R2_{dim}'] = pose_r2[2+i]
+
+                if manifold_model is not None:
+                    # pose change regression
+                    pose_change_r2 = evaluate_pose_change_regression(
+                        manifold_model, train_feat, self.pose_train, test_feat, self.pose_test, args
+                    )
+
                 if args.eval_explained_variance:
                     raise NotImplementedError("Explained variance not implemented for the new dataset structure")
                     evaluate_IT_explained_variance(
@@ -369,6 +396,12 @@ if __name__ == "__main__":
     )
     parser.add_argument("--eval_frequency", default=100)
 
+    # ManifoldCLR args
+    parser.add_argument("--enable_manifoldclr", type=bool, default=False, help="Enable ManifoldCLR")
+    parser.add_argument("--dict_size", type=int, default=10, help="Dictionary size")
+    parser.add_argument("--kl_weight", type=float, default=1.0e-5, help="KL Div weight")
+    parser.add_argument("--threshold", type=float, default=0.0, help="Reparam threshold")
+
     args = parser.parse_args()
 
     print("Running simclr experiment")
@@ -416,6 +449,8 @@ if __name__ == "__main__":
         label_test,
         objectid_train,
         objectid_test,
+        pose_train,
+        pose_test,
         args,
     )
     trainer.run_simclr(

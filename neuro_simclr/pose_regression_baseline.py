@@ -11,7 +11,7 @@ import torch.nn as nn
 import tabulate
 
 from datasets import get_dataset, pose_dims
-from evaluation import _eval_pose_regression_from_diffs
+from evaluation import _eval_regression
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Pose regression baseline experiment")
@@ -26,12 +26,11 @@ if __name__ == "__main__":
     args.n = int(args.n)
 
     def train_test_pair_indices(train, test):
-        n = np.min([len(train)//2, args.n])
-        i_train_ab = rng.permutation(len(train))[:n*2]
-        even_test_len = len(test) - len(test) % 2
-        i_test_ab = rng.permutation(even_test_len)
+        n = args.n
+        i_train_ab = rng.choice(len(train), size=n*2, replace=True)
+        i_test_ab = rng.choice(len(test), size=n*2, replace=True)
         return i_train_ab[:n], i_train_ab[n:], \
-            i_test_ab[:even_test_len//2], i_test_ab[even_test_len//2:]
+            i_test_ab[:n], i_test_ab[n:]
 
     # Load up the datasets
     # Averaged
@@ -52,49 +51,89 @@ if __name__ == "__main__":
 
     # Run the evaluations
     print("Evaluating V4")
-    v4_results = _eval_pose_regression_from_diffs(
+    v4_results = _eval_regression(
         v4_train[i_train_a] - v4_train[i_train_b],
         posechange_train,
         v4_test[i_test_a] - v4_test[i_test_b],
         posechange_test,
     )
-    # print("Evaluating IT")
-    # it_accuracy, it_fscore = evaluate_linear_classifier(
-    #     it_train,
-    #     label_train,
-    #     it_test,
-    #     label_test,
-    #     args
-    # )
+    print("Evaluating IT")
+    it_results = _eval_regression(
+        it_train[i_train_a] - it_train[i_train_b],
+        posechange_train,
+        it_test[i_test_a] - it_test[i_test_b],
+        posechange_test,
+    )
     print("Evaluating V4 Averaged")
-    v4_avgd_results = _eval_pose_regression_from_diffs(
+    v4_avgd_results = _eval_regression(
         avgd_v4_train[i_avgd_train_a] - avgd_v4_train[i_avgd_train_b],
         avgd_posechange_train,
         avgd_v4_test[i_avgd_test_a] - avgd_v4_test[i_avgd_test_b],
         avgd_posechange_test,
     )
-    # v4_averaged_accuracy, v4_averaged_fscore = evaluate_linear_classifier(
-    #     averaged_v4_train,
-    #     averaged_label_train,
-    #     averaged_v4_test,
-    #     averaged_label_test,
-    #     args
-    # ) 
-    # print("Evaluating IT Averaged")
-    # it_averaged_accuracy, it_averaged_fscore = evaluate_linear_classifier(
-    #     averaged_it_train,
-    #     averaged_label_train,
-    #     averaged_it_test,
-    #     averaged_label_test,
-    #     args
-    # )
+    print("Evaluating IT Averaged")
+    it_avgd_results = _eval_regression(
+        avgd_it_train[i_avgd_train_a] - avgd_it_train[i_avgd_train_b],
+        avgd_posechange_train,
+        avgd_it_test[i_avgd_test_a] - avgd_it_test[i_avgd_test_b],
+        avgd_posechange_test,
+    )
+
+    # predicting pose directly from individual samples
+    print("Evaluating V4 no diff")
+    v4_nodiff_results = _eval_regression(
+        v4_train,
+        pose_train,
+        v4_test,
+        pose_test,
+    )
+    print("Evaluating IT no diff")
+    it_nodiff_results = _eval_regression(
+        it_train,
+        pose_train,
+        it_test,
+        pose_test,
+    )
+    print("Evaluating V4 Averaged no diff")
+    v4_avgd_nodiff_results = _eval_regression(
+        avgd_v4_train,
+        avgd_pose_train,
+        avgd_v4_test,
+        avgd_pose_test,
+    )
+    print("Evaluating IT Averaged no diff")
+    it_avgd_nodiff_results = _eval_regression(
+        avgd_it_train,
+        avgd_pose_train,
+        avgd_it_test,
+        avgd_pose_test,
+    )
+    print("\nResults for pose change using pairs:")
     # Make table with tabulate
     pose_dims_r2 = [f'{dim} R2' for dim in pose_dims]
     table = [
-        ["Model", "Total R2", "Median R2", *pose_dims_r2],
-        ["V4", v4_results[0], v4_results[1], *v4_results[2]],
-        # ["IT", it_accuracy, it_fscore],
-        ["V4 Averaged", v4_avgd_results[0], v4_avgd_results[1], *v4_avgd_results[2]],
-        # ["IT Averaged", it_averaged_accuracy, it_averaged_fscore],
+        ["Model", "Mean R2", "Median R2", *pose_dims_r2],
+        ["V4", *v4_results],
+        ["IT", *it_results],
+        ["V4 Averaged", *v4_avgd_results],
+        ["IT Averaged", *it_avgd_results],
     ]
-    print(tabulate.tabulate(table, headers="firstrow", tablefmt="github"))
+    print(tabulate.tabulate(
+        table, headers="firstrow", tablefmt="github",
+        floatfmt=".3f"
+    ))
+
+    print("\nResults for predicting pose directly from individual samples:")
+    # Make table with tabulate
+    pose_dims_r2 = [f'{dim} R2' for dim in pose_dims]
+    table = [
+        ["Model", "Mean R2", "Median R2", *pose_dims_r2],
+        ["V4", *v4_nodiff_results],
+        ["IT", *it_nodiff_results],
+        ["V4 Averaged", *v4_avgd_nodiff_results],
+        ["IT Averaged", *it_avgd_nodiff_results],
+    ]
+    print(tabulate.tabulate(
+        table, headers="firstrow", tablefmt="github",
+        floatfmt=".3f"
+    ))
