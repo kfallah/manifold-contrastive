@@ -230,9 +230,17 @@ def evaluate_pose_change_regression(manifold_model, train_data, train_pose, test
         train_data[i_train_b].detach(),
         transop,
     )
+    c_train = dist_data_train.samples
+    dist_data_test = coeff_enc(
+        test_data[i_test_a].detach(),
+        test_data[i_test_b].detach(),
+        transop,
+    )
+    c_test = dist_data_test.samples
 
     return _eval_regression(
-        encoder(train_data[i_train_a]), train_pose[i_train_a],
+        c_train, train_pose[i_train_b] - train_pose[i_train_a],
+        c_test, test_pose[i_test_b] - test_pose[i_test_a],
     )
 
 

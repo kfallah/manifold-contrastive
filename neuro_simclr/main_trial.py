@@ -5,6 +5,7 @@
 import argparse
 import random
 import time
+import warnings
 
 import numpy as np
 import torch
@@ -305,19 +306,24 @@ class SimCLRTrainer:
                 # Make a tsne plot based on object id
                 object_id_tsne = tsne_plot(train_feat, self.objectid_train)
 
-                # pose regression: assuming this is what pose change regression would
-                # converge to with many pairs
-                pose_r2 = evaluate_pose_regression(train_feat, self.pose_train, test_feat, self.pose_test, args)
-                wandb_dict['eval/pose_R2_mean'] = pose_r2[0]
-                wandb_dict['eval/pose_R2_median'] = pose_r2[1]
-                for i, dim in enumerate(pose_dims):
-                    wandb_dict[f'eval/pose_R2_{dim}'] = pose_r2[2+i]
+                if args.eval_pose_regression:
+                    # pose regression: assuming this is what pose change regression would
+                    # converge to with many pairs
+                    pose_r2 = evaluate_pose_regression(train_feat, self.pose_train, test_feat, self.pose_test, args)
+                    wandb_dict['eval/pose_R2_mean'] = pose_r2[0]
+                    wandb_dict['eval/pose_R2_median'] = pose_r2[1]
+                    for i, dim in enumerate(pose_dims):
+                        wandb_dict[f'eval/pose_R2_{dim}'] = pose_r2[2+i]
 
-                if manifold_model is not None:
-                    # pose change regression
-                    pose_change_r2 = evaluate_pose_change_regression(
-                        manifold_model, train_feat, self.pose_train, test_feat, self.pose_test, args
-                    )
+                    if manifold_model is not None:
+                        # pose change regression
+                        pose_change_r2 = evaluate_pose_change_regression(
+                            manifold_model, train_feat, self.pose_train, test_feat, self.pose_test, args
+                        )
+                        wandb_dict['eval/pose_change_R2_mean'] = pose_change_r2[0]
+                        wandb_dict['eval/pose_change_R2_median'] = pose_change_r2[1]
+                        for i, dim in enumerate(pose_dims):
+                            wandb_dict[f'eval/pose_change_R2_{dim}'] = pose_change_r2[2+i]
 
                 if args.eval_explained_variance:
                     raise NotImplementedError("Explained variance not implemented for the new dataset structure")
@@ -394,6 +400,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--eval_object_id_linear", type=bool, default=True, help="Whether or not to evaluate object id linear"
     )
+    parser.add_argument("--eval_pose_regression", type=bool, default=True, help="Whether or not to evaluate pose regression")
+    parser.add_argument("--eval_pose_change_regr_n_pairs", type=int, default=100000, help="Number of pairs to use for pose change regression training and test")
     parser.add_argument("--eval_frequency", default=100)
 
     # ManifoldCLR args
