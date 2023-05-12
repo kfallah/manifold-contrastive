@@ -272,7 +272,10 @@ class SimCLRTrainer:
 
                 train_feat = embed_v4_data(self.v4_train, backbone, args.device)
                 test_feat = embed_v4_data(self.v4_test, backbone, args.device)
-                acc, fscore = evaluate_linear_classifier(
+                train_acc, train_fscore = evaluate_linear_classifier(
+                    train_feat, self.label_train, train_feat, self.label_train, args
+                )
+                test_acc, test_fscore = evaluate_linear_classifier(
                     train_feat, self.label_train, test_feat, self.label_test, args
                 )
                 # Eval object id linear
@@ -296,8 +299,10 @@ class SimCLRTrainer:
                     )
 
                 wandb_dict.update({
-                    "eval/linear_acc": acc, 
-                    "eval/linear_fscore": fscore, 
+                    "eval/train_linear_acc": train_acc, 
+                    "eval/train_linear_fscore": train_fscore, 
+                    "eval/test_linear_acc": test_acc,
+                    "eval/test_linear_fscore": test_fscore,
                     "figs/category_tsne": wandb.Image(category_tsne),
                     "figs/object_id_tsne": wandb.Image(object_id_tsne),
                 })
@@ -360,7 +365,7 @@ if __name__ == "__main__":
         "--eval_logistic_regression", type=bool, default=False, help="Whether or not to evaluate logistic regression"
     )
     parser.add_argument(
-        "--eval_object_id_linear", type=bool, default=False, help="Whether or not to evaluate object id linear"
+        "--eval_object_id_linear", type=bool, default=True, help="Whether or not to evaluate object id linear"
     )
     parser.add_argument("--eval_frequency", default=100)
 

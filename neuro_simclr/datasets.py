@@ -153,9 +153,13 @@ def apply_averaging(neuroid_data, average_downsample_factor=5):
         for bin_index in range(num_bins):
             # Get the indices for this bin
             bin_indices = np.where(bin_assignments == bin_index)[0] 
+            # Skip if there are no indices
+            if len(bin_indices) == 0:
+                continue
             # Average over the bin for each region
             bin_average_v4 = v4_data[stimulus_indices[bin_indices]].mean(axis=0)
             bin_average_it = it_data[stimulus_indices[bin_indices]].mean(axis=0)
+            assert np.isfinite(bin_average_v4).all(), (bin_average_v4, v4_data[stimulus_indices[bin_indices]], num_bins)
             # Append the v4 and it data
             v4_datas.append(bin_average_v4)
             it_datas.append(bin_average_it)
@@ -187,6 +191,8 @@ def get_dataset(average_trials=False, average_downsample_factor=50, random_seed=
     # Convert everything to troch tensors from numpy
     v4_train = torch.tensor(v4_train).float()
     v4_test = torch.tensor(v4_test).float()
+    assert torch.all(torch.isfinite(v4_train))
+    assert torch.all(torch.isfinite(v4_test))
     label_train = torch.tensor(label_train).long()
     objectid_train = torch.tensor(objectid_train).long()
     pose_train = torch.tensor(pose_train).float()
