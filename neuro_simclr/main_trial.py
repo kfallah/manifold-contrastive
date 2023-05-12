@@ -11,6 +11,7 @@ import warnings
 
 sys.path.append(os.getcwd() + "/src/")
 
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -20,6 +21,8 @@ from evaluation import (
     evaluate_IT_explained_variance,
     evaluate_linear_classifier,
     evaluate_logistic_regression,
+    evaluate_pose_change_regression,
+    evaluate_pose_regression,
     transop_plots,
     tsne_plot,
 )
@@ -27,7 +30,7 @@ from linear_warmup_cos_anneal import LinearWarmupCosineAnnealingLR
 from tqdm import tqdm
 
 import wandb
-from datasets import get_dataset
+from datasets import get_dataset, pose_dims
 from model.contrastive.config import VariationalEncoderConfig
 from model.manifold.reparameterize import compute_kl
 from model.manifold.transop import TransOp_expm
@@ -122,6 +125,8 @@ class SimCLRTrainer:
         label_test,
         objectid_train,
         objectid_test,
+        pose_train,
+        pose_test,
         args,
     ):
         self.v4_train = v4_train
@@ -130,6 +135,8 @@ class SimCLRTrainer:
         self.label_test = label_test
         self.objectid_train = objectid_train
         self.objectid_test = objectid_test
+        self.pose_train = pose_train
+        self.pose_test = pose_test
         self.args = args
 
         self.train_idx = {}
@@ -246,11 +253,11 @@ class SimCLRTrainer:
         # Run the trianing
         epoch_bar = tqdm(range(args.num_epochs))
         for epoch in epoch_bar:
+            to_loss_list = []
+            kl_loss_list = []
             train_loss_list = []
             pairwise_dist = []
             feat_norm = []
-            to_loss_list = []
-            kl_loss_list = []
             epoch_bar.set_description(f"Epoch {epoch}")
             # Go through the train dataset
             backbone.train()
@@ -291,15 +298,16 @@ class SimCLRTrainer:
                 else:
                     z0_aug = z0.clone()
 
-                # Compute the info nce loss in the output space
+                # Pass through contrastive head
                 h0, h1 = contrastive_head(z0_aug), contrastive_head(z1)
+
+                # Compute the info nce loss in the output space
                 if args.no_contrastive_head:
                     train_loss = self.nxent_loss(
                         h0, h1, out_3=h0_unaug if (args.enable_manifoldclr and args.z0_neg) else None, mse=True
                     )
                 else:
                     train_loss = self.nxent_loss(F.normalize(h0, dim=-1), F.normalize(h1, dim=-1))
-
                 # Backprop
                 optim.zero_grad()
                 (train_loss + args.to_weight * transop_loss + args.kl_weight * kl_loss).backward()
@@ -312,10 +320,10 @@ class SimCLRTrainer:
                 scheduler.step()
 
                 train_loss_list.append(train_loss.item())
-                pairwise_dist.append(F.mse_loss(z0, z1).item())
-                feat_norm.append((z1**2).sum(-1).mean().item())
                 to_loss_list.append(transop_loss.item())
                 kl_loss_list.append(kl_loss.item())
+                pairwise_dist.append(F.mse_loss(z0, z1).item())
+                feat_norm.append((z1**2).sum(-1).mean().item())
             wandb_dict = {
                 "train/train_loss": np.mean(train_loss_list),
                 "train/pairwise_dist": np.mean(pairwise_dist),
@@ -361,40 +369,55 @@ class SimCLRTrainer:
                 train_feat = embed_v4_data(self.v4_train, backbone, args.device)
                 test_feat = embed_v4_data(self.v4_test, backbone, args.device)
 
-                # # TODO: Delete
-                # train_cat_acc, _ = evaluate_linear_classifier(
-                #     train_feat, self.label_train, train_feat, self.label_train, args
-                # )
-                # train_obj_acc, _ = evaluate_linear_classifier(
-                #     train_feat, self.objectid_train, train_feat, self.objectid_train, args
-                # )
-
+                tsne = tsne_plot(train_feat, self.label_train)
                 category_acc, category_fscore = evaluate_linear_classifier(
                     train_feat, self.label_train, test_feat, self.label_test, args
                 )
-                object_acc, object_fscore = evaluate_linear_classifier(
-                    train_feat, self.objectid_train, test_feat, self.objectid_test, args
+                wandb_dict.update(
+                    {
+                        "eval/cat_linear_acc": category_acc,
+                        "eval/cat_linear_fscore": category_fscore,
+                        "figs/tsne": wandb.Image(tsne),
+                    }
                 )
 
-                tsne = tsne_plot(train_feat, self.label_train)
+                if args.eval_object_id_linear:
+                    object_acc, object_fscore = evaluate_linear_classifier(
+                        train_feat, self.objectid_train, test_feat, self.objectid_test, args
+                    )
+                    object_id_tsne = tsne_plot(train_feat, self.objectid_train)
+                    wandb_dict.update(
+                        {
+                            "eval/obj_linear_acc": object_acc,
+                            "eval/obj_linear_fscore": object_fscore,
+                            "figs/obj_tsne": wandb.Image(object_id_tsne),
+                        }
+                    )
+
+                if args.eval_pose_regression:
+                    # pose regression: assuming this is what pose change regression would
+                    # converge to with many pairs
+                    pose_r2 = evaluate_pose_regression(train_feat, self.pose_train, test_feat, self.pose_test, args)
+                    wandb_dict["eval/pose_R2_mean"] = pose_r2[0]
+                    wandb_dict["eval/pose_R2_median"] = pose_r2[1]
+                    for i, dim in enumerate(pose_dims):
+                        wandb_dict[f"eval/pose_R2_{dim}"] = pose_r2[2 + i]
+
+                    if args.enable_manifoldclr:
+                        # pose change regression
+                        pose_change_r2 = evaluate_pose_change_regression(
+                            manifold_model, train_feat, self.pose_train, test_feat, self.pose_test, args
+                        )
+                        wandb_dict["eval/pose_change_R2_mean"] = pose_change_r2[0]
+                        wandb_dict["eval/pose_change_R2_median"] = pose_change_r2[1]
+                        for i, dim in enumerate(pose_dims):
+                            wandb_dict[f"eval/pose_change_R2_{dim}"] = pose_change_r2[2 + i]
 
                 if args.eval_explained_variance:
                     raise NotImplementedError("Explained variance not implemented for the new dataset structure")
                     evaluate_IT_explained_variance(
                         backbone, self.neuroid_train_dataset, self.neuroid_eval_dataset, args
                     )
-
-                wandb_dict.update(
-                    {
-                        # "eval/train_cat_acc": train_cat_acc,
-                        # "eval/train_obj_acc": train_obj_acc,
-                        "eval/cat_linear_acc": category_acc,
-                        "eval/cat_linear_fscore": category_fscore,
-                        "eval/obj_linear_acc": object_acc,
-                        "eval/obj_linear_fscore": object_fscore,
-                        "figs/tsne": wandb.Image(tsne),
-                    }
-                )
 
                 if args.enable_manifoldclr:
                     # TODO: modify passing psi if incorporating block diagonal constraint
@@ -461,25 +484,39 @@ if __name__ == "__main__":
     parser.add_argument("--weight_decay", type=float, default=1e-4, help="Weight decay")
     parser.add_argument("--optimizer", type=str, default="adam", help="Optimizer to use")
     parser.add_argument("--temperature", type=float, default=1e-1, help="Temperature for info nce loss")
-    parser.add_argument("--device", type=str, default="cuda:1", help="Device to use")
+    parser.add_argument("--device", type=str, default="cuda:0", help="Device to use")
     parser.add_argument("--dataset_type", type=str, default="pose", help="Type of dataset used")
     parser.add_argument("--average_trials", type=bool, default=True, help="Whether or not to average across trials")
+    parser.add_argument("--average_downsample_factor", type=int, default=50, help="Factor to downsample average by")
+    parser.add_argument("--ignore_cache", type=bool, default=False, help="Whether or not to ignore the cache")
     parser.add_argument(
         "--eval_explained_variance", type=bool, default=False, help="Whether or not to evaluate explained variance"
     )
     parser.add_argument(
         "--eval_logistic_regression", type=bool, default=False, help="Whether or not to evaluate logistic regression"
     )
+    parser.add_argument(
+        "--eval_object_id_linear", type=bool, default=True, help="Whether or not to evaluate object id linear"
+    )
+    parser.add_argument(
+        "--eval_pose_regression", type=bool, default=True, help="Whether or not to evaluate pose regression"
+    )
+    parser.add_argument(
+        "--eval_pose_change_regr_n_pairs",
+        type=int,
+        default=100000,
+        help="Number of pairs to use for pose change regression training and test",
+    )
     parser.add_argument("--eval_frequency", default=500)
 
     # ManifoldCLR args
-    parser.add_argument("--enable_manifoldclr", type=bool, default=True, help="Enable ManifoldCLR")
-    parser.add_argument("--dict_size", type=int, default=64, help="Dictionary size")
+    parser.add_argument("--enable_manifoldclr", type=bool, default=False, help="Enable ManifoldCLR")
+    parser.add_argument("--dict_size", type=int, default=32, help="Dictionary size")
     parser.add_argument("--z0_neg", type=bool, default=False, help="Whether to use z0 as a negative.")
     parser.add_argument("--to_weight", type=float, default=0.1, help="Transop loss weight")
     parser.add_argument("--kl_weight", type=float, default=1.0e-5, help="KL Div weight")
     parser.add_argument("--threshold", type=float, default=0.0, help="Reparam threshold")
-    parser.add_argument("--run_name", type=str, default="vi_avg_to1e-1_dict64", help="runname")
+    parser.add_argument("--run_name", type=str, default="simclr_baseline", help="runname")
 
     args = parser.parse_args()
     args.save_dir = args.save_dir + args.run_name
@@ -496,10 +533,14 @@ if __name__ == "__main__":
     )
 
     # Load dataset
-    (v4_train, it_train, label_train, objectid_train), (v4_test, it_test, label_test, objectid_test) = get_dataset(
-        args.average_trials, args.seed
+    train_data, test_data = get_dataset(
+        args.average_trials,
+        args.average_downsample_factor,
+        args.seed,
+        ignore_cache=args.ignore_cache,
     )
-
+    (v4_train, it_train, label_train, objectid_train, pose_train) = train_data
+    (v4_test, it_test, label_test, objectid_test, pose_test) = test_data
     # train_dataloader, test_dataloader = load_dataloaders(train_dataset, test_dataset, args)
     # Initialize the model
     if args.no_contrastive_head:
@@ -554,6 +595,8 @@ if __name__ == "__main__":
         label_test,
         objectid_train,
         objectid_test,
+        pose_train,
+        pose_test,
         args,
     )
     trainer.run_simclr(
@@ -561,7 +604,6 @@ if __name__ == "__main__":
         contrastive_head,
         # (train_dataloader, test_dataloader),
         args,
-        manifold_model=manifold_model,
     )
 
     wandb.finish()

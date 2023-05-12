@@ -1,6 +1,7 @@
 *__pycache__*
 .vscode
 datasets
+neuro_results
 results
 results_vi
 scripts
