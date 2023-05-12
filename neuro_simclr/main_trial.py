@@ -3,13 +3,8 @@
     the efficacy of running SIMCLR on the neuroscience dataset. 
 """
 import argparse
-import os
 import random
-import sys
 import time
-import warnings
-
-sys.path.append(os.getcwd() + "/src/")
 
 import numpy as np
 import torch
@@ -20,7 +15,6 @@ from evaluation import (
     evaluate_IT_explained_variance,
     evaluate_linear_classifier,
     evaluate_logistic_regression,
-    transop_plots,
     tsne_plot,
 )
 from linear_warmup_cos_anneal import LinearWarmupCosineAnnealingLR
@@ -28,12 +22,6 @@ from tqdm import tqdm
 
 import wandb
 from datasets import get_dataset
-from model.contrastive.config import VariationalEncoderConfig
-from model.manifold.reparameterize import compute_kl
-from model.manifold.transop import TransOp_expm
-from model.manifold.vi_encoder import CoefficientEncoder
-
-warnings.filterwarnings("ignore")
 
 
 class ContrastiveHead(torch.nn.Module):
@@ -243,12 +231,20 @@ class SimCLRTrainer:
             train_loss_list = []
             pairwise_dist = []
             feat_norm = []
-            to_loss_list = []
-            kl_loss_list = []
             epoch_bar.set_description(f"Epoch {epoch}")
             # Go through the train dataset
             indices_perm = torch.randperm(len(self.v4_train))
             for i in range(len(self.v4_train) // args.batch_size):
+                # Let object_to_stim = {} be of the form object_id -> [stimulus_id_1, stimulus_id_2, ...]
+                # Let stim_to_data = {} be of the form stimulus_id -> [presentation_1, presentation_2, ...]
+                # Select batch_size random object ids with replacement
+                # For i in batch select a random pair of stimuli from object_to_stim[object_id] without replacement
+                # For each stimulus choose num_average_trials from the stimulus' presentations with replacement
+                # i.e. stim_to_data[stimulus_id][random_indices[:num_average_trials]]
+                # Average over these chosen stimuli
+
+                # For each element in the batch form a pair
+                # Select two stimulus id's of the corresponding objects
                 # Load batch
                 x0 = self.v4_train[indices_perm[i * args.batch_size : (i + 1) * args.batch_size]].to(args.device)
                 y0 = self.objectid_train[indices_perm[i * args.batch_size : (i + 1) * args.batch_size]]
@@ -258,83 +254,26 @@ class SimCLRTrainer:
 
                 # Encode features using the backbone
                 z0, z1 = backbone(x0), backbone(x1)
-
-                # Handle ManifoldCLR options
-                transop_loss, kl_loss = torch.tensor(0.0), torch.tensor(0.0)
-                if manifold_model is not None:
-                    # Manifold loss
-                    distribution_data = coeff_enc(z0.detach(), z1.detach(), transop, i + epoch * iters_per_epoch)
-                    c = distribution_data.samples
-                    z1_hat = transop(z0.float(), c)
-
-                    # KL loss
-                    transop_loss = F.mse_loss(z1_hat, z1.detach())
-                    kl_loss = compute_kl(
-                        "Laplacian", distribution_data.encoder_params, distribution_data.prior_params
-                    ).mean()
-
-                    # Prior augmentation
-                    c0 = coeff_enc.prior_sample(
-                        z0.detach(),
-                        curr_iter=i + epoch * iters_per_epoch,
-                        distribution_params=distribution_data.prior_params,
-                    )
-                    z0_aug = transop(z0.float(), c0)
-                else:
-                    z0_aug = z0.clone()
-
+                h0, h1 = contrastive_head(z0), contrastive_head(z1)
                 # Compute the info nce loss in the output space
-                h0, h1 = contrastive_head(z0_aug), contrastive_head(z1)
                 if args.no_contrastive_head:
                     train_loss = self.nxent_loss(h0, h1, mse=True)
                 else:
                     train_loss = self.nxent_loss(F.normalize(h0, dim=-1), F.normalize(h1, dim=-1))
-
                 # Backprop
                 optim.zero_grad()
-                (train_loss + transop_loss + args.kl_weight * kl_loss).backward()
+                train_loss.backward()
                 optim.step()
                 scheduler.step()
 
                 train_loss_list.append(train_loss.item())
                 pairwise_dist.append(F.mse_loss(z0, z1).item())
                 feat_norm.append((z1**2).sum(-1).mean().item())
-                to_loss_list.append(transop_loss.item())
-                kl_loss_list.append(kl_loss.item())
             wandb_dict = {
                 "train/train_loss": np.mean(train_loss_list),
                 "train/pairwise_dist": np.mean(pairwise_dist),
                 "train/feat_mag": np.mean(feat_norm),
             }
-
-            # Add transport operator logging
-            if manifold_model is not None:
-                to_dist = F.mse_loss(z1_hat, z1, reduction="none").sum(-1)
-                dist = F.mse_loss(z0, z1, reduction="none").sum(-1)
-                dist_improve = (to_dist / (dist + 1e-3)).mean().item()
-
-                encoder_logscale, encoder_shift = (
-                    distribution_data.encoder_params["logscale"],
-                    distribution_data.encoder_params["shift"],
-                )
-                prior_logscale, prior_shift = (
-                    distribution_data.prior_params["logscale"],
-                    distribution_data.prior_params["shift"],
-                )
-                wandb_dict.update(
-                    {
-                        "transop/transop_loss": np.mean(to_loss_list),
-                        "transop/kl_loss": np.mean(kl_loss_list),
-                        "transop/dist_improve": dist_improve,
-                        "transop/mean_psi_norm": (transop.psi.reshape(args.dict_size, -1) ** 2).sum(-1).mean().item(),
-                        "transop_vi/c_enc_mag": c[c.abs() > 0].detach().abs().cpu().mean(),
-                        "transop_vi/c_prior_mag": c0[c0.abs() > 0].detach().abs().cpu().mean(),
-                        "transop_vi/mean_enc_scale": encoder_logscale.exp().mean().item(),
-                        "transop_vi/mean_enc_shift": encoder_shift.abs().mean().item(),
-                        "transop_vi/mean_prior_scale": prior_logscale.exp().mean().item(),
-                        "transop_vi/mean_prior_shift": prior_shift.abs().mean().item(),
-                    }
-                )
 
             if epoch % args.eval_frequency == 0 or epoch == (args.num_epochs - 1):
                 print(f"Running evaluation")
@@ -372,14 +311,6 @@ class SimCLRTrainer:
                     "figs/category_tsne": wandb.Image(category_tsne),
                     "figs/object_id_tsne": wandb.Image(object_id_tsne),
                 })
-
-                if manifold_model is not None:
-                    # TODO: modify passing psi if incorporating block diagonal constraint
-                    fig_plots = transop_plots(
-                        c.detach().cpu().numpy(), transop.psi[:, 0].detach().cpu(), z0.detach().cpu().numpy()
-                    )
-                    for fig_name in fig_plots.keys():
-                        wandb_dict.update({"transop_plt/" + fig_name: wandb.Image(fig_plots[fig_name])})
 
             wandb.log(wandb_dict, step=epoch)
 
@@ -426,10 +357,12 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate", type=float, default=0.003, help="Learning rate")
     parser.add_argument("--weight_decay", type=float, default=1e-5, help="Weight decay")
     parser.add_argument("--optimizer", type=str, default="adam", help="Optimizer to use")
-    parser.add_argument("--temperature", type=float, default=5e-1, help="Temperature for info nce loss")
-    parser.add_argument("--device", type=str, default="cuda:1", help="Device to use")
+    parser.add_argument("--temperature", type=float, default=7e-2, help="Temperature for info nce loss")
+    parser.add_argument("--device", type=str, default="cuda:0", help="Device to use")
     parser.add_argument("--dataset_type", type=str, default="pose", help="Type of dataset used")
     parser.add_argument("--average_trials", type=bool, default=False, help="Whether or not to average across trials")
+    parser.add_argument("--average_downsample_factor", type=int, default=5, help="Factor to downsample average by")
+    parser.add_argument("--ignore_cache", type=bool, default=False, help="Whether or not to ignore the cache")
     parser.add_argument(
         "--eval_explained_variance", type=bool, default=False, help="Whether or not to evaluate explained variance"
     )
@@ -441,12 +374,6 @@ if __name__ == "__main__":
     )
     parser.add_argument("--eval_frequency", default=100)
 
-    # ManifoldCLR args
-    parser.add_argument("--enable_manifoldclr", type=bool, default=False, help="Enable ManifoldCLR")
-    parser.add_argument("--dict_size", type=int, default=10, help="Dictionary size")
-    parser.add_argument("--kl_weight", type=float, default=1.0e-5, help="KL Div weight")
-    parser.add_argument("--threshold", type=float, default=0.0, help="Reparam threshold")
-
     args = parser.parse_args()
 
     print("Running simclr experiment")
@@ -457,10 +384,14 @@ if __name__ == "__main__":
     )
 
     # Load dataset
-    (v4_train, it_train, label_train, objectid_train, pose_train), (v4_test, it_test, label_test, objectid_test, pose_test) = get_dataset(
-        args.average_trials, args.seed
+    train_data, test_data = get_dataset(
+        args.average_trials, 
+        args.average_downsample_factor,
+        args.seed,
+        ignore_cache=args.ignore_cache,
     )
-
+    (v4_train, it_train, label_train, objectid_train, pose_train) = train_data
+    (v4_test, it_test, label_test, objectid_test, pose_test) = test_data
     # train_dataloader, test_dataloader = load_dataloaders(train_dataset, test_dataset, args)
     # Initialize the model
     if args.no_contrastive_head:
@@ -481,30 +412,6 @@ if __name__ == "__main__":
         norm=args.backbone_batchnorm,
     ).to(args.device)
     print(backbone)
-
-    manifold_model = None
-    if args.enable_manifoldclr:
-        threshold = 0.0
-        transop = TransOp_expm(
-            M=args.dict_size,
-            N=args.backbone_output_dim,
-            stable_init=True,
-            real_range=1.0e-4,
-            imag_range=5.0,
-            dict_count=1,
-        ).to(args.device)
-        vi_cfg = VariationalEncoderConfig(
-            scale_prior=0.01,
-            shift_prior=0.05,
-            enable_learned_prior=True,
-            enable_prior_shift=True,
-            enable_prior_warmup=True,
-        )
-        coeff_enc = CoefficientEncoder(vi_cfg, args.backbone_output_dim, args.dict_size, args.threshold).to(
-            args.device
-        )
-        manifold_model = (transop, coeff_enc)
-
     # The backbone output =/= contrastive header here (in terms of dimension)
     # Run trianing
     trainer = SimCLRTrainer(
@@ -521,7 +428,6 @@ if __name__ == "__main__":
         contrastive_head,
         # (train_dataloader, test_dataloader),
         args,
-        manifold_model=manifold_model,
     )
 
     wandb.finish()

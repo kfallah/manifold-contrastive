@@ -120,7 +120,9 @@ def evaluate_logistic_regression(backbone, train_dataset, test_dataset, args):
         test_labels.append(labels)
     # Train a logistic classifier on those data pairs
     # similar to what is done in `linear_readout_baseline`
-    clf = sklearn.linear_model.LogisticRegressionCV().fit(train_embeddings, train_labels)
+    # clf = sklearn.linear_model.LogisticRegressionCV().fit(train_embeddings, train_labels)
+    clf = LogisticRegression(random_state=0, C=0.316, max_iter=1000, verbose=1)
+    clf.fit(train_embeddings, train_labels)
     # Evaluate the model on the test set
     accuracy = clf.score(test_embeddings, test_labels)
     # Predict f1 score
