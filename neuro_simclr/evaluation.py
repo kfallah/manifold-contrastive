@@ -217,28 +217,35 @@ def evaluate_pose_change_regression(manifold_model, train_data, train_pose, test
     rng = np.random.default_rng(args.seed)
     n = args.eval_pose_change_regr_n_pairs
     i_train_a = rng.choice(len(train_data), size=n, replace=True)
+    train_a = train_data[i_train_a].detach().to(args.device)
     i_train_b = rng.choice(len(train_data), size=n, replace=True)
+    train_b = train_data[i_train_b].detach().to(args.device)
     i_test_a = rng.choice(len(test_data), size=n, replace=True)
+    test_a = test_data[i_test_a].detach().to(args.device)
     i_test_b = rng.choice(len(test_data), size=n, replace=True)
+    test_b = test_data[i_test_b].detach().to(args.device)
 
     transop, coeff_enc = manifold_model
 
-    dist_data_train = (
-        coeff_enc(
-            train_data[i_train_a].detach().to(args.device),
-            train_data[i_train_b].detach().to(args.device),
+    c_train = []
+    c_test = []
+    for i in range(n // 1000):
+        dist_data_train = coeff_enc(
+            train_a[i * 1000 : (i + 1) * 1000],
+            train_b[i * 1000 : (i + 1) * 1000],
             transop,
         )
-        .detach()
-        .cpu()
-    )
-    c_train = dist_data_train.samples
-    dist_data_test = coeff_enc(
-        test_data[i_test_a].detach().to(args.device),
-        test_data[i_test_b].detach().to(args.device),
-        transop,
-    )
-    c_test = dist_data_test.samples.detach().cpu()
+        c_train.append(dist_data_train.samples)
+
+        dist_data_test = coeff_enc(
+            test_a[i * 1000 : (i + 1) * 1000],
+            test_b[i * 1000 : (i + 1) * 1000],
+            transop,
+        )
+        c_test.append(dist_data_test.samples)
+
+    c_train = tnp(torch.cat(c_train, dim=0))
+    c_test = tnp(torch.cat(c_test, dim=0))
 
     return _eval_regression(
         c_train,
@@ -331,3 +338,7 @@ def transop_plots(coefficients: np.array, psi: torch.tensor, z0: np.array):
     }
 
     return figure_dict
+
+if __name__ == '__main__':
+    model = torch.load('model_weights_epoch9999.pt')
+    # backbone, transop, coeff_enc = torch.load('model_weights_epoch9999.pt')
