@@ -499,7 +499,7 @@ if __name__ == "__main__":
         "--eval_object_id_linear", type=bool, default=True, help="Whether or not to evaluate object id linear"
     )
     parser.add_argument(
-        "--eval_pose_regression", type=bool, default=True, help="Whether or not to evaluate pose regression"
+        "--eval_pose_regression", type=bool, default=False, help="Whether or not to evaluate pose regression"
     )
     parser.add_argument(
         "--eval_pose_change_regr_n_pairs",
@@ -604,6 +604,7 @@ if __name__ == "__main__":
         contrastive_head,
         # (train_dataloader, test_dataloader),
         args,
+        manifold_model=manifold_model,
     )
 
     wandb.finish()
