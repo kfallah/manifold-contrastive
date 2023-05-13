@@ -370,13 +370,18 @@ class SimCLRTrainer:
                 test_feat = embed_v4_data(self.v4_test, backbone, args.device)
 
                 tsne = tsne_plot(train_feat, self.label_train)
-                category_acc, category_fscore = evaluate_linear_classifier(
+                train_category_acc, train_category_fscore = evaluate_linear_classifier(
+                    train_feat, self.label_train, train_feat, self.label_train, args
+                )
+                test_category_acc, train_category_fscore = evaluate_linear_classifier(
                     train_feat, self.label_train, test_feat, self.label_test, args
                 )
                 wandb_dict.update(
                     {
-                        "eval/cat_linear_acc": category_acc,
-                        "eval/cat_linear_fscore": category_fscore,
+                        "eval/train_cat_linear_acc": train_category_acc,
+                        "eval/train_cat_linear_fscore": train_category_fscore,
+                        "eval/test_cat_linear_acc": test_category_acc,
+                        "eval/test_cat_linear_fscore": train_category_fscore,
                         "figs/tsne": wandb.Image(tsne),
                     }
                 )

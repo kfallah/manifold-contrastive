@@ -141,6 +141,7 @@ def apply_averaging(neuroid_data, average_downsample_factor=5):
         if average_downsample_factor == 1:
             # In this case we are doing no averaging so assign each trial to its own bin
             bin_assignments = np.arange(num_trials)
+            num_bins = num_trials
         elif average_downsample_factor >= 50:
             # In this case assign every trial to the same bin
             bin_assignments = np.zeros(num_trials)
