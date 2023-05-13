@@ -402,7 +402,7 @@ class SimCLRTrainer:
                     wandb_dict["eval/pose/R2_mean"] = pose_r2[0]
                     wandb_dict["eval/pose/R2_median"] = pose_r2[1]
                     for i, dim in enumerate(pose_dims):
-                        wandb_dict[f"eval/pose/R2_{dim}"] = pose_r2[2 + i]
+                        wandb_dict[f"eval_pose/pose/R2_{dim}"] = pose_r2[2 + i]
 
                     if args.enable_manifoldclr:
                         # pose change regression
@@ -412,7 +412,7 @@ class SimCLRTrainer:
                         wandb_dict["eval/pose_change/R2_mean"] = pose_change_r2[0]
                         wandb_dict["eval/pose_change/R2_median"] = pose_change_r2[1]
                         for i, dim in enumerate(pose_dims):
-                            wandb_dict[f"eval/pose_change/R2_{dim}"] = pose_change_r2[2 + i]
+                            wandb_dict[f"eval_pose/pose_change/R2_{dim}"] = pose_change_r2[2 + i]
 
                 if args.eval_explained_variance:
                     raise NotImplementedError("Explained variance not implemented for the new dataset structure")
@@ -488,7 +488,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cuda:1", help="Device to use")
     parser.add_argument("--dataset_type", type=str, default="pose", help="Type of dataset used")
     parser.add_argument("--average_trials", type=bool, default=True, help="Whether or not to average across trials")
-    parser.add_argument("--average_downsample_factor", type=int, default=10, help="Factor to downsample average by")
+    parser.add_argument("--average_downsample_factor", type=int, default=50, help="Factor to downsample average by")
     parser.add_argument("--ignore_cache", type=bool, default=False, help="Whether or not to ignore the cache")
     parser.add_argument(
         "--eval_explained_variance", type=bool, default=False, help="Whether or not to evaluate explained variance"
