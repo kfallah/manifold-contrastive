@@ -216,7 +216,7 @@ class SimCLRTrainer:
                 {
                     "params": transop.parameters(),
                     "lr": 1.0e-3,
-                    "weight_decay": 1.0e-5,
+                    "weight_decay": args.to_wd,
                 }
             ]
             param_groups += [
@@ -398,20 +398,20 @@ class SimCLRTrainer:
                     # pose regression: assuming this is what pose change regression would
                     # converge to with many pairs
                     pose_r2 = evaluate_pose_regression(train_feat, self.pose_train, test_feat, self.pose_test, args)
-                    wandb_dict['eval/pose/R2_mean'] = pose_r2[0]
-                    wandb_dict['eval/pose/R2_median'] = pose_r2[1]
+                    wandb_dict["eval/pose/R2_mean"] = pose_r2[0]
+                    wandb_dict["eval/pose/R2_median"] = pose_r2[1]
                     for i, dim in enumerate(pose_dims):
-                        wandb_dict[f'eval/pose/R2_{dim}'] = pose_r2[2+i]
+                        wandb_dict[f"eval/pose/R2_{dim}"] = pose_r2[2 + i]
 
                     if args.enable_manifoldclr:
                         # pose change regression
                         pose_change_r2 = evaluate_pose_change_regression(
                             manifold_model, train_feat, self.pose_train, test_feat, self.pose_test, args
                         )
-                        wandb_dict['eval/pose_change/R2_mean'] = pose_change_r2[0]
-                        wandb_dict['eval/pose_change/R2_median'] = pose_change_r2[1]
+                        wandb_dict["eval/pose_change/R2_mean"] = pose_change_r2[0]
+                        wandb_dict["eval/pose_change/R2_median"] = pose_change_r2[1]
                         for i, dim in enumerate(pose_dims):
-                            wandb_dict[f'eval/pose_change/R2_{dim}'] = pose_change_r2[2+i]
+                            wandb_dict[f"eval/pose_change/R2_{dim}"] = pose_change_r2[2 + i]
 
                 if args.eval_explained_variance:
                     raise NotImplementedError("Explained variance not implemented for the new dataset structure")
@@ -445,7 +445,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run simclr on the neuroscience dataset")
 
     parser.add_argument("--dataset", type=str, default="brainscore", help="Dataset to use")
-    parser.add_argument("--seed", type=int, default=747, help="Random seed")  # Dim of V4 data
+    parser.add_argument("--seed", type=int, default=3, help="Random seed")  # Dim of V4 data
     parser.add_argument("--input_dim", type=int, default=88, help="Input dimension")  # Dim of V4 data
     parser.add_argument(
         "--hidden_dim", type=int, default=512, help="Hidden dimension of contrastive head"
@@ -484,10 +484,10 @@ if __name__ == "__main__":
     parser.add_argument("--weight_decay", type=float, default=1e-4, help="Weight decay")
     parser.add_argument("--optimizer", type=str, default="adam", help="Optimizer to use")
     parser.add_argument("--temperature", type=float, default=1e-1, help="Temperature for info nce loss")
-    parser.add_argument("--device", type=str, default="cuda:0", help="Device to use")
+    parser.add_argument("--device", type=str, default="cuda:1", help="Device to use")
     parser.add_argument("--dataset_type", type=str, default="pose", help="Type of dataset used")
     parser.add_argument("--average_trials", type=bool, default=True, help="Whether or not to average across trials")
-    parser.add_argument("--average_downsample_factor", type=int, default=50, help="Factor to downsample average by")
+    parser.add_argument("--average_downsample_factor", type=int, default=10, help="Factor to downsample average by")
     parser.add_argument("--ignore_cache", type=bool, default=False, help="Whether or not to ignore the cache")
     parser.add_argument(
         "--eval_explained_variance", type=bool, default=False, help="Whether or not to evaluate explained variance"
@@ -514,6 +514,7 @@ if __name__ == "__main__":
     parser.add_argument("--dict_size", type=int, default=32, help="Dictionary size")
     parser.add_argument("--z0_neg", type=bool, default=False, help="Whether to use z0 as a negative.")
     parser.add_argument("--to_weight", type=float, default=0.1, help="Transop loss weight")
+    parser.add_argument("--to_wd", type=float, default=1.0e-5, help="Transop loss weight")
     parser.add_argument("--kl_weight", type=float, default=1.0e-5, help="KL Div weight")
     parser.add_argument("--threshold", type=float, default=0.0, help="Reparam threshold")
     parser.add_argument("--run_name", type=str, default="simclr_baseline", help="runname")
