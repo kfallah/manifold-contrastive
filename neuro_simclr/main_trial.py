@@ -276,12 +276,16 @@ class SimCLRTrainer:
                 z0, z1 = backbone(x0), backbone(x1)
 
                 # Handle ManifoldCLR options
-                transop_loss, kl_loss = torch.tensor(0.0), torch.tensor(0.0)
+                transop_loss, kl_loss, shiftl2_loss = torch.tensor(0.0), torch.tensor(0.0), torch.tensor(0.0)
                 if manifold_model is not None:
                     # Manifold loss
                     distribution_data = coeff_enc(z0.detach(), z1.detach(), transop, i + epoch * iters_per_epoch)
                     c = distribution_data.samples
                     z1_hat = transop(z0.float(), c)
+
+                    if args.enable_shiftl2:
+                        shift = distribution_data.encoder_params['shift']
+                        shiftl2_loss = (shift**2).sum(-1).mean()
 
                     # KL loss
                     transop_loss = F.mse_loss(z1_hat, z1.detach(), reduction="none")
@@ -312,7 +316,7 @@ class SimCLRTrainer:
                     train_loss = self.nxent_loss(F.normalize(h0, dim=-1), F.normalize(h1, dim=-1))
                 # Backprop
                 optim.zero_grad()
-                (train_loss + args.to_weight * transop_loss.mean() + args.kl_weight * kl_loss).backward()
+                (train_loss + args.to_weight * transop_loss.mean() + args.kl_weight * kl_loss + args.shiftl2_weight * shiftl2_loss).backward()
 
                 if args.enable_manifoldclr:
                     torch.nn.utils.clip_grad_norm_(coeff_enc.parameters(), 1.0)
@@ -521,14 +525,17 @@ if __name__ == "__main__":
     parser.add_argument("--eval_frequency", default=500)
 
     # ManifoldCLR args
-    parser.add_argument("--enable_manifoldclr", type=bool, default=False, help="Enable ManifoldCLR")
+    parser.add_argument("--enable_manifoldclr", type=bool, default=True, help="Enable ManifoldCLR")
     parser.add_argument("--dict_size", type=int, default=32, help="Dictionary size")
     parser.add_argument("--z0_neg", type=bool, default=False, help="Whether to use z0 as a negative.")
-    parser.add_argument("--to_weight", type=float, default=0.1, help="Transop loss weight")
+    parser.add_argument("--to_weight", type=float, default=10, help="Transop loss weight")
     parser.add_argument("--to_wd", type=float, default=1.0e-5, help="Transop loss weight")
     parser.add_argument("--kl_weight", type=float, default=1.0e-5, help="KL Div weight")
-    parser.add_argument("--threshold", type=float, default=0.0, help="Reparam threshold")
-    parser.add_argument("--run_name", type=str, default="simclr_baseline", help="runname")
+    parser.add_argument("--threshold", type=float, default=0.001, help="Reparam threshold")
+    parser.add_argument("--max_elbo", type=bool, default=True, help="Max elbo sampling for enc inference")
+    parser.add_argument("--enable_shiftl2", type=bool, default=True, help="Enable shift l2 loss")
+    parser.add_argument("--shiftl2_weight", type=float, default=1.0e-3, help="Shift l2 loss weight")
+    parser.add_argument("--run_name", type=str, default="vi-thresh_avg50_to1e1_shift1e-3", help="runname")
 
     args = parser.parse_args()
     args.save_dir = args.save_dir + args.run_name
@@ -592,6 +599,9 @@ if __name__ == "__main__":
             enable_prior_shift=True,
             enable_prior_warmup=True,
             prior_warmup_iters=500,
+            enable_max_sampling=args.max_elbo,
+            samples_per_iter=500,
+            total_num_samples=500
         )
         coeff_enc = CoefficientEncoder(vi_cfg, args.backbone_output_dim, args.dict_size, args.threshold).to(
             args.device
