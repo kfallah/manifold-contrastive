@@ -235,14 +235,14 @@ def evaluate_pose_change_regression(manifold_model, train_data, train_pose, test
             train_b[i * 1000 : (i + 1) * 1000],
             transop,
         )
-        c_train.append(dist_data_train.samples)
+        c_train.append(dist_data_train.samples.detach().cpu())
 
         dist_data_test = coeff_enc(
             test_a[i * 1000 : (i + 1) * 1000],
             test_b[i * 1000 : (i + 1) * 1000],
             transop,
         )
-        c_test.append(dist_data_test.samples)
+        c_test.append(dist_data_test.samples.detach().cpu())
 
     c_train = torch.cat(c_train, dim=0)
     c_test = torch.cat(c_test, dim=0)
