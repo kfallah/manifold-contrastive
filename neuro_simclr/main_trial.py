@@ -227,7 +227,8 @@ class SimCLRTrainer:
                 }
             ]
 
-        print("Training the model using simclr")
+        model_name = "SimCLR" if manifold_model is None else "ManifoldCLR"
+        print(f"Training the model using {model_name}")
         # Make an optimizer
         if args.optimizer == "adam":
             optim = torch.optim.AdamW(
