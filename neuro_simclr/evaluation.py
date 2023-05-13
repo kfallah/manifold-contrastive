@@ -200,7 +200,9 @@ def _eval_regression(train_X: Tensor, train_Y: Tensor, test_X: Tensor, test_Y: T
     elif args.eval_regression_model == "svr":
         y_pred_list = []
         for pose in range(train_Y.shape[-1]):
-            regression_model = sklearn.svm.SVR().fit(tnp(train_X), tnp(train_Y[..., pose]))
+            regression_model = sklearn.svm.SVR(kernel="linear", C=1e-4, tol=1e-5).fit(
+                tnp(train_X), tnp(train_Y[..., pose])
+            )
             ypred = regression_model.predict(tnp(test_X))
             y_pred_list.append(ypred)
         ypred = np.stack(y_pred_list, axis=-1)
@@ -208,6 +210,7 @@ def _eval_regression(train_X: Tensor, train_Y: Tensor, test_X: Tensor, test_Y: T
         raise NotImplementedError
 
     ytrue = tnp(test_Y)
+
     # R^2 = 1 - u/v
     # u = sum_i (y_i - ypred_i)^2
     # v = sum_i (y_i - ymean)^2
@@ -216,7 +219,14 @@ def _eval_regression(train_X: Tensor, train_Y: Tensor, test_X: Tensor, test_Y: T
     v = np.sum((ytrue - np.mean(ytrue, axis=0)) ** 2, axis=0)
     r2 = 1 - u / v
 
-    return np.mean(r2), np.median(r2), *r2
+    # pearson correlation
+    ytrue_mean = ytrue.mean(0)
+    ypred_mean = ypred.mean(0)
+    r = ((ytrue - ytrue_mean) * (ypred - ypred_mean)).sum(0)
+    denom = np.sqrt(((ytrue - ytrue_mean) ** 2).sum(0) * ((ypred - ypred_mean) ** 2).sum(0))
+    r = r / denom
+
+    return (np.mean(r2), np.median(r2), *r2), (np.mean(r), np.median(r), *r)
 
 
 def evaluate_pose_regression(train_feat, train_pose, test_data, test_pose, args):

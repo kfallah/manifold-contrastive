@@ -3,14 +3,15 @@ import warnings
 import brainscore
 import numpy as np
 import torch
+import torchvision.transforms as transforms
+import xarray
+from PIL import Image
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset
 from tqdm import tqdm
-import torchvision.transforms as transforms
-from PIL import Image
-import xarray
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 
 def generate_brainscore_train_test_split(random_seed=42, split_percentage=0.8):
     # Set numpy seed
@@ -33,27 +34,25 @@ def generate_brainscore_train_test_split(random_seed=42, split_percentage=0.8):
 
     return train_data, test_data
 
-def get_pixel_dataset(
-    flatten_images=True, 
-    random_seed=0,
-    output_resolution=32
-):
+
+def get_pixel_dataset(flatten_images=True, random_seed=0, output_resolution=32):
     """
-        Returns images and labelsfrom the dicarlo dataset
-        corresponding to the splits outputted by 
-        generate_brainscore_train_test_split
+    Returns images and labelsfrom the dicarlo dataset
+    corresponding to the splits outputted by
+    generate_brainscore_train_test_split
     """
     neuroid_train_data, neuroid_test_data = generate_brainscore_train_test_split(random_seed=random_seed)
     # Get the train and test data
     # NOTE: Always average over trials because there is just one image per stimulus (image is the stimulus)
-    train_stimulus_set = neuroid_train_data.attrs['stimulus_set']
+    train_stimulus_set = neuroid_train_data.attrs["stimulus_set"]
     train_data = neuroid_train_data.multi_groupby(["category_name", "object_name", "stimulus_id"]).mean(
         dim="presentation"
     )
-    test_stimulus_set = neuroid_test_data.attrs['stimulus_set']
+    test_stimulus_set = neuroid_test_data.attrs["stimulus_set"]
     test_data = neuroid_test_data.multi_groupby(["category_name", "object_name", "stimulus_id"]).mean(
         dim="presentation"
     )
+
     # Get the images
     # Helper function for transforming stimulus
     def transform_stimulus(stimulus_path):
@@ -63,20 +62,19 @@ def get_pixel_dataset(
         if flatten_images:
             img = img.flatten()
         return img
-    # NOTE this may be very slow and we may want to then cache it. 
+
+    # NOTE this may be very slow and we may want to then cache it.
     # Load the train images
     train_stimulus_ids = train_data.stimulus_id.to_numpy()
-    pixel_train = torch.stack([
-        transform_stimulus(train_stimulus_set.get_stimulus(stimulus_id))
-        for stimulus_id in train_stimulus_ids
-    ])
+    pixel_train = torch.stack(
+        [transform_stimulus(train_stimulus_set.get_stimulus(stimulus_id)) for stimulus_id in train_stimulus_ids]
+    )
     # Load test images
     test_stimulus_ids = test_data.stimulus_id.to_numpy()
-    pixel_test = torch.stack([
-        transform_stimulus(test_stimulus_set.get_stimulus(stimulus_id))
-        for stimulus_id in test_stimulus_ids
-    ])
-    # Get the category labels 
+    pixel_test = torch.stack(
+        [transform_stimulus(test_stimulus_set.get_stimulus(stimulus_id)) for stimulus_id in test_stimulus_ids]
+    )
+    # Get the category labels
     train_category = train_data.category_name.to_numpy()
     _, label_train = np.unique(train_category, return_inverse=True)
 
@@ -96,20 +94,23 @@ def get_pixel_dataset(
 
     return (pixel_train, label_train, object_id_train), (pixel_test, label_test, object_id_test)
 
-def load_cache(average_trials, ds_factor):
+
+def load_cache(average_trials, ds_factor, random_seed):
     """
-        Loads the cache if it exists
+    Loads the cache if it exists
     """
     if average_trials:
-        cache_file = f"avgd-{ds_factor}-data.pt"
+        cache_file = f"neuro_results/avgd-ds{ds_factor}-seed{random_seed}-data.pt"
     else:
-        cache_file = "data.pt"
+        cache_file = f"neuro_results/data-seed{random_seed}.pt"
     try:
         return torch.load(cache_file)
     except FileNotFoundError:
         return None
 
-pose_dims = ['s', 'ty', 'tz', 'rxy', 'rxz', 'ryz']
+
+pose_dims = ["s", "ty", "tz", "rxy_semantic", "rxz_semantic", "ryz_semantic"]
+
 
 def apply_averaging(neuroid_data, average_downsample_factor=5):
     v4_datas = []
@@ -152,14 +153,18 @@ def apply_averaging(neuroid_data, average_downsample_factor=5):
         # Average over each bin
         for bin_index in range(num_bins):
             # Get the indices for this bin
-            bin_indices = np.where(bin_assignments == bin_index)[0] 
+            bin_indices = np.where(bin_assignments == bin_index)[0]
             # Skip if there are no indices
             if len(bin_indices) == 0:
                 continue
             # Average over the bin for each region
             bin_average_v4 = v4_data[stimulus_indices[bin_indices]].mean(axis=0)
             bin_average_it = it_data[stimulus_indices[bin_indices]].mean(axis=0)
-            assert np.isfinite(bin_average_v4).all(), (bin_average_v4, v4_data[stimulus_indices[bin_indices]], num_bins)
+            assert np.isfinite(bin_average_v4).all(), (
+                bin_average_v4,
+                v4_data[stimulus_indices[bin_indices]],
+                num_bins,
+            )
             # Append the v4 and it data
             v4_datas.append(bin_average_v4)
             it_datas.append(bin_average_it)
@@ -170,9 +175,10 @@ def apply_averaging(neuroid_data, average_downsample_factor=5):
 
     return v4_datas, it_datas, pose_datas, objectid_datas, category_datas
 
+
 def get_dataset(average_trials=False, average_downsample_factor=50, random_seed=0, ignore_cache=False):
     if not ignore_cache:
-        cache = load_cache(average_trials, average_downsample_factor) 
+        cache = load_cache(average_trials, average_downsample_factor, random_seed)
         if cache is not None:
             return cache
     neuroid_train_data, neuroid_test_data = generate_brainscore_train_test_split(random_seed=random_seed)
@@ -181,12 +187,10 @@ def get_dataset(average_trials=False, average_downsample_factor=50, random_seed=
         average_downsample_factor = 1
 
     v4_train, it_train, pose_train, objectid_train, label_train = apply_averaging(
-        neuroid_train_data,
-        average_downsample_factor=average_downsample_factor
+        neuroid_train_data, average_downsample_factor=average_downsample_factor
     )
     v4_test, it_test, pose_test, objectid_test, label_test = apply_averaging(
-        neuroid_test_data,
-        average_downsample_factor=average_downsample_factor
+        neuroid_test_data, average_downsample_factor=average_downsample_factor
     )
     # Convert everything to troch tensors from numpy
     v4_train = torch.tensor(v4_train).float()
@@ -205,14 +209,14 @@ def get_dataset(average_trials=False, average_downsample_factor=50, random_seed=
     assert v4_train.shape[0] == it_train.shape[0] == len(label_train) == len(objectid_train) == len(pose_train)
     data = (
         (v4_train, it_train, label_train, objectid_train, pose_train),
-        (v4_test, it_test, label_test, objectid_test, pose_test)
+        (v4_test, it_test, label_test, objectid_test, pose_test),
     )
 
     if average_trials:
-        torch.save(data, f"avgd-{average_downsample_factor}-data.pt")
+        torch.save(data, f"neuro_results/avgd-ds{average_downsample_factor}-seed{random_seed}-data.pt")
     else:
-        torch.save(data, "data.pt")
-    
+        torch.save(data, f"neuro_results/data-seed{random_seed}.pt")
+
     return data
 
 

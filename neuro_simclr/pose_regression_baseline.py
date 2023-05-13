@@ -110,8 +110,9 @@ if __name__ == "__main__":
     print("\nResults for predicting pose directly from individual samples:")
     # Make table with tabulate
     pose_dims_r2 = [f"{dim} R2" for dim in pose_dims]
+    pose_dims_r = [f"{dim} R" for dim in pose_dims]
     table = [
-        ["Model", "Mean R2", "Median R2", *pose_dims_r2],
+        ["Model", "Mean R2", "Median R2", *pose_dims_r2, "Mean R", "Median R", *pose_dims_r],
         ["V4", *v4_nodiff_results],
         ["IT", *it_nodiff_results],
         ["V4 Averaged", *v4_avgd_nodiff_results],
