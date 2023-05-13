@@ -96,12 +96,12 @@ def get_pixel_dataset(
 
     return (pixel_train, label_train, object_id_train), (pixel_test, label_test, object_id_test)
 
-def load_cache(average_trials):
+def load_cache(average_trials, ds_factor):
     """
         Loads the cache if it exists
     """
     if average_trials:
-        cache_file = "avgd-data.pt"
+        cache_file = f"avgd-{ds_factor}-data.pt"
     else:
         cache_file = "data.pt"
     try:
@@ -173,7 +173,7 @@ def apply_averaging(neuroid_data, average_downsample_factor=5):
 
 def get_dataset(average_trials=False, average_downsample_factor=50, random_seed=0, ignore_cache=False):
     if not ignore_cache:
-        cache = load_cache(average_trials) 
+        cache = load_cache(average_trials, average_downsample_factor) 
         if cache is not None:
             return cache
     neuroid_train_data, neuroid_test_data = generate_brainscore_train_test_split(random_seed=random_seed)
@@ -210,7 +210,7 @@ def get_dataset(average_trials=False, average_downsample_factor=50, random_seed=
     )
 
     if average_trials:
-        torch.save(data, "avgd-data.pt")
+        torch.save(data, f"avgd-{average_downsample_factor}-data.pt")
     else:
         torch.save(data, "data.pt")
     

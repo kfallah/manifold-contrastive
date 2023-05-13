@@ -3,8 +3,8 @@ import numpy as np
 import sklearn
 import torch
 import torch.nn as nn
-from torch import Tensor
 from sklearn.manifold import TSNE
+from torch import Tensor
 
 import wandb
 
@@ -182,65 +182,83 @@ def evaluate_IT_explained_variance(backbone, neuroid_train_dataset, neuroid_eval
     # Log the R^2 values to wandb
     wandb.log({"median_IT_explained_variance": np.median(r2_values)})
 
+
 def tnp(tensor: Tensor):
     return tensor.detach().cpu().numpy()
 
-def _eval_regression(
-        train_X: Tensor, train_Y: Tensor, 
-        test_X: Tensor, test_Y: Tensor):
+
+def _eval_regression(train_X: Tensor, train_Y: Tensor, test_X: Tensor, test_Y: Tensor, args):
     assert train_X.shape[0] == train_Y.shape[0]
     assert test_X.shape[0] == test_Y.shape[0]
     assert train_X.shape[1] == test_X.shape[1]
     assert train_Y.shape[1] == test_Y.shape[1]
 
     # Fit a linear regression model to the data
-    linear_regression_model = sklearn.linear_model.LinearRegression().fit(
-        tnp(train_X),
-        tnp(train_Y)
-    )
-    ypred = linear_regression_model.predict(tnp(test_X))
-    ytrue = tnp(test_Y)
+    if args.eval_regression_model == "linear":
+        regression_model = sklearn.linear_model.LinearRegression().fit(tnp(train_X), tnp(train_Y))
+        ypred = regression_model.predict(tnp(test_X))
+    elif args.eval_regression_model == "svr":
+        y_pred_list = []
+        for pose in range(train_Y.shape[-1]):
+            regression_model = sklearn.svm.SVR().fit(tnp(train_X), tnp(train_Y[..., pose]))
+            ypred = regression_model.predict(tnp(test_X))
+            y_pred_list.append(ypred)
+        ypred = np.stack(y_pred_list, axis=-1)
+    else:
+        raise NotImplementedError
 
+    ytrue = tnp(test_Y)
     # R^2 = 1 - u/v
     # u = sum_i (y_i - ypred_i)^2
     # v = sum_i (y_i - ymean)^2
     # sum just over rows to get per-dimension R^2
     u = np.sum((ytrue - ypred) ** 2, axis=0)
     v = np.sum((ytrue - np.mean(ytrue, axis=0)) ** 2, axis=0)
-    r2 = 1 - u/v
+    r2 = 1 - u / v
 
     return np.mean(r2), np.median(r2), *r2
 
 
 def evaluate_pose_regression(train_feat, train_pose, test_data, test_pose, args):
-    return _eval_regression(train_feat, train_pose, test_data, test_pose)
+    return _eval_regression(train_feat, train_pose, test_data, test_pose, args)
+
 
 def evaluate_pose_change_regression(manifold_model, train_data, train_pose, test_data, test_pose, args):
     rng = np.random.default_rng(args.seed)
     n = args.eval_pose_change_regr_n_pairs
     i_train_a = rng.choice(len(train_data), size=n, replace=True)
+    train_a = train_data[i_train_a].detach().to(args.device)
     i_train_b = rng.choice(len(train_data), size=n, replace=True)
+    train_b = train_data[i_train_b].detach().to(args.device)
     i_test_a = rng.choice(len(test_data), size=n, replace=True)
+    test_a = test_data[i_test_a].detach().to(args.device)
     i_test_b = rng.choice(len(test_data), size=n, replace=True)
+    test_b = test_data[i_test_b].detach().to(args.device)
 
     transop, coeff_enc = manifold_model
 
-    dist_data_train = coeff_enc(
-        train_data[i_train_a].detach(),
-        train_data[i_train_b].detach(),
-        transop,
-    )
-    c_train = dist_data_train.samples
-    dist_data_test = coeff_enc(
-        test_data[i_test_a].detach(),
-        test_data[i_test_b].detach(),
-        transop,
-    )
-    c_test = dist_data_test.samples
+    c_train = []
+    c_test = []
+    for i in range(n // 1000):
+        dist_data_train = coeff_enc(
+            train_a[i * 1000 : (i + 1) * 1000],
+            train_b[i * 1000 : (i + 1) * 1000],
+            transop,
+        )
+        c_train.append(dist_data_train.samples.detach().cpu())
+
+        dist_data_test = coeff_enc(
+            test_a[i * 1000 : (i + 1) * 1000],
+            test_b[i * 1000 : (i + 1) * 1000],
+            transop,
+        )
+        c_test.append(dist_data_test.samples.detach().cpu())
+
+    c_train = torch.cat(c_train, dim=0)
+    c_test = torch.cat(c_test, dim=0)
 
     return _eval_regression(
-        c_train, train_pose[i_train_b] - train_pose[i_train_a],
-        c_test, test_pose[i_test_b] - test_pose[i_test_a],
+        c_train, train_pose[i_train_b] - train_pose[i_train_a], c_test, test_pose[i_test_b] - test_pose[i_test_a], args
     )
 
 
@@ -327,3 +345,8 @@ def transop_plots(coefficients: np.array, psi: torch.tensor, z0: np.array):
     }
 
     return figure_dict
+
+
+if __name__ == "__main__":
+    model = torch.load("model_weights_epoch9999.pt")
+    # backbone, transop, coeff_enc = torch.load('model_weights_epoch9999.pt')

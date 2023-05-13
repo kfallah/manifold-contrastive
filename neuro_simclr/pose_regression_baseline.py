@@ -6,12 +6,13 @@
     representation between two samples. 
 """
 import argparse
+
 import numpy as np
-import torch.nn as nn
 import tabulate
+import torch.nn as nn
+from evaluation import _eval_regression
 
 from datasets import get_dataset, pose_dims
-from evaluation import _eval_regression
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Pose regression baseline experiment")
@@ -19,6 +20,9 @@ if __name__ == "__main__":
     # parser.add_argument("--batch_size", type=int, default=32)
     # parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--n", type=int, default=2000, help="Maximum number of training pairs")
+    parser.add_argument(
+        "--eval_regression_model", type=str, default="linear", help="Regression model to fit for prediction."
+    )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
 
     args = parser.parse_args()
@@ -27,10 +31,9 @@ if __name__ == "__main__":
 
     def train_test_pair_indices(train, test):
         n = args.n
-        i_train_ab = rng.choice(len(train), size=n*2, replace=True)
-        i_test_ab = rng.choice(len(test), size=n*2, replace=True)
-        return i_train_ab[:n], i_train_ab[n:], \
-            i_test_ab[:n], i_test_ab[n:]
+        i_train_ab = rng.choice(len(train), size=n * 2, replace=True)
+        i_test_ab = rng.choice(len(test), size=n * 2, replace=True)
+        return i_train_ab[:n], i_train_ab[n:], i_test_ab[:n], i_test_ab[n:]
 
     # Load up the datasets
     # Averaged
@@ -56,6 +59,7 @@ if __name__ == "__main__":
         posechange_train,
         v4_test[i_test_a] - v4_test[i_test_b],
         posechange_test,
+        args,
     )
     print("Evaluating IT")
     it_results = _eval_regression(
@@ -63,6 +67,7 @@ if __name__ == "__main__":
         posechange_train,
         it_test[i_test_a] - it_test[i_test_b],
         posechange_test,
+        args,
     )
     print("Evaluating V4 Averaged")
     v4_avgd_results = _eval_regression(
@@ -70,6 +75,7 @@ if __name__ == "__main__":
         avgd_posechange_train,
         avgd_v4_test[i_avgd_test_a] - avgd_v4_test[i_avgd_test_b],
         avgd_posechange_test,
+        args,
     )
     print("Evaluating IT Averaged")
     it_avgd_results = _eval_regression(
@@ -77,40 +83,21 @@ if __name__ == "__main__":
         avgd_posechange_train,
         avgd_it_test[i_avgd_test_a] - avgd_it_test[i_avgd_test_b],
         avgd_posechange_test,
+        args,
     )
 
     # predicting pose directly from individual samples
     print("Evaluating V4 no diff")
-    v4_nodiff_results = _eval_regression(
-        v4_train,
-        pose_train,
-        v4_test,
-        pose_test,
-    )
+    v4_nodiff_results = _eval_regression(v4_train, pose_train, v4_test, pose_test, args)
     print("Evaluating IT no diff")
-    it_nodiff_results = _eval_regression(
-        it_train,
-        pose_train,
-        it_test,
-        pose_test,
-    )
+    it_nodiff_results = _eval_regression(it_train, pose_train, it_test, pose_test, args)
     print("Evaluating V4 Averaged no diff")
-    v4_avgd_nodiff_results = _eval_regression(
-        avgd_v4_train,
-        avgd_pose_train,
-        avgd_v4_test,
-        avgd_pose_test,
-    )
+    v4_avgd_nodiff_results = _eval_regression(avgd_v4_train, avgd_pose_train, avgd_v4_test, avgd_pose_test, args)
     print("Evaluating IT Averaged no diff")
-    it_avgd_nodiff_results = _eval_regression(
-        avgd_it_train,
-        avgd_pose_train,
-        avgd_it_test,
-        avgd_pose_test,
-    )
+    it_avgd_nodiff_results = _eval_regression(avgd_it_train, avgd_pose_train, avgd_it_test, avgd_pose_test, args)
     print("\nResults for pose change using pairs:")
     # Make table with tabulate
-    pose_dims_r2 = [f'{dim} R2' for dim in pose_dims]
+    pose_dims_r2 = [f"{dim} R2" for dim in pose_dims]
     table = [
         ["Model", "Mean R2", "Median R2", *pose_dims_r2],
         ["V4", *v4_results],
@@ -118,14 +105,11 @@ if __name__ == "__main__":
         ["V4 Averaged", *v4_avgd_results],
         ["IT Averaged", *it_avgd_results],
     ]
-    print(tabulate.tabulate(
-        table, headers="firstrow", tablefmt="github",
-        floatfmt=".3f"
-    ))
+    print(tabulate.tabulate(table, headers="firstrow", tablefmt="github", floatfmt=".3f"))
 
     print("\nResults for predicting pose directly from individual samples:")
     # Make table with tabulate
-    pose_dims_r2 = [f'{dim} R2' for dim in pose_dims]
+    pose_dims_r2 = [f"{dim} R2" for dim in pose_dims]
     table = [
         ["Model", "Mean R2", "Median R2", *pose_dims_r2],
         ["V4", *v4_nodiff_results],
@@ -133,7 +117,4 @@ if __name__ == "__main__":
         ["V4 Averaged", *v4_avgd_nodiff_results],
         ["IT Averaged", *it_avgd_nodiff_results],
     ]
-    print(tabulate.tabulate(
-        table, headers="firstrow", tablefmt="github",
-        floatfmt=".3f"
-    ))
+    print(tabulate.tabulate(table, headers="firstrow", tablefmt="github", floatfmt=".3f"))
