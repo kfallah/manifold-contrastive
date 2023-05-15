@@ -200,7 +200,9 @@ def _eval_regression(train_X: Tensor, train_Y: Tensor, test_X: Tensor, test_Y: T
     elif args.eval_regression_model == "svr":
         y_pred_list = []
         for pose in range(train_Y.shape[-1]):
-            regression_model = sklearn.svm.SVR().fit(tnp(train_X), tnp(train_Y[..., pose]))
+            regression_model = sklearn.svm.SVR(kernel="linear", C=1e-3, tol=1e-5).fit(
+                tnp(train_X), tnp(train_Y[..., pose])
+            )
             ypred = regression_model.predict(tnp(test_X))
             y_pred_list.append(ypred)
         ypred = np.stack(y_pred_list, axis=-1)
@@ -208,6 +210,7 @@ def _eval_regression(train_X: Tensor, train_Y: Tensor, test_X: Tensor, test_Y: T
         raise NotImplementedError
 
     ytrue = tnp(test_Y)
+
     # R^2 = 1 - u/v
     # u = sum_i (y_i - ypred_i)^2
     # v = sum_i (y_i - ymean)^2
@@ -216,16 +219,34 @@ def _eval_regression(train_X: Tensor, train_Y: Tensor, test_X: Tensor, test_Y: T
     v = np.sum((ytrue - np.mean(ytrue, axis=0)) ** 2, axis=0)
     r2 = 1 - u / v
 
-    return np.mean(r2), np.median(r2), *r2
+    # pearson correlation
+    ytrue_mean = ytrue.mean(0)
+    ypred_mean = ypred.mean(0)
+    r = ((ytrue - ytrue_mean) * (ypred - ypred_mean)).sum(0)
+    denom = np.sqrt(((ytrue - ytrue_mean) ** 2).sum(0) * ((ypred - ypred_mean) ** 2).sum(0))
+    r = r / denom
+
+    return (np.mean(r2), np.median(r2), *r2), (np.mean(r), np.median(r), *r)
 
 
 def evaluate_pose_regression(train_feat, train_pose, test_data, test_pose, args):
     return _eval_regression(train_feat, train_pose, test_data, test_pose, args)
 
 
-def evaluate_pose_change_regression(manifold_model, train_data, train_pose, test_data, test_pose, args):
+def evaluate_pose_change_regression(manifold_model, train_data, train_idx, train_pose, test_data, test_idx, test_pose, args):
     rng = np.random.default_rng(args.seed)
     n = args.eval_pose_change_regr_n_pairs
+    i_train_a = np.arange(len(train_data[:n]))
+    train_a = train_data[:n].to(args.device)
+    i_train_b = torch.tensor([rng.choice(train_idx[inst_idx.item()]) for inst_idx in i_train_a])
+    train_b = train_data[i_train_b].to(args.device)
+
+    i_test_a = np.arange(len(test_data[:n]))
+    test_a = test_data[:n].to(args.device)
+    i_test_b = torch.tensor([rng.choice(test_idx[inst_idx.item()]) for inst_idx in i_test_a])
+    test_b = test_data[i_test_b].to(args.device)
+
+    """
     i_train_a = rng.choice(len(train_data), size=n, replace=True)
     train_a = train_data[i_train_a].detach().to(args.device)
     i_train_b = rng.choice(len(train_data), size=n, replace=True)
@@ -234,25 +255,41 @@ def evaluate_pose_change_regression(manifold_model, train_data, train_pose, test
     test_a = test_data[i_test_a].detach().to(args.device)
     i_test_b = rng.choice(len(test_data), size=n, replace=True)
     test_b = test_data[i_test_b].detach().to(args.device)
+    """
 
     transop, coeff_enc = manifold_model
 
     c_train = []
     c_test = []
-    for i in range(n // 1000):
+    for i in range(len(train_a) // 1000):
         dist_data_train = coeff_enc(
             train_a[i * 1000 : (i + 1) * 1000],
             train_b[i * 1000 : (i + 1) * 1000],
             transop,
         )
         c_train.append(dist_data_train.samples.detach().cpu())
+    if len(train_a) % 1000 != 0:
+        dist_data_train = coeff_enc(
+            train_a[(i+1) * 1000 :],
+            train_b[(i+1) * 1000 :],
+            transop,
+        )
+        c_train.append(dist_data_train.samples.detach().cpu())
 
+    for i in range(len(test_a) // 1000):
         dist_data_test = coeff_enc(
             test_a[i * 1000 : (i + 1) * 1000],
             test_b[i * 1000 : (i + 1) * 1000],
             transop,
         )
         c_test.append(dist_data_test.samples.detach().cpu())
+    if len(test_a) % 1000 != 0:
+        dist_data_train = coeff_enc(
+            test_a[(i+1) * 1000 :],
+            test_b[(i+1) * 1000 :],
+            transop,
+        )
+        c_test.append(dist_data_train.samples.detach().cpu())
 
     c_train = torch.cat(c_train, dim=0)
     c_test = torch.cat(c_test, dim=0)

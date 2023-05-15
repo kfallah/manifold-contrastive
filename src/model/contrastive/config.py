@@ -46,7 +46,7 @@ class VariationalEncoderConfig:
     enable_thresh_warmup: bool = False
 
     enable_max_sampling: bool = False
-    max_sample_l1_penalty: float = 1.0e-2
+    max_sample_l1_penalty: float = 0.0
     max_sample_start_iter: int = 50000
     total_num_samples: int = 20
     samples_per_iter: int = 20

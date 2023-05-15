@@ -144,7 +144,14 @@ class SimCLRTrainer:
             label = self.objectid_train[i]
             idx = torch.where(self.objectid_train == label)[0]
             # Add all neighbors except the object itself
-            self.train_idx[i] = torch.tensor([nn.item() for nn in idx if nn.item() is not i])
+            self.train_idx[i] = torch.tensor([nn.item() for nn in idx if nn.item() != i])
+        
+        self.test_idx = {}
+        for i in range(len(v4_test)):
+            label = self.objectid_test[i]
+            idx = torch.where(self.objectid_test == label)[0]
+            # Add all neighbors except the object itself
+            self.test_idx[i] = torch.tensor([nn.item() for nn in idx if nn.item() != i])
 
     def nxent_loss(self, out_1, out_2, out_3=None, temperature=0.07, mse=False, eps=1e-6):
         """
@@ -258,6 +265,7 @@ class SimCLRTrainer:
             kl_loss_list = []
             train_loss_list = []
             pairwise_dist = []
+            dist_improve_list = []
             feat_norm = []
             epoch_bar.set_description(f"Epoch {epoch}")
             # Go through the train dataset
@@ -275,15 +283,19 @@ class SimCLRTrainer:
                 z0, z1 = backbone(x0), backbone(x1)
 
                 # Handle ManifoldCLR options
-                transop_loss, kl_loss = torch.tensor(0.0), torch.tensor(0.0)
+                transop_loss, kl_loss, shiftl2_loss = torch.tensor(0.0), torch.tensor(0.0), torch.tensor(0.0)
                 if manifold_model is not None:
                     # Manifold loss
                     distribution_data = coeff_enc(z0.detach(), z1.detach(), transop, i + epoch * iters_per_epoch)
                     c = distribution_data.samples
                     z1_hat = transop(z0.float(), c)
 
+                    if args.enable_shiftl2:
+                        shift = distribution_data.encoder_params['shift']
+                        shiftl2_loss = (shift**2).sum(-1).mean()
+
                     # KL loss
-                    transop_loss = F.mse_loss(z1_hat, z1.detach())
+                    transop_loss = F.mse_loss(z1_hat, z1.detach(), reduction="none")
                     kl_loss = compute_kl(
                         "Laplacian", distribution_data.encoder_params, distribution_data.prior_params
                     ).mean()
@@ -311,7 +323,7 @@ class SimCLRTrainer:
                     train_loss = self.nxent_loss(F.normalize(h0, dim=-1), F.normalize(h1, dim=-1))
                 # Backprop
                 optim.zero_grad()
-                (train_loss + args.to_weight * transop_loss + args.kl_weight * kl_loss).backward()
+                (train_loss + args.to_weight * transop_loss.mean() + args.kl_weight * kl_loss + args.shiftl2_weight * shiftl2_loss).backward()
 
                 if args.enable_manifoldclr:
                     torch.nn.utils.clip_grad_norm_(coeff_enc.parameters(), 1.0)
@@ -320,11 +332,13 @@ class SimCLRTrainer:
                 optim.step()
                 scheduler.step()
 
+                dist = F.mse_loss(z0, z1, reduction="none")
                 train_loss_list.append(train_loss.item())
-                to_loss_list.append(transop_loss.item())
+                to_loss_list.append(transop_loss.mean().item())
                 kl_loss_list.append(kl_loss.item())
-                pairwise_dist.append(F.mse_loss(z0, z1).item())
+                pairwise_dist.append(dist.mean().item())
                 feat_norm.append((z1**2).sum(-1).mean().item())
+                dist_improve_list.append((transop_loss.sum(-1) / (dist.sum(-1) + 1e-6)).mean().item())
             wandb_dict = {
                 "train/train_loss": np.mean(train_loss_list),
                 "train/pairwise_dist": np.mean(pairwise_dist),
@@ -333,10 +347,6 @@ class SimCLRTrainer:
 
             # Add transport operator logging
             if args.enable_manifoldclr:
-                to_dist = F.mse_loss(z1_hat, z1, reduction="none").sum(-1)
-                dist = F.mse_loss(z0, z1, reduction="none").sum(-1)
-                dist_improve = (to_dist / (dist + 1e-3)).mean().item()
-
                 encoder_logscale, encoder_shift = (
                     distribution_data.encoder_params["logscale"],
                     distribution_data.encoder_params["shift"],
@@ -349,7 +359,7 @@ class SimCLRTrainer:
                     {
                         "transop/transop_loss": np.mean(to_loss_list),
                         "transop/kl_loss": np.mean(kl_loss_list),
-                        "transop/dist_improve": dist_improve,
+                        "transop/dist_improve": np.mean(dist_improve_list),
                         "transop/mean_psi_norm": (transop.psi.reshape(args.dict_size, -1) ** 2).sum(-1).mean().item(),
                         "transop_vi/c_enc_mag": c[c.abs() > 0].detach().abs().cpu().mean(),
                         "transop_vi/c_prior_mag": c0[c0.abs() > 0].detach().abs().cpu().mean(),
@@ -403,21 +413,29 @@ class SimCLRTrainer:
                 if args.eval_pose_regression:
                     # pose regression: assuming this is what pose change regression would
                     # converge to with many pairs
-                    pose_r2 = evaluate_pose_regression(train_feat, self.pose_train, test_feat, self.pose_test, args)
-                    wandb_dict["eval/pose/R2_mean"] = pose_r2[0]
-                    wandb_dict["eval/pose/R2_median"] = pose_r2[1]
+                    pose_r2, pose_r = evaluate_pose_regression(
+                        train_feat, self.pose_train, test_feat, self.pose_test, args
+                    )
+                    wandb_dict["eval/R2_mean"] = pose_r2[0]
+                    wandb_dict["eval/R2_median"] = pose_r2[1]
+                    wandb_dict["eval/R_mean"] = pose_r[0]
+                    wandb_dict["eval/R_median"] = pose_r[1]
                     for i, dim in enumerate(pose_dims):
-                        wandb_dict[f"eval_pose/pose/R2_{dim}"] = pose_r2[2 + i]
+                        wandb_dict[f"eval_pose/R2_{dim}"] = pose_r2[2 + i]
+                        wandb_dict[f"eval_pose/R_{dim}"] = pose_r[2 + i]
 
                     if args.enable_manifoldclr:
                         # pose change regression
-                        pose_change_r2 = evaluate_pose_change_regression(
-                            manifold_model, train_feat, self.pose_train, test_feat, self.pose_test, args
+                        pose_change_r2, pose_change_r = evaluate_pose_change_regression(
+                            manifold_model, train_feat, self.train_idx, self.pose_train, test_feat, self.test_idx, self.pose_test, args
                         )
-                        wandb_dict["eval/pose_change/R2_mean"] = pose_change_r2[0]
-                        wandb_dict["eval/pose_change/R2_median"] = pose_change_r2[1]
+                        wandb_dict["eval/diff_R2_mean"] = pose_change_r2[0]
+                        wandb_dict["eval/diff_R2_median"] = pose_change_r2[1]
+                        wandb_dict["eval/diff_R_mean"] = pose_change_r[0]
+                        wandb_dict["eval/diff_R_median"] = pose_change_r[1]
                         for i, dim in enumerate(pose_dims):
-                            wandb_dict[f"eval_pose/pose_change/R2_{dim}"] = pose_change_r2[2 + i]
+                            wandb_dict[f"eval_pose/diff_R2_{dim}"] = pose_change_r2[2 + i]
+                            wandb_dict[f"eval_pose/diff_R_{dim}"] = pose_change_r[2 + i]
 
                 if args.eval_explained_variance:
                     raise NotImplementedError("Explained variance not implemented for the new dataset structure")
@@ -451,7 +469,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run simclr on the neuroscience dataset")
 
     parser.add_argument("--dataset", type=str, default="brainscore", help="Dataset to use")
-    parser.add_argument("--seed", type=int, default=3, help="Random seed")  # Dim of V4 data
+    parser.add_argument("--seed", type=int, default=747, help="Random seed")  # Dim of V4 data
     parser.add_argument("--input_dim", type=int, default=88, help="Input dimension")  # Dim of V4 data
     parser.add_argument(
         "--hidden_dim", type=int, default=512, help="Hidden dimension of contrastive head"
@@ -490,7 +508,7 @@ if __name__ == "__main__":
     parser.add_argument("--weight_decay", type=float, default=1e-4, help="Weight decay")
     parser.add_argument("--optimizer", type=str, default="adam", help="Optimizer to use")
     parser.add_argument("--temperature", type=float, default=1e-1, help="Temperature for info nce loss")
-    parser.add_argument("--device", type=str, default="cuda:1", help="Device to use")
+    parser.add_argument("--device", type=str, default="cuda:0", help="Device to use")
     parser.add_argument("--dataset_type", type=str, default="pose", help="Type of dataset used")
     parser.add_argument("--average_trials", type=bool, default=True, help="Whether or not to average across trials")
     parser.add_argument("--average_downsample_factor", type=int, default=50, help="Factor to downsample average by")
@@ -505,25 +523,31 @@ if __name__ == "__main__":
         "--eval_object_id_linear", type=bool, default=True, help="Whether or not to evaluate object id linear"
     )
     parser.add_argument(
-        "--eval_pose_regression", type=bool, default=False, help="Whether or not to evaluate pose regression"
+        "--eval_pose_regression", type=bool, default=True, help="Whether or not to evaluate pose regression"
     )
     parser.add_argument(
         "--eval_pose_change_regr_n_pairs",
         type=int,
-        default=100000,
+        default=5000,
         help="Number of pairs to use for pose change regression training and test",
+    )
+    parser.add_argument(
+        "--eval_regression_model", type=str, default="svr", help="Regression model to fit for prediction."
     )
     parser.add_argument("--eval_frequency", default=500)
 
     # ManifoldCLR args
-    parser.add_argument("--enable_manifoldclr", type=bool, default=False, help="Enable ManifoldCLR")
+    parser.add_argument("--enable_manifoldclr", type=bool, default=True, help="Enable ManifoldCLR")
     parser.add_argument("--dict_size", type=int, default=32, help="Dictionary size")
-    parser.add_argument("--z0_neg", type=bool, default=False, help="Whether to use z0 as a negative.")
-    parser.add_argument("--to_weight", type=float, default=0.1, help="Transop loss weight")
+    parser.add_argument("--z0_neg", type=bool, default=True, help="Whether to use z0 as a negative.")
+    parser.add_argument("--to_weight", type=float, default=1.0, help="Transop loss weight")
     parser.add_argument("--to_wd", type=float, default=1.0e-5, help="Transop loss weight")
     parser.add_argument("--kl_weight", type=float, default=1.0e-5, help="KL Div weight")
     parser.add_argument("--threshold", type=float, default=0.0, help="Reparam threshold")
-    parser.add_argument("--run_name", type=str, default="simclr_baseline", help="runname")
+    parser.add_argument("--max_elbo", type=bool, default=False, help="Max elbo sampling for enc inference")
+    parser.add_argument("--enable_shiftl2", type=bool, default=False, help="Enable shift l2 loss")
+    parser.add_argument("--shiftl2_weight", type=float, default=1.0e-3, help="Shift l2 loss weight")
+    parser.add_argument("--run_name", type=str, default="vi_avg50_to1e-1", help="runname")
 
     args = parser.parse_args()
     args.save_dir = args.save_dir + args.run_name
@@ -581,12 +605,16 @@ if __name__ == "__main__":
             dict_count=1,
         ).to(args.device)
         vi_cfg = VariationalEncoderConfig(
-            scale_prior=0.001,
-            shift_prior=0.005,
+            scale_prior=0.005,
+            shift_prior=0.01,
             enable_learned_prior=True,
             enable_prior_shift=True,
-            enable_prior_warmup=True,
+            enable_prior_warmup=False,
             prior_warmup_iters=500,
+            enable_max_sampling=args.max_elbo,
+            max_sample_start_iter=0,
+            samples_per_iter=20,
+            total_num_samples=20
         )
         coeff_enc = CoefficientEncoder(vi_cfg, args.backbone_output_dim, args.dict_size, args.threshold).to(
             args.device
