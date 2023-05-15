@@ -145,6 +145,13 @@ class SimCLRTrainer:
             idx = torch.where(self.objectid_train == label)[0]
             # Add all neighbors except the object itself
             self.train_idx[i] = torch.tensor([nn.item() for nn in idx if nn.item() != i])
+        
+        self.test_idx = {}
+        for i in range(len(v4_test)):
+            label = self.objectid_test[i]
+            idx = torch.where(self.objectid_test == label)[0]
+            # Add all neighbors except the object itself
+            self.test_idx[i] = torch.tensor([nn.item() for nn in idx if nn.item() != i])
 
     def nxent_loss(self, out_1, out_2, out_3=None, temperature=0.07, mse=False, eps=1e-6):
         """
@@ -415,7 +422,7 @@ class SimCLRTrainer:
                     if args.enable_manifoldclr:
                         # pose change regression
                         pose_change_r2, pose_change_r = evaluate_pose_change_regression(
-                            manifold_model, train_feat, self.pose_train, test_feat, self.pose_test, args
+                            manifold_model, train_feat, self.train_idx, self.pose_train, test_feat, self.test_idx, self.pose_test, args
                         )
                         wandb_dict["eval/diff_R2_mean"] = pose_change_r2[0]
                         wandb_dict["eval/diff_R2_median"] = pose_change_r2[1]
@@ -457,7 +464,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run simclr on the neuroscience dataset")
 
     parser.add_argument("--dataset", type=str, default="brainscore", help="Dataset to use")
-    parser.add_argument("--seed", type=int, default=3, help="Random seed")  # Dim of V4 data
+    parser.add_argument("--seed", type=int, default=747, help="Random seed")  # Dim of V4 data
     parser.add_argument("--input_dim", type=int, default=88, help="Input dimension")  # Dim of V4 data
     parser.add_argument(
         "--hidden_dim", type=int, default=512, help="Hidden dimension of contrastive head"
@@ -527,15 +534,15 @@ if __name__ == "__main__":
     # ManifoldCLR args
     parser.add_argument("--enable_manifoldclr", type=bool, default=True, help="Enable ManifoldCLR")
     parser.add_argument("--dict_size", type=int, default=32, help="Dictionary size")
-    parser.add_argument("--z0_neg", type=bool, default=False, help="Whether to use z0 as a negative.")
-    parser.add_argument("--to_weight", type=float, default=10, help="Transop loss weight")
+    parser.add_argument("--z0_neg", type=bool, default=True, help="Whether to use z0 as a negative.")
+    parser.add_argument("--to_weight", type=float, default=1.0, help="Transop loss weight")
     parser.add_argument("--to_wd", type=float, default=1.0e-5, help="Transop loss weight")
     parser.add_argument("--kl_weight", type=float, default=1.0e-5, help="KL Div weight")
-    parser.add_argument("--threshold", type=float, default=0.001, help="Reparam threshold")
-    parser.add_argument("--max_elbo", type=bool, default=True, help="Max elbo sampling for enc inference")
-    parser.add_argument("--enable_shiftl2", type=bool, default=True, help="Enable shift l2 loss")
+    parser.add_argument("--threshold", type=float, default=0.0, help="Reparam threshold")
+    parser.add_argument("--max_elbo", type=bool, default=False, help="Max elbo sampling for enc inference")
+    parser.add_argument("--enable_shiftl2", type=bool, default=False, help="Enable shift l2 loss")
     parser.add_argument("--shiftl2_weight", type=float, default=1.0e-3, help="Shift l2 loss weight")
-    parser.add_argument("--run_name", type=str, default="vi-thresh_avg50_to1e1_shift1e-3", help="runname")
+    parser.add_argument("--run_name", type=str, default="vi_avg50_to1e-1", help="runname")
 
     args = parser.parse_args()
     args.save_dir = args.save_dir + args.run_name
@@ -593,15 +600,16 @@ if __name__ == "__main__":
             dict_count=1,
         ).to(args.device)
         vi_cfg = VariationalEncoderConfig(
-            scale_prior=0.001,
-            shift_prior=0.005,
+            scale_prior=0.005,
+            shift_prior=0.01,
             enable_learned_prior=True,
             enable_prior_shift=True,
-            enable_prior_warmup=True,
+            enable_prior_warmup=False,
             prior_warmup_iters=500,
             enable_max_sampling=args.max_elbo,
-            samples_per_iter=500,
-            total_num_samples=500
+            max_sample_start_iter=0,
+            samples_per_iter=20,
+            total_num_samples=20
         )
         coeff_enc = CoefficientEncoder(vi_cfg, args.backbone_output_dim, args.dict_size, args.threshold).to(
             args.device
