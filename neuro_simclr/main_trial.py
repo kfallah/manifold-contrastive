@@ -427,7 +427,14 @@ class SimCLRTrainer:
                     if args.enable_manifoldclr:
                         # pose change regression
                         pose_change_r2, pose_change_r = evaluate_pose_change_regression(
-                            manifold_model, train_feat, self.train_idx, self.pose_train, test_feat, self.test_idx, self.pose_test, args
+                            manifold_model, 
+                            train_feat, 
+                            self.train_idx, 
+                            self.pose_train, 
+                            test_feat, 
+                            self.test_idx, 
+                            self.pose_test, 
+                            args
                         )
                         wandb_dict["eval/diff_R2_mean"] = pose_change_r2[0]
                         wandb_dict["eval/diff_R2_median"] = pose_change_r2[1]
@@ -511,6 +518,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cuda:0", help="Device to use")
     parser.add_argument("--dataset_type", type=str, default="pose", help="Type of dataset used")
     parser.add_argument("--average_trials", type=bool, default=True, help="Whether or not to average across trials")
+    parser.add_argument("--dataset_split_version", default="stimulus")
     parser.add_argument("--average_downsample_factor", type=int, default=50, help="Factor to downsample average by")
     parser.add_argument("--ignore_cache", type=bool, default=False, help="Whether or not to ignore the cache")
     parser.add_argument(
@@ -523,7 +531,7 @@ if __name__ == "__main__":
         "--eval_object_id_linear", type=bool, default=True, help="Whether or not to evaluate object id linear"
     )
     parser.add_argument(
-        "--eval_pose_regression", type=bool, default=True, help="Whether or not to evaluate pose regression"
+        "--eval_pose_regression", type=bool, default=False, help="Whether or not to evaluate pose regression"
     )
     parser.add_argument(
         "--eval_pose_change_regr_n_pairs",
@@ -539,7 +547,7 @@ if __name__ == "__main__":
     # ManifoldCLR args
     parser.add_argument("--enable_manifoldclr", type=bool, default=True, help="Enable ManifoldCLR")
     parser.add_argument("--dict_size", type=int, default=32, help="Dictionary size")
-    parser.add_argument("--z0_neg", type=bool, default=True, help="Whether to use z0 as a negative.")
+    parser.add_argument("--z0_neg", type=bool, default=False, help="Whether to use z0 as a negative.")
     parser.add_argument("--to_weight", type=float, default=1.0, help="Transop loss weight")
     parser.add_argument("--to_wd", type=float, default=1.0e-5, help="Transop loss weight")
     parser.add_argument("--kl_weight", type=float, default=1.0e-5, help="KL Div weight")
@@ -564,11 +572,13 @@ if __name__ == "__main__":
     )
 
     # Load dataset
+    assert args.dataset_split_version in ["stimulus", "old"]
     train_data, test_data = get_dataset(
         args.average_trials,
         args.average_downsample_factor,
         args.seed,
         ignore_cache=args.ignore_cache,
+        dataset_split_version=args.dataset_split_version,
     )
     (v4_train, it_train, label_train, objectid_train, pose_train) = train_data
     (v4_test, it_test, label_test, objectid_test, pose_test) = test_data

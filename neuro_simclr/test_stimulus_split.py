@@ -15,22 +15,22 @@ def get_stimulus_dataset_split(random_seed):
     # Generates a consistent train test split of the brainscore dataset
     # along the presentation dimension
     neural_data = brainscore.get_assembly(name="dicarlo.MajajHong2015.public")
+    print(neural_data)
     neural_data = neural_data.squeeze("time_bin")
     neural_data = neural_data.transpose("presentation", "neuroid")
-    neural_data = neural_data.multi_groupby(["category_name", "object_name", "stimulus_id"]).mean(
-        dim="presentation"
+    neural_data = neural_data.multi_groupby(["category_name", "object_name", "stimulus_id", *pose_dims]).mean(
+        dim="presentation",
+        keep_attrs=True
     )
-    print(neural_data.shape)
     # Get the list of stimuli
     v4_data_tensor = neural_data.sel(region="V4").to_numpy()
     it_data_tensor = neural_data.sel(region="IT").to_numpy()
     indices = np.arange(len(neural_data))
     train_indices = np.random.choice(indices, size=int(len(indices) * 0.8), replace=False)
     test_indices = np.setdiff1d(indices, train_indices)
-
     object_val = neural_data.object_name.to_numpy()
     _, objectids = np.unique(object_val, return_inverse=True)
-    # pose = np.column_stack([neural_data[d].values for d in pose_dims])
+    pose = np.column_stack([neural_data[d].values for d in pose_dims])
     categories = neural_data.category_name.to_numpy()
     _, categories = np.unique(categories, return_inverse=True)
     # Get the test data
@@ -38,7 +38,7 @@ def get_stimulus_dataset_split(random_seed):
     test_it_data = torch.Tensor(it_data_tensor[test_indices])
     test_categories = torch.Tensor(categories[test_indices]).long()
     test_objectids = torch.Tensor(objectids[test_indices]).long()
-    test_pose = None# pose[train_indices]
+    test_pose = pose[test_indices]
     print(f"Test data shape: {test_v4_data.shape}")
     test_data = (test_v4_data, test_it_data, test_categories, test_objectids, test_pose)
     # Get the train data 
@@ -47,7 +47,7 @@ def get_stimulus_dataset_split(random_seed):
     train_categories = torch.Tensor(categories[train_indices]).long()
     train_objectids = torch.Tensor(objectids[train_indices]).long()
     print(f"Train data shape: {train_v4_data.shape}")
-    train_pose = None# pose[test_indices]
+    train_pose = pose[train_indices]
     train_data = (train_v4_data, train_it_data, train_categories, train_objectids, train_pose)
 
     return train_data, test_data

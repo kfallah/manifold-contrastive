@@ -11,6 +11,7 @@ import wandb
 
 def embed_v4_data(data, backbone, device, batch_size=1000):
     embeddings = []
+    batch_size = min(batch_size, len(data))
     with torch.no_grad():
         for i in range(len(data) // batch_size):
             x = data[i * batch_size : (i + 1) * batch_size].to(device)
@@ -188,10 +189,10 @@ def tnp(tensor: Tensor):
 
 
 def _eval_regression(train_X: Tensor, train_Y: Tensor, test_X: Tensor, test_Y: Tensor, args):
-    assert train_X.shape[0] == train_Y.shape[0]
-    assert test_X.shape[0] == test_Y.shape[0]
-    assert train_X.shape[1] == test_X.shape[1]
-    assert train_Y.shape[1] == test_Y.shape[1]
+    assert train_X.shape[0] == train_Y.shape[0], f"{train_X.shape} != {train_Y.shape}"
+    assert test_X.shape[0] == test_Y.shape[0], f"{test_X.shape} != {test_Y.shape}"
+    assert train_X.shape[1] == test_X.shape[1], f"{train_X.shape} != {test_X.shape}"
+    assert train_Y.shape[1] == test_Y.shape[1], f"{train_Y.shape} != {test_Y.shape}"
 
     # Fit a linear regression model to the data
     if args.eval_regression_model == "linear":
