@@ -127,6 +127,8 @@ class SimCLRTrainer:
         objectid_test,
         pose_train,
         pose_test,
+        it_train,
+        it_test,
         args,
     ):
         self.v4_train = v4_train
@@ -137,6 +139,8 @@ class SimCLRTrainer:
         self.objectid_test = objectid_test
         self.pose_train = pose_train
         self.pose_test = pose_test
+        self.it_train = it_train
+        self.it_test = it_test
         self.args = args
 
         self.train_idx = {}
@@ -647,6 +651,8 @@ if __name__ == "__main__":
         objectid_test,
         pose_train,
         pose_test,
+        it_train,
+        it_test,
         args,
     )
     trainer.run_simclr(
