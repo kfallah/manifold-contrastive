@@ -277,20 +277,12 @@ def evaluate_pose_change_regression(manifold_model, train_data, train_idx, train
         )
         c_train.append(dist_data_train.samples.detach().cpu())
 
-    for i in range(len(test_a) // 1000):
-        dist_data_test = coeff_enc(
-            test_a[i * 1000 : (i + 1) * 1000],
-            test_b[i * 1000 : (i + 1) * 1000],
-            transop,
-        )
-        c_test.append(dist_data_test.samples.detach().cpu())
-    if len(test_a) % 1000 != 0:
-        dist_data_train = coeff_enc(
-            test_a[(i+1) * 1000 :],
-            test_b[(i+1) * 1000 :],
-            transop,
-        )
-        c_test.append(dist_data_train.samples.detach().cpu())
+    dist_data_test = coeff_enc(
+        test_a,
+        test_b,
+        transop,
+    )
+    c_test.append(dist_data_test.samples.detach().cpu())
 
     c_train = torch.cat(c_train, dim=0)
     c_test = torch.cat(c_test, dim=0)
