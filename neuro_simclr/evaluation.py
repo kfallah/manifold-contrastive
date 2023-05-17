@@ -139,7 +139,7 @@ def evaluate_logistic_regression(backbone, train_dataset, test_dataset, args):
         )
 
 
-def evaluate_IT_explained_variance(backbone, neuroid_train_dataset, neuroid_eval_dataset, args):
+def evaluate_IT_explained_variance(train_feat, train_it, test_feat, test_it, args):
     """
     Measures the explained variance of the IT data.
 
@@ -148,40 +148,17 @@ def evaluate_IT_explained_variance(backbone, neuroid_train_dataset, neuroid_eval
         site recordings.
     (3) Return the R^2 score for each of the linear regression models.
     """
-    raise NotImplementedError("This function is not yet implemented with the new dataset paradigm.")
-    # Put the backbone in eval mode
-    backbone.eval()
-
-    v4_train_dataset = neuroid_train_dataset.sel(region="V4")
-    it_train_dataset = neuroid_train_dataset.sel(region="IT")
-    v4_test_dataset = neuroid_eval_dataset.sel(region="V4")
-    it_test_dataset = neuroid_eval_dataset.sel(region="IT")
-    # Generate embeddings from the backbone
-    train_embeddings = []
-    for neuroid_data in v4_train_dataset:
-        neuroid_data = torch.Tensor(neuroid_data.to_numpy()).to(args.device)
-        neuroid_data = neuroid_data.unsqueeze(0)
-        train_embeddings.append(backbone(neuroid_data).detach().cpu().numpy().squeeze())
-    test_embeddings = []
-    for neuroid_data in v4_test_dataset:
-        neuroid_data = torch.Tensor(neuroid_data.to_numpy()).to(args.device)
-        neuroid_data = neuroid_data.unsqueeze(0)
-        test_embeddings.append(backbone(neuroid_data).detach().cpu().numpy().squeeze())
-    # Fit a linear regression model for each of the IT neuronal site recordings
-    num_neuronal_sites = it_test_dataset.shape[-1]
+    num_neuronal_sites = test_it.shape[-1]
     assert num_neuronal_sites == 168
-    r2_values = []
-    for neuron_site_index in range(num_neuronal_sites):
-        # Select the data for the given neuronal site.
-        site_data = it_train_dataset[:, neuron_site_index]
-        # Fit a linear regression model to the data
-        linear_regression_model = sklearn.linear_model.LinearRegression().fit(train_embeddings, site_data)
-        # Evaluate R^2 of each of the linear regression models
-        # on the test set
-        r2 = linear_regression_model.score(test_embeddings, neuroid_eval_dataset[:, neuron_site_index])
-        r2_values.append(r2)
-    # Log the R^2 values to wandb
-    wandb.log({"median_IT_explained_variance": np.median(r2_values)})
+
+    regression_model = sklearn.linear_model.LinearRegression().fit(tnp(train_feat), tnp(train_it))
+    ypred = regression_model.predict(tnp(test_feat))
+    ytrue = tnp(test_it)
+    u = np.sum((ytrue - ypred) ** 2, axis=0)
+    v = np.sum((ytrue - np.mean(ytrue, axis=0)) ** 2, axis=0)
+    r2 = 1 - u / v
+
+    return np.median(r2)
 
 
 def tnp(tensor: Tensor):
@@ -262,7 +239,7 @@ def evaluate_pose_change_regression(manifold_model, train_data, train_idx, train
 
     c_train = []
     c_test = []
-    for i in range(len(train_a) // 1000):
+    for i in range((len(train_a) // 1000) - 1):
         dist_data_train = coeff_enc(
             train_a[i * 1000 : (i + 1) * 1000],
             train_b[i * 1000 : (i + 1) * 1000],
