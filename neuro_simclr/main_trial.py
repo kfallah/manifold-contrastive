@@ -480,6 +480,15 @@ class SimCLRTrainer:
 
             wandb.log(wandb_dict, step=epoch)
 
+def str2bool(v) -> bool:
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run simclr on the neuroscience dataset")
@@ -498,19 +507,19 @@ if __name__ == "__main__":
     )  # Dim of V4 data
     parser.add_argument(
         "--contrastive_head_batchnorm",
-        type=bool,
+        type=str2bool,
         default=True,
         help="Whether to use batchnorms after layers in contrastive head and backbone",
     )
     parser.add_argument(
         "--backbone_batchnorm",
-        type=bool,
+        type=str2bool,
         default=True,
         help="Whether to use batchnorms after layers in contrastive head and backbone",
     )
     parser.add_argument(
         "--no_contrastive_head",
-        type=bool,
+        type=str2bool,
         default=True,
         help="Whether or not to include a contrastive head",
     )
@@ -526,21 +535,21 @@ if __name__ == "__main__":
     parser.add_argument("--temperature", type=float, default=1e-1, help="Temperature for info nce loss")
     parser.add_argument("--device", type=str, default="cuda:0", help="Device to use")
     parser.add_argument("--dataset_type", type=str, default="pose", help="Type of dataset used")
-    parser.add_argument("--average_trials", type=bool, default=True, help="Whether or not to average across trials")
+    parser.add_argument("--average_trials", type=str2bool, default=True, help="Whether or not to average across trials")
     parser.add_argument("--dataset_split_version", default="stimulus")
     parser.add_argument("--average_downsample_factor", type=int, default=50, help="Factor to downsample average by")
-    parser.add_argument("--ignore_cache", type=bool, default=False, help="Whether or not to ignore the cache")
+    parser.add_argument("--ignore_cache", type=str2bool, default=False, help="Whether or not to ignore the cache")
     parser.add_argument(
-        "--eval_explained_variance", type=bool, default=False, help="Whether or not to evaluate explained variance"
+        "--eval_explained_variance", type=str2bool, default=False, help="Whether or not to evaluate explained variance"
     )
     parser.add_argument(
-        "--eval_logistic_regression", type=bool, default=False, help="Whether or not to evaluate logistic regression"
+        "--eval_logistic_regression", type=str2bool, default=False, help="Whether or not to evaluate logistic regression"
     )
     parser.add_argument(
-        "--eval_object_id_linear", type=bool, default=True, help="Whether or not to evaluate object id linear"
+        "--eval_object_id_linear", type=str2bool, default=True, help="Whether or not to evaluate object id linear"
     )
     parser.add_argument(
-        "--eval_pose_regression", type=bool, default=True, help="Whether or not to evaluate pose regression"
+        "--eval_pose_regression", type=str2bool, default=True, help="Whether or not to evaluate pose regression"
     )
     parser.add_argument(
         "--eval_pose_change_regr_n_pairs",
@@ -554,15 +563,15 @@ if __name__ == "__main__":
     parser.add_argument("--eval_frequency", default=500)
 
     # ManifoldCLR args
-    parser.add_argument("--enable_manifoldclr", type=bool, default=True, help="Enable ManifoldCLR")
+    parser.add_argument("--enable_manifoldclr", type=str2bool, default=True, help="Enable ManifoldCLR")
     parser.add_argument("--dict_size", type=int, default=32, help="Dictionary size")
-    parser.add_argument("--z0_neg", type=bool, default=True, help="Whether to use z0 as a negative.")
+    parser.add_argument("--z0_neg", type=str2bool, default=True, help="Whether to use z0 as a negative.")
     parser.add_argument("--to_weight", type=float, default=1.0e1, help="Transop loss weight")
     parser.add_argument("--to_wd", type=float, default=1.0e-5, help="Transop loss weight")
     parser.add_argument("--kl_weight", type=float, default=1.0e-5, help="KL Div weight")
     parser.add_argument("--threshold", type=float, default=0.0, help="Reparam threshold")
-    parser.add_argument("--max_elbo", type=bool, default=False, help="Max elbo sampling for enc inference")
-    parser.add_argument("--enable_shiftl2", type=bool, default=False, help="Enable shift l2 loss")
+    parser.add_argument("--max_elbo", type=str2bool, default=False, help="Max elbo sampling for enc inference")
+    parser.add_argument("--enable_shiftl2", type=str2bool, default=False, help="Enable shift l2 loss")
     parser.add_argument("--shiftl2_weight", type=float, default=1.0e-3, help="Shift l2 loss weight")
     parser.add_argument("--run_name", type=str, default="default", help="runname")
 
