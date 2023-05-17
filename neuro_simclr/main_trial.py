@@ -560,7 +560,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_elbo", type=bool, default=False, help="Max elbo sampling for enc inference")
     parser.add_argument("--enable_shiftl2", type=bool, default=False, help="Enable shift l2 loss")
     parser.add_argument("--shiftl2_weight", type=float, default=1.0e-3, help="Shift l2 loss weight")
-    parser.add_argument("--run_name", type=str, default="vi_to1e1_z0-neg_warmup", help="runname")
+    parser.add_argument("--run_name", type=str, default="default", help="runname")
 
     args = parser.parse_args()
     args.save_dir = args.save_dir + args.run_name
@@ -575,6 +575,8 @@ if __name__ == "__main__":
         project="neuro_simclr",
         config=args,
     )
+    if args.run_name != "default":
+        wandb.run.name = args.run_name
 
     # Load dataset
     assert args.dataset_split_version in ["stimulus", "old"]
