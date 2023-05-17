@@ -10,3 +10,4 @@ wandb
 deep_image_prior/datasets
 deep_image_prior/plots
 deep_image_prior/nn_path_visualizations/plots
+pace_logs
