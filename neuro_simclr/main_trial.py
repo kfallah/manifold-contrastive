@@ -454,10 +454,10 @@ class SimCLRTrainer:
                             wandb_dict[f"eval_pose/diff_R_{dim}"] = pose_change_r[2 + i]
 
                 if args.eval_explained_variance:
-                    raise NotImplementedError("Explained variance not implemented for the new dataset structure")
-                    evaluate_IT_explained_variance(
-                        backbone, self.neuroid_train_dataset, self.neuroid_eval_dataset, args
+                    it_ev = evaluate_IT_explained_variance(
+                        train_feat, self.it_train, test_feat, self.it_test, args
                     )
+                    wandb_dict["eval/IT_explained_variance"] = it_ev
 
                 if args.enable_manifoldclr:
                     # TODO: modify passing psi if incorporating block diagonal constraint
@@ -540,7 +540,7 @@ if __name__ == "__main__":
     parser.add_argument("--average_downsample_factor", type=int, default=50, help="Factor to downsample average by")
     parser.add_argument("--ignore_cache", type=str2bool, default=False, help="Whether or not to ignore the cache")
     parser.add_argument(
-        "--eval_explained_variance", type=str2bool, default=False, help="Whether or not to evaluate explained variance"
+        "--eval_explained_variance", type=str2bool, default=True, help="Whether or not to evaluate explained variance"
     )
     parser.add_argument(
         "--eval_logistic_regression", type=str2bool, default=False, help="Whether or not to evaluate logistic regression"
