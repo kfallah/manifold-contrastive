@@ -568,7 +568,7 @@ if __name__ == "__main__":
     parser.add_argument("--z0_neg", type=str2bool, default=True, help="Whether to use z0 as a negative.")
     parser.add_argument("--to_weight", type=float, default=1.0e1, help="Transop loss weight")
     parser.add_argument("--to_wd", type=float, default=1.0e-5, help="Transop loss weight")
-    parser.add_argument("--kl_weight", type=float, default=1.0e-5, help="KL Div weight")
+    parser.add_argument("--kl_weight", type=float, default=1.0e-6, help="KL Div weight")
     parser.add_argument("--threshold", type=float, default=0.0, help="Reparam threshold")
     parser.add_argument("--max_elbo", type=str2bool, default=False, help="Max elbo sampling for enc inference")
     parser.add_argument("--enable_shiftl2", type=str2bool, default=False, help="Enable shift l2 loss")
