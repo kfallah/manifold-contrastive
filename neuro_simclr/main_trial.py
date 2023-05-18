@@ -389,6 +389,8 @@ class SimCLRTrainer:
                 train_feat = embed_v4_data(self.v4_train, backbone, args.device)
                 test_feat = embed_v4_data(self.v4_test, backbone, args.device)
 
+                print(train_feat.shape)
+                print(self.label_train.shape)
                 tsne = tsne_plot(train_feat, self.label_train)
                 train_category_acc, train_category_fscore = evaluate_linear_classifier(
                     train_feat, self.label_train, train_feat, self.label_train, args

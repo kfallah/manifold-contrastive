@@ -165,7 +165,7 @@ def apply_averaging(neuroid_data, average_downsample_factor=5):
     pose_datas = []
     category_datas = []
 
-    v4_data, it_data, categories, objectids, pose, stimulus_ids = neuroid_data
+    v4_data, it_data, pose, objectids, categories, stimulus_ids = neuroid_data
     
     # For each unique stimulus id
     unique_stimulus_ids = np.unique(stimulus_ids)
