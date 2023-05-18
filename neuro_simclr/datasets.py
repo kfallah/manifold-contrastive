@@ -13,7 +13,13 @@ from tqdm import tqdm
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
-def generate_brainscore_train_test_split(random_seed=42, split_percentage=0.8):
+def generate_brainscore_train_test_split(
+    random_seed=42, 
+    split_percentage=0.8, 
+    split_by="stimulus",
+    return_numpy=True
+):
+    assert split_by in ["stimulus", "trial"]
     # Set numpy seed
     np.random.seed(random_seed)
     torch.manual_seed(random_seed)
@@ -22,18 +28,56 @@ def generate_brainscore_train_test_split(random_seed=42, split_percentage=0.8):
     neural_data = brainscore.get_assembly(name="dicarlo.MajajHong2015.public")
     neural_data = neural_data.squeeze("time_bin")
     neural_data = neural_data.transpose("presentation", "neuroid")
-    # Randomly select 80% of the presentations to be the train set
-    train_indices = np.random.choice(
-        np.arange(len(neural_data)), size=int(len(neural_data) * split_percentage), replace=False
-    )
-    # Subtract train_indices to get test indices
-    test_indices = np.setdiff1d(np.arange(len(neural_data)), train_indices)
+    if split_by == "trial":
+        # Randomly select 80% of the presentations to be the train set
+        train_indices = np.random.choice(
+            np.arange(len(neural_data)), size=int(len(neural_data) * split_percentage), replace=False
+        )
+        # Subtract train_indices to get test indices
+        test_indices = np.setdiff1d(np.arange(len(neural_data)), train_indices)
+    elif split_by == "stimulus":
+        train_indices = np.array([])
+        all_stimuli = np.unique(neural_data.stimulus_id.to_numpy())
+        # Choose 80% of the stimuli to be the train set
+        train_stimuli = np.random.choice(all_stimuli, size=int(len(all_stimuli) * split_percentage), replace=False)
+        # For each stimulus get all trial indices
+        for stimuli in tqdm(train_stimuli):
+            stimulus_indices = np.where(neural_data.stimulus_id.to_numpy() == stimuli)
+            train_indices = np.concatenate([train_indices, stimulus_indices[0]])
+        train_indices = np.array(train_indices).astype(int)
+        # Subtract train_indices to get test indices
+        test_indices = np.setdiff1d(np.arange(len(neural_data)), train_indices).astype(int)
     # Set the data
     train_data = neural_data[train_indices]
     test_data = neural_data[test_indices]
 
-    return train_data, test_data
+    if return_numpy:
+        # Convert data to numpy
+        v4_data = train_data.sel(region="V4").to_numpy()
+        it_data = train_data.sel(region="IT").to_numpy()
+        object_val = train_data.object_name.to_numpy()
+        _, objectids = np.unique(object_val, return_inverse=True)
+        pose = np.column_stack([train_data[d].values for d in pose_dims])
+        categories = train_data.category_name.to_numpy()
+        _, categories = np.unique(categories, return_inverse=True)
+        stimulus_ids = train_data.stimulus_id.to_numpy()
+        _, stimulus_ids = np.unique(stimulus_ids, return_inverse=True)
 
+        train_data = (v4_data, it_data, pose, objectids, categories, stimulus_ids)
+
+        v4_data = test_data.sel(region="V4").to_numpy()
+        it_data = test_data.sel(region="IT").to_numpy()
+        object_val = test_data.object_name.to_numpy()
+        _, objectids = np.unique(object_val, return_inverse=True)
+        pose = np.column_stack([test_data[d].values for d in pose_dims])
+        categories = test_data.category_name.to_numpy()
+        _, categories = np.unique(categories, return_inverse=True)
+        stimulus_ids = test_data.stimulus_id.to_numpy()
+        _, stimulus_ids = np.unique(stimulus_ids, return_inverse=True)
+
+        test_data = (v4_data, it_data, pose, objectids, categories, stimulus_ids)
+
+    return train_data, test_data
 
 def get_pixel_dataset(flatten_images=True, random_seed=0, output_resolution=32):
     """
@@ -41,7 +85,10 @@ def get_pixel_dataset(flatten_images=True, random_seed=0, output_resolution=32):
     corresponding to the splits outputted by
     generate_brainscore_train_test_split
     """
-    neuroid_train_data, neuroid_test_data = generate_brainscore_train_test_split(random_seed=random_seed)
+    neuroid_train_data, neuroid_test_data = generate_brainscore_train_test_split(
+        random_seed=random_seed,
+        return_numpy=False
+    )
     # Get the train and test data
     # NOTE: Always average over trials because there is just one image per stimulus (image is the stimulus)
     train_stimulus_set = neuroid_train_data.attrs["stimulus_set"]
@@ -94,23 +141,22 @@ def get_pixel_dataset(flatten_images=True, random_seed=0, output_resolution=32):
 
     return (pixel_train, label_train, object_id_train), (pixel_test, label_test, object_id_test)
 
-
 def load_cache(average_trials, ds_factor, random_seed):
     """
     Loads the cache if it exists
     """
+    if not os.path.exists("neuro_results/data"):
+        os.makedirs("neuro_results/data")
     if average_trials:
-        cache_file = f"neuro_results/avgd-ds{ds_factor}-seed{random_seed}-data.pt"
+        cache_file = f"neuro_results/data/avgd-ds{ds_factor}-seed{random_seed}-data.pt"
     else:
-        cache_file = f"neuro_results/data-seed{random_seed}.pt"
+        cache_file = f"neuro_results/data/data-seed{random_seed}.pt"
     try:
         return torch.load(cache_file)
     except FileNotFoundError:
         return None
 
-
 pose_dims = ["s", "ty", "tz", "rxy_semantic", "rxz_semantic", "ryz_semantic"]
-
 
 def apply_averaging(neuroid_data, average_downsample_factor=5):
     v4_datas = []
@@ -118,16 +164,9 @@ def apply_averaging(neuroid_data, average_downsample_factor=5):
     objectid_datas = []
     pose_datas = []
     category_datas = []
-    # Convert data to numpy
-    v4_data = neuroid_data.sel(region="V4").to_numpy()
-    it_data = neuroid_data.sel(region="IT").to_numpy()
-    object_val = neuroid_data.object_name.to_numpy()
-    _, objectids = np.unique(object_val, return_inverse=True)
-    pose = np.column_stack([neuroid_data[d].values for d in pose_dims])
-    categories = neuroid_data.category_name.to_numpy()
-    _, categories = np.unique(categories, return_inverse=True)
-    stimulus_ids = neuroid_data.stimulus_id.to_numpy()
-    _, stimulus_ids = np.unique(stimulus_ids, return_inverse=True)
+
+    v4_data, it_data, categories, objectids, pose, stimulus_ids = neuroid_data
+    
     # For each unique stimulus id
     unique_stimulus_ids = np.unique(stimulus_ids)
     for stimulus_id in tqdm(unique_stimulus_ids):
@@ -176,81 +215,43 @@ def apply_averaging(neuroid_data, average_downsample_factor=5):
 
     return v4_datas, it_datas, pose_datas, objectid_datas, category_datas
 
-
-def get_stimulus_dataset_split(random_seed):
-    # Load the train and test datasets split by stimuli
-    # Set numpy seed
-    np.random.seed(random_seed)
-    torch.manual_seed(random_seed)
-    # Generates a consistent train test split of the brainscore dataset
-    # along the presentation dimension
-    neural_data = brainscore.get_assembly(name="dicarlo.MajajHong2015.public")
-    neural_data = neural_data.squeeze("time_bin")
-    neural_data = neural_data.transpose("presentation", "neuroid")
-    neural_data = neural_data.multi_groupby(["category_name", "object_name", "stimulus_id", *pose_dims]).mean(
-        dim="presentation",
-        keep_attrs=True
-    )
-    # Get the list of stimuli
-    v4_data_tensor = neural_data.sel(region="V4").to_numpy()
-    it_data_tensor = neural_data.sel(region="IT").to_numpy()
-    indices = np.arange(len(neural_data))
-    train_indices = np.random.choice(indices, size=int(len(indices) * 0.8), replace=False)
-    test_indices = np.setdiff1d(indices, train_indices)
-    object_val = neural_data.object_name.to_numpy()
-    _, objectids = np.unique(object_val, return_inverse=True)
-    pose = np.column_stack([neural_data[d].values for d in pose_dims])
-    categories = neural_data.category_name.to_numpy()
-    _, categories = np.unique(categories, return_inverse=True)
-    # Get the test data
-    test_v4_data = torch.Tensor(v4_data_tensor[test_indices])
-    test_it_data = torch.Tensor(it_data_tensor[test_indices])
-    test_categories = torch.Tensor(categories[test_indices]).long()
-    test_objectids = torch.Tensor(objectids[test_indices]).long()
-    test_pose = pose[test_indices]
-    test_data = (test_v4_data, test_it_data, test_categories, test_objectids, test_pose)
-    # Get the train data 
-    train_v4_data = torch.Tensor(v4_data_tensor[train_indices])
-    train_it_data = torch.Tensor(it_data_tensor[train_indices])
-    train_categories = torch.Tensor(categories[train_indices]).long()
-    train_objectids = torch.Tensor(objectids[train_indices]).long()
-    train_pose = pose[train_indices]
-    train_data = (train_v4_data, train_it_data, train_categories, train_objectids, train_pose)
-
-    return train_data, test_data
-
 def get_dataset(
     average_trials=False, 
     average_downsample_factor=50, 
     random_seed=0, 
     ignore_cache=False, 
-    dataset_split_version="old"
+    dataset_split_version="trial"
 ):
     if not ignore_cache:
         cache = load_cache(average_trials, average_downsample_factor, random_seed)
         if cache is not None:
             return cache
 
-    if dataset_split_version == "old":
-        neuroid_train_data, neuroid_test_data = generate_brainscore_train_test_split(random_seed=random_seed)
-        if average_trials == False:
-            average_downsample_factor = 1
+    neuroid_train_data, neuroid_test_data = generate_brainscore_train_test_split(
+        random_seed=random_seed,
+        return_numpy=True,
+        split_by=dataset_split_version
+    )
 
-        v4_train, it_train, pose_train, objectid_train, label_train = apply_averaging(
-            neuroid_train_data, 
-            average_downsample_factor=average_downsample_factor
-        )
-        v4_test, it_test, pose_test, objectid_test, label_test = apply_averaging(
-            neuroid_test_data, 
-            average_downsample_factor=average_downsample_factor
-        )
-    elif dataset_split_version == "stimulus":
-        neuroid_train_data, neuroid_test_data = get_stimulus_dataset_split(random_seed)
-        v4_train, it_train, label_train, objectid_train, pose_train = neuroid_train_data
-        v4_test, it_test, label_test, objectid_test, pose_test = neuroid_test_data 
+    # Apply averaging
+    if average_trials == False:
+        average_downsample_factor = 1
+
+    v4_train, it_train, pose_train, objectid_train, label_train = apply_averaging(
+        neuroid_train_data, 
+        average_downsample_factor=average_downsample_factor
+    )
+    v4_test, it_test, pose_test, objectid_test, label_test = apply_averaging(
+        neuroid_test_data, 
+        average_downsample_factor=average_downsample_factor
+    )
     # Convert everything to troch tensors from numpy
     v4_train = torch.tensor(v4_train).float()
     v4_test = torch.tensor(v4_test).float()
+    print(f"Train data shape: {v4_train.shape}")
+    print(f"Test data shape: {v4_test.shape}")
+    raise Exception()
+
     assert torch.all(torch.isfinite(v4_train))
     assert torch.all(torch.isfinite(v4_test))
     label_train = torch.tensor(label_train).long()

@@ -519,7 +519,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_type", type=str, default="pose", help="Type of dataset used")
     parser.add_argument("--average_trials", type=bool, default=True, help="Whether or not to average across trials")
     parser.add_argument("--dataset_split_version", default="stimulus")
-    parser.add_argument("--average_downsample_factor", type=int, default=50, help="Factor to downsample average by")
+    parser.add_argument("--average_downsample_factor", type=int, default=1, help="Factor to downsample average by")
     parser.add_argument("--ignore_cache", type=bool, default=False, help="Whether or not to ignore the cache")
     parser.add_argument(
         "--eval_explained_variance", type=bool, default=False, help="Whether or not to evaluate explained variance"
@@ -542,13 +542,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--eval_regression_model", type=str, default="svr", help="Regression model to fit for prediction."
     )
-    parser.add_argument("--eval_frequency", default=500)
+    parser.add_argument("--eval_frequency", default=100)
 
     # ManifoldCLR args
     parser.add_argument("--enable_manifoldclr", type=bool, default=True, help="Enable ManifoldCLR")
     parser.add_argument("--dict_size", type=int, default=32, help="Dictionary size")
     parser.add_argument("--z0_neg", type=bool, default=False, help="Whether to use z0 as a negative.")
-    parser.add_argument("--to_weight", type=float, default=1.0, help="Transop loss weight")
+    parser.add_argument("--to_weight", type=float, default=1e1, help="Transop loss weight")
     parser.add_argument("--to_wd", type=float, default=1.0e-5, help="Transop loss weight")
     parser.add_argument("--kl_weight", type=float, default=1.0e-5, help="KL Div weight")
     parser.add_argument("--threshold", type=float, default=0.0, help="Reparam threshold")
@@ -559,6 +559,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     args.save_dir = args.save_dir + args.run_name
+    print(args)
 
     if not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)
@@ -572,7 +573,7 @@ if __name__ == "__main__":
     )
 
     # Load dataset
-    assert args.dataset_split_version in ["stimulus", "old"]
+    assert args.dataset_split_version in ["stimulus", "trial"]
     train_data, test_data = get_dataset(
         args.average_trials,
         args.average_downsample_factor,
