@@ -127,6 +127,8 @@ class SimCLRTrainer:
         objectid_test,
         pose_train,
         pose_test,
+        it_train,
+        it_test,
         args,
     ):
         self.v4_train = v4_train
@@ -137,6 +139,8 @@ class SimCLRTrainer:
         self.objectid_test = objectid_test
         self.pose_train = pose_train
         self.pose_test = pose_test
+        self.it_train = it_train
+        self.it_test = it_test
         self.args = args
 
         self.train_idx = {}
@@ -145,7 +149,7 @@ class SimCLRTrainer:
             idx = torch.where(self.objectid_train == label)[0]
             # Add all neighbors except the object itself
             self.train_idx[i] = torch.tensor([nn.item() for nn in idx if nn.item() != i])
-        
+
         self.test_idx = {}
         for i in range(len(v4_test)):
             label = self.objectid_test[i]
@@ -291,7 +295,7 @@ class SimCLRTrainer:
                     z1_hat = transop(z0.float(), c)
 
                     if args.enable_shiftl2:
-                        shift = distribution_data.encoder_params['shift']
+                        shift = distribution_data.encoder_params["shift"]
                         shiftl2_loss = (shift**2).sum(-1).mean()
 
                     # KL loss
@@ -323,7 +327,12 @@ class SimCLRTrainer:
                     train_loss = self.nxent_loss(F.normalize(h0, dim=-1), F.normalize(h1, dim=-1))
                 # Backprop
                 optim.zero_grad()
-                (train_loss + args.to_weight * transop_loss.mean() + args.kl_weight * kl_loss + args.shiftl2_weight * shiftl2_loss).backward()
+                (
+                    train_loss
+                    + args.to_weight * transop_loss.mean()
+                    + args.kl_weight * kl_loss
+                    + args.shiftl2_weight * shiftl2_loss
+                ).backward()
 
                 if args.enable_manifoldclr:
                     torch.nn.utils.clip_grad_norm_(coeff_enc.parameters(), 1.0)
@@ -427,14 +436,14 @@ class SimCLRTrainer:
                     if args.enable_manifoldclr:
                         # pose change regression
                         pose_change_r2, pose_change_r = evaluate_pose_change_regression(
-                            manifold_model, 
-                            train_feat, 
-                            self.train_idx, 
-                            self.pose_train, 
-                            test_feat, 
-                            self.test_idx, 
-                            self.pose_test, 
-                            args
+                            manifold_model,
+                            train_feat,
+                            self.train_idx,
+                            self.pose_train,
+                            test_feat,
+                            self.test_idx,
+                            self.pose_test,
+                            args,
                         )
                         wandb_dict["eval/diff_R2_mean"] = pose_change_r2[0]
                         wandb_dict["eval/diff_R2_median"] = pose_change_r2[1]
@@ -445,10 +454,10 @@ class SimCLRTrainer:
                             wandb_dict[f"eval_pose/diff_R_{dim}"] = pose_change_r[2 + i]
 
                 if args.eval_explained_variance:
-                    raise NotImplementedError("Explained variance not implemented for the new dataset structure")
-                    evaluate_IT_explained_variance(
-                        backbone, self.neuroid_train_dataset, self.neuroid_eval_dataset, args
+                    it_ev = evaluate_IT_explained_variance(
+                        train_feat, self.it_train, test_feat, self.it_test, args
                     )
+                    wandb_dict["eval/IT_explained_variance"] = it_ev
 
                 if args.enable_manifoldclr:
                     # TODO: modify passing psi if incorporating block diagonal constraint
@@ -471,6 +480,15 @@ class SimCLRTrainer:
 
             wandb.log(wandb_dict, step=epoch)
 
+def str2bool(v) -> bool:
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run simclr on the neuroscience dataset")
@@ -489,19 +507,19 @@ if __name__ == "__main__":
     )  # Dim of V4 data
     parser.add_argument(
         "--contrastive_head_batchnorm",
-        type=bool,
+        type=str2bool,
         default=True,
         help="Whether to use batchnorms after layers in contrastive head and backbone",
     )
     parser.add_argument(
         "--backbone_batchnorm",
-        type=bool,
+        type=str2bool,
         default=True,
         help="Whether to use batchnorms after layers in contrastive head and backbone",
     )
     parser.add_argument(
         "--no_contrastive_head",
-        type=bool,
+        type=str2bool,
         default=True,
         help="Whether or not to include a contrastive head",
     )
@@ -517,21 +535,21 @@ if __name__ == "__main__":
     parser.add_argument("--temperature", type=float, default=1e-1, help="Temperature for info nce loss")
     parser.add_argument("--device", type=str, default="cuda:0", help="Device to use")
     parser.add_argument("--dataset_type", type=str, default="pose", help="Type of dataset used")
-    parser.add_argument("--average_trials", type=bool, default=True, help="Whether or not to average across trials")
+    parser.add_argument("--average_trials", type=str2bool, default=True, help="Whether or not to average across trials")
     parser.add_argument("--dataset_split_version", default="stimulus")
-    parser.add_argument("--average_downsample_factor", type=int, default=1, help="Factor to downsample average by")
-    parser.add_argument("--ignore_cache", type=bool, default=False, help="Whether or not to ignore the cache")
+    parser.add_argument("--average_downsample_factor", type=int, default=50, help="Factor to downsample average by")
+    parser.add_argument("--ignore_cache", type=str2bool, default=False, help="Whether or not to ignore the cache")
     parser.add_argument(
-        "--eval_explained_variance", type=bool, default=False, help="Whether or not to evaluate explained variance"
+        "--eval_explained_variance", type=str2bool, default=True, help="Whether or not to evaluate explained variance"
     )
     parser.add_argument(
-        "--eval_logistic_regression", type=bool, default=False, help="Whether or not to evaluate logistic regression"
+        "--eval_logistic_regression", type=str2bool, default=False, help="Whether or not to evaluate logistic regression"
     )
     parser.add_argument(
-        "--eval_object_id_linear", type=bool, default=True, help="Whether or not to evaluate object id linear"
+        "--eval_object_id_linear", type=str2bool, default=True, help="Whether or not to evaluate object id linear"
     )
     parser.add_argument(
-        "--eval_pose_regression", type=bool, default=False, help="Whether or not to evaluate pose regression"
+        "--eval_pose_regression", type=str2bool, default=True, help="Whether or not to evaluate pose regression"
     )
     parser.add_argument(
         "--eval_pose_change_regr_n_pairs",
@@ -545,17 +563,17 @@ if __name__ == "__main__":
     parser.add_argument("--eval_frequency", default=100)
 
     # ManifoldCLR args
-    parser.add_argument("--enable_manifoldclr", type=bool, default=True, help="Enable ManifoldCLR")
+    parser.add_argument("--enable_manifoldclr", type=str2bool, default=True, help="Enable ManifoldCLR")
     parser.add_argument("--dict_size", type=int, default=32, help="Dictionary size")
-    parser.add_argument("--z0_neg", type=bool, default=False, help="Whether to use z0 as a negative.")
-    parser.add_argument("--to_weight", type=float, default=1e1, help="Transop loss weight")
+    parser.add_argument("--z0_neg", type=str2bool, default=True, help="Whether to use z0 as a negative.")
+    parser.add_argument("--to_weight", type=float, default=1.0e1, help="Transop loss weight")
     parser.add_argument("--to_wd", type=float, default=1.0e-5, help="Transop loss weight")
-    parser.add_argument("--kl_weight", type=float, default=1.0e-5, help="KL Div weight")
+    parser.add_argument("--kl_weight", type=float, default=1.0e-6, help="KL Div weight")
     parser.add_argument("--threshold", type=float, default=0.0, help="Reparam threshold")
-    parser.add_argument("--max_elbo", type=bool, default=False, help="Max elbo sampling for enc inference")
-    parser.add_argument("--enable_shiftl2", type=bool, default=False, help="Enable shift l2 loss")
+    parser.add_argument("--max_elbo", type=str2bool, default=False, help="Max elbo sampling for enc inference")
+    parser.add_argument("--enable_shiftl2", type=str2bool, default=False, help="Enable shift l2 loss")
     parser.add_argument("--shiftl2_weight", type=float, default=1.0e-3, help="Shift l2 loss weight")
-    parser.add_argument("--run_name", type=str, default="vi_avg50_to1e-1", help="runname")
+    parser.add_argument("--run_name", type=str, default="default", help="runname")
 
     args = parser.parse_args()
     args.save_dir = args.save_dir + args.run_name
@@ -571,6 +589,8 @@ if __name__ == "__main__":
         project="neuro_simclr",
         config=args,
     )
+    if args.run_name != "default":
+        wandb.run.name = args.run_name
 
     # Load dataset
     assert args.dataset_split_version in ["stimulus", "trial"]
@@ -620,12 +640,12 @@ if __name__ == "__main__":
             shift_prior=0.01,
             enable_learned_prior=True,
             enable_prior_shift=True,
-            enable_prior_warmup=False,
+            enable_prior_warmup=True,
             prior_warmup_iters=500,
             enable_max_sampling=args.max_elbo,
             max_sample_start_iter=0,
             samples_per_iter=20,
-            total_num_samples=20
+            total_num_samples=20,
         )
         coeff_enc = CoefficientEncoder(vi_cfg, args.backbone_output_dim, args.dict_size, args.threshold).to(
             args.device
@@ -643,6 +663,8 @@ if __name__ == "__main__":
         objectid_test,
         pose_train,
         pose_test,
+        it_train,
+        it_test,
         args,
     )
     trainer.run_simclr(
