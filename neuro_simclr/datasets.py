@@ -250,8 +250,6 @@ def get_dataset(
     v4_test = torch.tensor(v4_test).float()
     print(f"Train data shape: {v4_train.shape}")
     print(f"Test data shape: {v4_test.shape}")
-    raise Exception()
-
     assert torch.all(torch.isfinite(v4_train))
     assert torch.all(torch.isfinite(v4_test))
     label_train = torch.tensor(label_train).long()
