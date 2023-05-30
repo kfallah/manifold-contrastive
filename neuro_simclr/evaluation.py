@@ -183,9 +183,10 @@ def eval_best_layer(eval_fn, backbone, contrastive_head, train_v4, train_Y, test
 
 def eval_IT_EV_best_layer(backbone, contrastive_head, v4_train, it_train, v4_test, it_test, args):
     print('R^2\n===')
-    eval_best_layer(_eval_linear_regr_median_r2, backbone, contrastive_head, v4_train, it_train, v4_test, it_test, args)
+    r2 = eval_best_layer(_eval_linear_regr_median_r2, backbone, contrastive_head, v4_train, it_train, v4_test, it_test, args)
     print('\nPearson R\n=========')
-    eval_best_layer(_eval_linear_regr_median_r, backbone, contrastive_head, v4_train, it_train, v4_test, it_test, args)
+    r = eval_best_layer(_eval_linear_regr_median_r, backbone, contrastive_head, v4_train, it_train, v4_test, it_test, args)
+    return r2, r
 
 def _eval_linear_regr_median_r2(train_X, train_Y, test_X, test_Y):
     regr_model = sklearn.linear_model.LinearRegression().fit(tnp(train_X), tnp(train_Y))

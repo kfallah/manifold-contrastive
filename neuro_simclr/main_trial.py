@@ -460,6 +460,11 @@ class SimCLRTrainer:
                         train_feat, self.it_train, test_feat, self.it_test, args
                     )
                     wandb_dict["eval/IT_explained_variance"] = it_ev
+                    it_r2_bl, it_r_bl = evaluate_IT_explained_variance(
+                        train_feat, self.it_train, test_feat, self.it_test, args
+                    )
+                    wandb_dict["eval/IT_r2_best_layer"] = it_r2_bl
+                    wandb_dict["eval/IT_r_best_layer"] = it_r_bl
 
                 if args.enable_manifoldclr:
                     # TODO: modify passing psi if incorporating block diagonal constraint
