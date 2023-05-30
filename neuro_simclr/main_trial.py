@@ -575,7 +575,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_elbo", type=str2bool, default=False, help="Max elbo sampling for enc inference")
     parser.add_argument("--enable_shiftl2", type=str2bool, default=False, help="Enable shift l2 loss")
     parser.add_argument("--shiftl2_weight", type=float, default=1.0e-3, help="Shift l2 loss weight")
-    parser.add_argument("--run_name", type=str, default="default", help="runname")
+    parser.add_argument("--run_name", type=str, default="default", help="runname, used in wandb and locally")
 
     args = parser.parse_args()
     args.save_dir = args.save_dir + args.run_name

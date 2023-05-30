@@ -151,15 +151,62 @@ def evaluate_IT_explained_variance(train_feat, train_it, test_feat, test_it, arg
     num_neuronal_sites = test_it.shape[-1]
     assert num_neuronal_sites == 168
 
-    regression_model = sklearn.linear_model.LinearRegression().fit(tnp(train_feat), tnp(train_it))
-    ypred = regression_model.predict(tnp(test_feat))
-    ytrue = tnp(test_it)
+    return _eval_linear_regr_median_r2(train_feat, train_it, test_feat, test_it)
+
+
+def eval_best_layer(eval_fn, backbone, contrastive_head, train_v4, train_Y, test_v4, test_Y, args):
+    """
+    Returns median r^2 value across IT sites for the best layer of the backbone
+    or contrastive head.
+    """
+    backbone.eval()
+    if contrastive_head is not None:
+        contrastive_head.eval()
+        ct_layers_names = [(contrastive_head, 'ct head')]
+    else:
+        ct_layers_names = []
+
+    z_train, z_test = train_v4, test_v4
+    r2s = []
+    for layer, name in [
+        (nn.Identity(), 'V4'),
+        (backbone.enc, 'encode'),
+        *[(backbone.skip_list[i], f'bb hidden {i+1}') for i in range(args.num_hidden_layers)],
+        (backbone.decode, 'decode'),
+        *ct_layers_names,
+    ]:
+        z_train, z_test = layer(z_train), layer(z_test)
+        r2s.append(eval_fn(z_train, train_Y, z_test, test_Y))
+        print(f'{name}: {r2s[-1]}')
+
+    return np.max(r2s)
+
+def eval_IT_EV_best_layer(backbone, contrastive_head, v4_train, it_train, v4_test, it_test, args):
+    print('R^2\n===')
+    eval_best_layer(_eval_linear_regr_median_r2, backbone, contrastive_head, v4_train, it_train, v4_test, it_test, args)
+    print('\nPearson R\n=========')
+    eval_best_layer(_eval_linear_regr_median_r, backbone, contrastive_head, v4_train, it_train, v4_test, it_test, args)
+
+def _eval_linear_regr_median_r2(train_X, train_Y, test_X, test_Y):
+    regr_model = sklearn.linear_model.LinearRegression().fit(tnp(train_X), tnp(train_Y))
+    ypred = regr_model.predict(tnp(test_X))
+    ytrue = tnp(test_Y)
     u = np.sum((ytrue - ypred) ** 2, axis=0)
     v = np.sum((ytrue - np.mean(ytrue, axis=0)) ** 2, axis=0)
     r2 = 1 - u / v
-
     return np.median(r2)
 
+def _eval_linear_regr_median_r(train_X, train_Y, test_X, test_Y):
+    regr_model = sklearn.linear_model.LinearRegression().fit(tnp(train_X), tnp(train_Y))
+    ypred = regr_model.predict(tnp(test_X))
+    ytrue = tnp(test_Y)
+    # pearson correlation
+    ytrue_mean = ytrue.mean(0)
+    ypred_mean = ypred.mean(0)
+    r = ((ytrue - ytrue_mean) * (ypred - ypred_mean)).sum(0)
+    denom = np.sqrt(((ytrue - ytrue_mean) ** 2).sum(0) * ((ypred - ypred_mean) ** 2).sum(0))
+    r = r / denom
+    return np.median(r)
 
 def tnp(tensor: Tensor):
     return tensor.detach().cpu().numpy()
@@ -207,8 +254,25 @@ def _eval_regression(train_X: Tensor, train_Y: Tensor, test_X: Tensor, test_Y: T
     return (np.mean(r2), np.median(r2), *r2), (np.mean(r), np.median(r), *r)
 
 
-def evaluate_pose_regression(train_feat, train_pose, test_data, test_pose, args):
+def evaluate_pose_regression(train_feat, train_objectid, train_pose, test_data, test_objectid, test_pose, args):
     return _eval_regression(train_feat, train_pose, test_data, test_pose, args)
+    # for per-object:
+    r2s = []
+    rs = []
+    for o in torch.unique(train_objectid):
+        idx = train_objectid == o
+        train_feat_o = train_feat[idx]
+        train_pose_o = train_pose[idx]
+        idx = test_objectid == o
+        test_data_o = test_data[idx]
+        test_pose_o = test_pose[idx]
+        r2, r = _eval_regression(train_feat_o, train_pose_o, test_data_o, test_pose_o, args)
+        r2s.append(r2)
+        rs.append(r)
+    r2s = np.row_stack(r2s)
+    rs = np.row_stack(rs)
+    assert r2s.shape == (len(torch.unique(train_objectid)), 8)
+    return r2s.mean(0), rs.mean(0)
 
 
 def evaluate_pose_change_regression(manifold_model, train_data, train_idx, train_pose, test_data, test_idx, test_pose, args):
