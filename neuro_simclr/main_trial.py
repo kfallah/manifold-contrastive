@@ -18,6 +18,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from evaluation import (
     embed_v4_data,
+    eval_IT_pred_best_layer,
     evaluate_IT_explained_variance,
     evaluate_linear_classifier,
     evaluate_logistic_regression,
@@ -389,8 +390,8 @@ class SimCLRTrainer:
                 train_feat = embed_v4_data(self.v4_train, backbone, args.device)
                 test_feat = embed_v4_data(self.v4_test, backbone, args.device)
 
-                print(train_feat.shape)
-                print(self.label_train.shape)
+                # print(train_feat.shape)
+                # print(self.label_train.shape)
                 tsne = tsne_plot(train_feat, self.label_train)
                 train_category_acc, train_category_fscore = evaluate_linear_classifier(
                     train_feat, self.label_train, train_feat, self.label_train, args
@@ -460,8 +461,8 @@ class SimCLRTrainer:
                         train_feat, self.it_train, test_feat, self.it_test, args
                     )
                     wandb_dict["eval/IT_explained_variance"] = it_ev
-                    it_r2_bl, it_r_bl = evaluate_IT_explained_variance(
-                        train_feat, self.it_train, test_feat, self.it_test, args
+                    it_r2_bl, it_r_bl = eval_IT_pred_best_layer(
+                        backbone, contrastive_head, self.v4_train, self.it_train, self.v4_test, self.it_test, args
                     )
                     wandb_dict["eval/IT_r2_best_layer"] = it_r2_bl
                     wandb_dict["eval/IT_r_best_layer"] = it_r_bl

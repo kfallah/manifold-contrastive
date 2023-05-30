@@ -181,7 +181,7 @@ def eval_best_layer(eval_fn, backbone, contrastive_head, train_v4, train_Y, test
 
     return np.max(r2s)
 
-def eval_IT_EV_best_layer(backbone, contrastive_head, v4_train, it_train, v4_test, it_test, args):
+def eval_IT_pred_best_layer(backbone, contrastive_head, v4_train, it_train, v4_test, it_test, args):
     print('R^2\n===')
     r2 = eval_best_layer(_eval_linear_regr_median_r2, backbone, contrastive_head, v4_train, it_train, v4_test, it_test, args)
     print('\nPearson R\n=========')
@@ -255,7 +255,8 @@ def _eval_regression(train_X: Tensor, train_Y: Tensor, test_X: Tensor, test_Y: T
     return (np.mean(r2), np.median(r2), *r2), (np.mean(r), np.median(r), *r)
 
 
-def evaluate_pose_regression(train_feat, train_objectid, train_pose, test_data, test_objectid, test_pose, args):
+# def evaluate_pose_regression(train_feat, train_objectid, train_pose, test_data, test_objectid, test_pose, args):
+def evaluate_pose_regression(train_feat, train_pose, test_data, test_pose, args):
     return _eval_regression(train_feat, train_pose, test_data, test_pose, args)
     # for per-object:
     r2s = []
