@@ -9,19 +9,23 @@ from torch import Tensor
 import wandb
 
 
-def embed_v4_data(data, backbone, device, batch_size=1000):
+def get_model_output_on_cpu(data, model, device, batch_size=1000):
     embeddings = []
     batch_size = min(batch_size, len(data))
     with torch.no_grad():
         for i in range(len(data) // batch_size):
             x = data[i * batch_size : (i + 1) * batch_size].to(device)
-            z = backbone(x)
+            z = model(x)
             embeddings.append(z.detach().cpu())
         if len(data) % batch_size != 0:
-            z = backbone(data[(i + 1) * batch_size :].to(device))
+            z = model(data[(i + 1) * batch_size :].to(device))
             embeddings.append(z.detach().cpu())
         embeddings = torch.cat(embeddings)
     return embeddings
+
+
+def embed_v4_data(data, backbone, device, batch_size=1000):
+    return get_model_output_on_cpu(data, backbone, device, batch_size=batch_size)
 
 
 def tsne_plot(train_data, train_label, ex_per_class=800):
@@ -175,7 +179,8 @@ def eval_best_layer(eval_fn, backbone, contrastive_head, train_v4, train_Y, test
         (backbone.decode, 'decode'),
         *ct_layers_names,
     ]:
-        z_train, z_test = layer(z_train), layer(z_test)
+        z_train = get_model_output_on_cpu(z_train, layer, args.device)
+        z_test = get_model_output_on_cpu(z_test, layer, args.device)
         r2s.append(eval_fn(z_train, train_Y, z_test, test_Y))
         print(f'{name}: {r2s[-1]}')
 
