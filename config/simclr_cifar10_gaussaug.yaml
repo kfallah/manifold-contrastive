@@ -13,3 +13,4 @@ model_cfg:
     ntxent_lie_loss_mse: true
     ntxent_lie_loss_weight: 1.0
     ntxent_lie_temp: 0.5
+    ntxent_lie_z0_neg: true

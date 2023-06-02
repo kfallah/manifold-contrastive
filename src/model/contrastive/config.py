@@ -7,20 +7,6 @@ Config for all the different contrastive headers.
 """
 from dataclasses import dataclass
 
-
-@dataclass
-class ProjectionPredictionHeaderConfig:
-    # Whether to use a NN memory bank to store positive examples (used by NNCLR)
-    header_name: str = "NNCLR"
-    enable_nn_bank: bool = False
-    nn_memory_bank_size: int = 65536
-    prediction_type: str = "MLP"
-    proj_hidden_dim: int = 2048
-    pred_hidden_dim: int = 2048
-    pred_output_dim: int = 128
-    direct_pred_num_dim: int = 64
-
-
 @dataclass
 class ProjectionHeaderConfig:
     header_name: str = "SimCLR"
@@ -28,7 +14,7 @@ class ProjectionHeaderConfig:
     hidden_dim: int = 1024
     output_dim: int = 128
     direct_proj_num_dim: int = 64
-    enable_final_batchnorm: bool = True
+    enable_final_batchnorm: bool = False
 
 
 @dataclass
@@ -121,6 +107,3 @@ class ContrastiveHeaderConfig:
     enable_mixup_augmentation: bool = False
     enable_transop_prior_grad: bool = True
     transop_header_cfg: TransportOperatorConfig = TransportOperatorConfig()
-
-    enable_proj_pred_header: bool = False
-    proj_pred_header_cfg: ProjectionPredictionHeaderConfig = ProjectionPredictionHeaderConfig()

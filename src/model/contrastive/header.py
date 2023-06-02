@@ -12,8 +12,6 @@ from torch.cuda.amp import autocast
 
 from model.contrastive.config import ContrastiveHeaderConfig
 from model.contrastive.projection_header import ProjectionHeader
-from model.contrastive.projection_prediction_header import \
-    ProjectionPredictionHeader
 from model.contrastive.transop_header import TransportOperatorHeader
 from model.type import HeaderInput, HeaderOutput
 
@@ -34,12 +32,6 @@ class ContrastiveHeader(nn.Module):
         self.transop_header = None
         if self.header_cfg.enable_transop_header:
             self.transop_header = TransportOperatorHeader(self.header_cfg.transop_header_cfg, backbone_feature_dim)
-
-        self.proj_pred_header = None
-        if self.header_cfg.enable_proj_pred_header:
-            self.proj_pred_header = ProjectionPredictionHeader(
-                self.header_cfg.proj_pred_header_cfg, backbone_feature_dim
-            )
 
     def load_model_state(self, state_path: str) -> None:
         header_weights = torch.load(state_path, map_location="cuda:0")["model_state"]
@@ -91,13 +83,11 @@ class ContrastiveHeader(nn.Module):
             noise = torch.randn(len(z0), device=z0.device) * torch.sqrt(dist)
             z0_aug = z0 + noise
             aggregate_header_out["z0_aug"] = z0_aug
+        else:
+            aggregate_header_out["z0_aug"] = header_input.feature_0
 
         if self.projection_header is not None:
-            header_out = self.projection_header(header_input)
-            aggregate_header_out.update(header_out.header_dict)
-
-        if self.proj_pred_header is not None:
-            header_out = self.proj_pred_header(header_input)
+            header_out = self.projection_header(header_input, nn_queue)
             aggregate_header_out.update(header_out.header_dict)
 
         return HeaderOutput(aggregate_header_out, distribution_data)
@@ -108,8 +98,6 @@ class ContrastiveHeader(nn.Module):
             param_list += [{"params": self.projection_header.parameters()}]
         if self.transop_header is not None:
             param_list += self.transop_header.get_param_groups()
-        if self.proj_pred_header is not None:
-            param_list += [{"params": self.proj_pred_header.parameters()}]
 
         return param_list
 

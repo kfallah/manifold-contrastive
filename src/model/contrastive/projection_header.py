@@ -71,15 +71,18 @@ class ProjectionHeader(nn.Module):
         if self.proj_cfg.enable_final_batchnorm:
             self.final_bn = nn.BatchNorm1d(self.proj_cfg.output_dim)
 
-    def forward(self, header_input: HeaderInput) -> HeaderOutput:
+    def forward(self, header_input: HeaderInput, nn_queue: nn.Module = None) -> HeaderOutput:
         header_out = {}
-        proj = self.projector(torch.cat([header_input.feature_0, header_input.feature_1]))
+        z0, z1 = header_input.feature_0, header_input.feature_1
+        if nn_queue is not None:
+            z1 = nn_queue(z0.detach(), update=False).detach()
+        proj = self.projector(torch.cat([z0, z1]))
 
         if self.proj_cfg.enable_final_batchnorm:
             proj = self.final_bn(proj)
 
-        proj_0 = proj[: len(header_input.feature_0)]
-        proj_1 = proj[len(header_input.feature_0) :]
+        proj_0 = proj[: len(z0)]
+        proj_1 = proj[len(z1) :]
 
         # For DirectCLR only use a subset of the features for prediction
         if self.proj_cfg.projection_type == "Direct":

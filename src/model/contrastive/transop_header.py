@@ -84,7 +84,7 @@ class TransportOperatorHeader(nn.Module):
         if z_nn is not None:
             z1_use = z_nn[: self.cfg.batch_size]
         elif nn_queue is not None:
-            z1_use = nn_queue(z1.detach(), update=False).detach()[: self.cfg.batch_size]
+            z1_use = nn_queue(z0.detach(), update=False).detach()[: self.cfg.batch_size]
         else:
             z1_use = z1[: self.cfg.batch_size]
 

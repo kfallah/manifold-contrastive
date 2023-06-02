@@ -62,38 +62,43 @@ class Loss(nn.Module):
 
         # Contrastive loss terms
         if self.loss_cfg.ntxent_loss_active:
-            ntxent_loss = contrastive_loss(header_dict["proj_00"], header_dict["proj_01"], self.loss_cfg.ntxent_temp)
+            ntxent_loss = lie_nt_xent_loss(
+                    F.normalize(header_dict["proj_00"], dim=-1),
+                    F.normalize(header_dict["proj_01"], dim=-1), 
+                    mse=False,
+                    temperature=self.loss_cfg.ntxent_lie_temp,
+            )
             total_loss += self.loss_cfg.ntxent_loss_weight * ntxent_loss
             loss_meta["ntxent_loss"] = ntxent_loss.item()
 
         # InfoNCE Lie Loss on transport operator estimates
         if self.loss_cfg.ntxent_lie_loss_active:
             # Contrast point pair, using additional negative found via feature augmentation
-            z0, z1 = model_output.header_input.feature_0, model_output.header_input.feature_1               
-            zaug, z1hat = header_dict["z0_aug"], header_dict["transop_z1hat"]    
-
+            zaug = header_dict["z0_aug"]
             if 'proj' in args_dict.keys():
                 proj = args_dict['proj']
-                zaug_proj, z1_proj, z0_proj = proj(zaug), proj(z1), proj(z0)
+                z0_proj, z1_proj = header_dict["proj_00"], header_dict["proj_01"] 
+                zaug_proj = proj(zaug)
                 lie_loss = lie_nt_xent_loss(
                     F.normalize(zaug_proj, dim=-1), 
                     F.normalize(z1_proj, dim=-1),
                     F.normalize(z0_proj, dim=-1) if self.loss_cfg.ntxent_lie_z0_neg else None, 
-                    mse=False,
+                    mse=self.loss_cfg.ntxent_lie_loss_mse,
                     temperature=self.loss_cfg.ntxent_lie_temp,
                 )
             else:
+                z0, z1 = model_output.header_input.feature_0, model_output.header_input.feature_1               
                 if self.loss_cfg.ntxent_lie_pos_aug:
                     lie_loss = lie_nt_xent_loss(
                         zaug, 
-                        z1, 
-                        z0 if self.loss_cfg.ntxent_lie_z0_neg else None,
+                        z1[:, :zaug.shape[-1]], 
+                        z0[:, :zaug.shape[-1]] if self.loss_cfg.ntxent_lie_z0_neg else None,
                         mse=self.loss_cfg.ntxent_lie_loss_mse,
                         temperature=self.loss_cfg.ntxent_lie_temp,
                     )
                 else:
                     lie_loss = lie_nt_xent_loss(
-                        z0, z1, zaug,
+                        z0[:, :zaug.shape[-1]], z1[:, :zaug.shape[-1]], zaug,
                         mse=self.loss_cfg.ntxent_lie_loss_mse,
                         temperature=self.loss_cfg.ntxent_lie_temp,
                     )

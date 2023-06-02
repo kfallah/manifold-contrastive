@@ -82,7 +82,7 @@ class Trainer(nn.Module):
                 loss_metadata, total_loss = self.get_model().compute_loss(curr_iter, model_output)
 
                 if self.trainer_cfg.enable_nn_queue:
-                    z = model_output.header_input.feature_0
+                    z = model_output.header_input.feature_1
                     _ = self.nn_queue(z.detach(), update=True)
 
             # Backpropagate loss
