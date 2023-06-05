@@ -1,0 +1,17 @@
+defaults:
+  - base
+  - dataloader/tinyimagenet@dataloader_cfg
+  - _self_
+
+exp_name: tin_nnclr
+model_cfg:
+  header_cfg:
+    enable_projection_header: true
+    projection_header_cfg:
+      header_name: SimCLR
+      projection_type: MLP
+      enable_final_batchnorm: true
+trainer_cfg:
+  enable_nn_queue: true
+  optimizer_cfg:
+    initial_lr: 0.002
