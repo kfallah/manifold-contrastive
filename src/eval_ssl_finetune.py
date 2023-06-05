@@ -24,7 +24,10 @@ from model.model import Model
 from model.public.linear_warmup_cos_anneal import LinearWarmupCosineAnnealingLR
 from model.public.ntx_ent_loss import lie_nt_xent_loss
 from model.type import HeaderInput
+<<<<<<< HEAD
 from train.metric_utils import transop_plots
+=======
+>>>>>>> a99d5e6566019f60256e93f85605e9d46541db6f
 
 #sys.path.append(os.path.dirname(os.getcwd()) + "/src/")
 
@@ -80,7 +83,7 @@ args.ckpt_path = ckpt_path
 
 # %%
 # Set the default device
-default_device = torch.device("cuda:2")
+default_device = torch.device("cuda:0")
 # Load config
 cfg = omegaconf.OmegaConf.load(cfg_path)
 cfg.model_cfg.backbone_cfg.load_backbone = None

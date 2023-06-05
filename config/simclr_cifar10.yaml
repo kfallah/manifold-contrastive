@@ -10,4 +10,3 @@ model_cfg:
       header_name: SimCLR
       projection_type: MLP
       output_dim: 128
-      enable_final_batchnorm: true

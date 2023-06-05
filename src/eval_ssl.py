@@ -62,9 +62,9 @@ print("no thresh: ", no_thresh)
 print("alpha: ", alpha)
 print()
 
-device_idx = [3]
+device_idx = [0]
 # Set the default device
-default_device = torch.device("cuda:3")
+default_device = torch.device("cuda:0")
 # Load config
 cfg = omegaconf.OmegaConf.load(cfg_path)
 cfg.model_cfg.backbone_cfg.load_backbone = None

@@ -41,12 +41,13 @@ model_cfg:
     ntxent_lie_loss_mse: true
     ntxent_lie_loss_weight: 1.0
     ntxent_lie_temp: 0.5
+    ntxent_lie_z0_neg: true
     kl_loss_active: true
     kl_loss_weight: 1.0e-5
     kl_detach_shift: false
     kl_weight_warmup: Exponential
     transop_loss_active: true
-    transop_loss_weight: 10.0
+    transop_loss_weight: 1.0
 
 trainer_cfg:
   metric_logger_cfg:
@@ -57,7 +58,7 @@ trainer_cfg:
 
 evaluator_cfg:
   semisup_probe_eval_cfg:
-    enable_runner: true
+    enable_runner: false
     manifold_aug: true
     eval_freq: 1000
   aug_nn_eval_cfg:

@@ -11,10 +11,10 @@ model_cfg:
       batch_size: 256
       dictionary_size: 32
       lambda_prior: 0.01
-      transop_weight_decay: 5.0e-3
+      transop_weight_decay: 1.0e-3
       vi_cfg:
         enable_max_sampling: true
-        max_sample_start_iter: 0
+        max_sample_start_iter: 5000
         samples_per_iter: 20
         total_num_samples: 20
         max_sample_l1_penalty: 0.0
@@ -25,7 +25,7 @@ model_cfg:
     ntxent_lie_loss_mse: true
     ntxent_lie_z0_neg: false
     enable_shift_l2: true
-    shift_l2_weight: 1.0e-2
+    shift_l2_weight: 1.0e-3
     kl_loss_weight: 1.0e-3
     kl_weight_warmup: None
-    transop_loss_weight: 5.0
+    transop_loss_weight: 10.0
