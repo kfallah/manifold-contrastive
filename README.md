@@ -19,7 +19,17 @@ hydra-core      1.2.0
 lightly         1.2.47
 ```
 
-TinyImagenet can be downloaded
+All datasets should be placed in a folder named `datasets`. TinyImagenet can be downloaded using this script: `https://gist.github.com/moskomule/2e6a9a463f50447beca4e64ab4699ac4`. When downloaded, the dataset should be placed in `datasets` with the following structure:
+```
+* datasets
+    * tiny-imagenet-200
+        * test
+            ...
+        * train
+            ...
+        * val
+            ...
+```
 
 ## Running Contrastive Experiments
 

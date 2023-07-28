@@ -120,7 +120,6 @@ def run_experiment(
 def initialize_experiment(cfg: DictConfig) -> None:
     wandb.init(
         project="manifold-contrastive",
-        entity="kfallah",
         mode="online" if cfg.enable_wandb else "disabled",
         settings=wandb.Settings(start_method="thread"),
         config=OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True),
