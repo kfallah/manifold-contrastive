@@ -1,6 +1,0 @@
-hydra:
-  job:
-    name: training
-    chdir: true
-  run:
-    dir: ./${exp_dir}/${exp_name}_${now:%m-%d-%Y_%H-%M-%S}

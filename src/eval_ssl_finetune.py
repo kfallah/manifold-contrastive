@@ -24,10 +24,7 @@ from model.model import Model
 from model.public.linear_warmup_cos_anneal import LinearWarmupCosineAnnealingLR
 from model.public.ntx_ent_loss import lie_nt_xent_loss
 from model.type import HeaderInput
-<<<<<<< HEAD
 from train.metric_utils import transop_plots
-=======
->>>>>>> a99d5e6566019f60256e93f85605e9d46541db6f
 
 #sys.path.append(os.path.dirname(os.getcwd()) + "/src/")
 

@@ -1,9 +1,0 @@
-defaults:
-  - default_vi
-  - _self_
-
-exp_name: DeterministicVI
-vi_cfg:
-  variational: false
-  enable_c_l2: true
-  c_l2_weight: 1.0e-2
