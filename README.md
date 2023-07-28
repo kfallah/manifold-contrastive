@@ -57,7 +57,7 @@ python src/experiment.py --config-name simclr_tinyimagenet \
 ### ManifoldCLR *with* Proj Head
 #### CIFAR10
 ```
-python src/experiment.py --config-name simclr_vi_proj_cifar10
+python src/experiment.py --config-name transop_vi_proj_cifar10
 ```
 
 #### STL10
