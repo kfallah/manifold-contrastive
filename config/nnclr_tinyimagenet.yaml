@@ -10,7 +10,6 @@ model_cfg:
     projection_header_cfg:
       header_name: SimCLR
       projection_type: MLP
-      enable_final_batchnorm: true
 trainer_cfg:
   enable_nn_queue: true
   optimizer_cfg:

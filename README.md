@@ -13,6 +13,7 @@ The main script of interest is `src/experiment.py`. This takes one of the `hyrda
 ```
 Python          3.9.13
 PyTorch         1.12.1
+matplotlib      3.5.3
 wandb           0.13.5
 scikit-learn    1.1.2
 hydra-core      1.2.0
@@ -32,26 +33,24 @@ All datasets should be placed in a folder named `datasets`. TinyImagenet can be 
 ```
 
 ## Running Contrastive Experiments
+Set projection head to `MLP`, `None`, `Linear`, or `Direct` (DirectCLR)
 
 ### Baselines
 #### CIFAR10
 ```
 python src/experiment.py --config-name simclr_cifar10 \
-    # Set projection head to MLP, None, Linear, or Direct (DirectCLR)
     ++model_cfg.header_cfg.projection_header_cfg.projection_type=MLP
 ```
 
 #### STL10
 ```
 python src/experiment.py --config-name simclr_stl10 \
-    # Set projection head to MLP, None, Linear, or Direct (DirectCLR)
     ++model_cfg.header_cfg.projection_header_cfg.projection_type=MLP
 ```
 
 #### TinyImagenet
 ```
 python src/experiment.py --config-name simclr_tinyimagenet \
-    # Set projection head to MLP, None, Linear, or Direct (DirectCLR)
     ++model_cfg.header_cfg.projection_header_cfg.projection_type=MLP
 ```
 
@@ -74,7 +73,7 @@ python src/experiment.py --config-name transop_vi_proj_tin
 ### ManifoldCLR *without* Proj Head
 #### CIFAR10
 ```
-python src/experiment.py --config-name simclr_vi_cifar10
+python src/experiment.py --config-name transop_vi_cifar10
 ```
 
 #### STL10
@@ -85,6 +84,29 @@ python src/experiment.py --config-name transop_vi_stl10
 #### TinyImagenet
 ```
 python src/experiment.py --config-name transop_vi_tin
+```
+
+### ManifoldDirectCLR
+
+#### CIFAR10
+```
+python src/experiment.py --config-name transop_vi_cifar10 \
+    ++model_cfg.header_cfg.transop_header_cfg.enable_block_diagonal=false \
+    ++model_cfg.header_cfg.transop_header_cfg.enable_direct=True
+```
+
+#### STL10
+```
+python src/experiment.py --config-name transop_vi_stl10 \
+    ++model_cfg.header_cfg.transop_header_cfg.enable_block_diagonal=false \
+    ++model_cfg.header_cfg.transop_header_cfg.enable_direct=True
+```
+
+#### TinyImagenet
+```
+python src/experiment.py --config-name transop_vi_tin \
+    ++model_cfg.header_cfg.transop_header_cfg.enable_block_diagonal=false \
+    ++model_cfg.header_cfg.transop_header_cfg.enable_direct=True
 ```
 
 ### ManifoldCLR with Soft-thresholding
