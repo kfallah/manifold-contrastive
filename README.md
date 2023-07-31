@@ -56,6 +56,7 @@ python src/experiment.py --config-name simclr_tinyimagenet \
 
 ### ManifoldCLR *with* Proj Head
 #### CIFAR10
+Note that the experiments in the paper used the soft-thresholding based VI config.
 ```
 python src/experiment.py --config-name simclr_vi_proj_cifar10
 ```
@@ -92,34 +93,46 @@ python src/experiment.py --config-name transop_vi_tin
 ```
 python src/experiment.py --config-name transop_vi_cifar10 \
     ++model_cfg.header_cfg.transop_header_cfg.enable_block_diagonal=false \
-    ++model_cfg.header_cfg.transop_header_cfg.enable_direct=True
+    ++model_cfg.header_cfg.transop_header_cfg.enable_direct=True \
+    ++evaluator_cfg.aug_nn_eval_cfg.enable_runner=false
 ```
 
 #### STL10
 ```
 python src/experiment.py --config-name transop_vi_stl10 \
     ++model_cfg.header_cfg.transop_header_cfg.enable_block_diagonal=false \
-    ++model_cfg.header_cfg.transop_header_cfg.enable_direct=True
+    ++model_cfg.header_cfg.transop_header_cfg.enable_direct=True \
+    ++evaluator_cfg.aug_nn_eval_cfg.enable_runner=false
 ```
 
 #### TinyImagenet
 ```
 python src/experiment.py --config-name transop_vi_tin \
     ++model_cfg.header_cfg.transop_header_cfg.enable_block_diagonal=false \
-    ++model_cfg.header_cfg.transop_header_cfg.enable_direct=True
+    ++model_cfg.header_cfg.transop_header_cfg.enable_direct=True \
+    ++evaluator_cfg.aug_nn_eval_cfg.enable_runner=false
 ```
 
 ### ManifoldCLR with Soft-thresholding
-Several configs are included for incorporating soft-thresholding to get machine precision sparsity in the inferred coefficients for the Lie group operators. These techniques use the methods from [*Variational Sparse Coding with Learned Threhsolding*](https://arxiv.org/abs/2205.03665) by Fallah and Rozell. They rely on "max ELBO sampling" (see text for details) which requires large amounts of GPU VRAM. Furthermore, these methods benefit from L2 regularization on the coefficients to increase stability. The CIFAR10 experiments in the paper used this soft-thresholding strategy.
+Several configs are included for incorporating soft-thresholding to get machine precision sparsity in the inferred coefficients for the Lie group operators. These techniques use the methods from [*Variational Sparse Coding with Learned Threhsolding*](https://arxiv.org/abs/2205.03665) by Fallah and Rozell. They rely on "max ELBO sampling" (see text for details) which requires large amounts of GPU VRAM. Furthermore, these methods benefit from L2 regularization on the coefficients to increase stability. Note that the CIFAR10 experiments in the paper used this soft-thresholding strategy wit 20 samples. To see a strong benefit with other datasets, it may be neccesary to use upwards of 100 samples (perhaps using 4 GPUs).
 
 The configs to use are:
 ```
-transop_vi-thresh_cifar10
-transop_vi-thresh_stl10
-transop_vi-thresh_tin
 transop_vi-thresh_proj_cifar10
 transop_vi-thresh_proj_stl10
 transop_vi-thresh_proj_tin
+```
+
+To get PyTorch nn.DataParallel to work with `int` data types when using multiple GPUs, you may require the following hot-fix.
+
+In `torch/nn/parallel/scatter_gather.py`, add the following lines:
+```
+if isinstance(out, int):
+    return out
+```
+in the function `gather` under the line:
+```
+out = outputs[0]
 ```
 
 

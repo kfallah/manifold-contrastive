@@ -13,15 +13,14 @@ model_cfg:
   header_cfg:
     enable_projection_header: true
     transop_header_cfg:
-      batch_size: 128
-      dictionary_size: 64
-      lambda_prior: 0.005
-      transop_weight_decay: 1.0e-3
+      batch_size: 256
+      dictionary_size: 128
+      lambda_prior: 0.01
       vi_cfg:
         enable_max_sampling: true
-        max_sample_start_iter: 0
-        samples_per_iter: 50
-        total_num_samples: 100
+        max_sample_start_iter: 5000
+        samples_per_iter: 20
+        total_num_samples: 20
         max_sample_l1_penalty: 0.0
         enable_prior_warmup: true
         prior_warmup_iters: 10000
@@ -30,7 +29,7 @@ model_cfg:
     ntxent_lie_loss_mse: false
     ntxent_lie_z0_neg: false
     enable_shift_l2: true
-    shift_l2_weight: 1.0e-2
+    shift_l2_weight: 1.0e-3
     kl_loss_weight: 1.0e-3
     kl_weight_warmup: None
     transop_loss_weight: 10.0

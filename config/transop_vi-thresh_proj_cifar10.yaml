@@ -25,7 +25,7 @@ model_cfg:
     ntxent_lie_loss_mse: false
     ntxent_lie_z0_neg: false
     enable_shift_l2: true
-    shift_l2_weight: 1.0e-3
+    shift_l2_weight: 1.0e-2
     kl_loss_weight: 1.0e-3
     kl_weight_warmup: None
     transop_loss_weight: 10.0
