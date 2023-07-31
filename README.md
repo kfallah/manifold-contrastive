@@ -58,7 +58,7 @@ python src/experiment.py --config-name simclr_tinyimagenet \
 #### CIFAR10
 Note that the experiments in the paper used the soft-thresholding based VI config.
 ```
-python src/experiment.py --config-name simclr_vi_proj_cifar10
+python src/experiment.py --config-name transop_vi_proj_cifar10
 ```
 
 #### STL10
