@@ -140,4 +140,6 @@ out = outputs[0]
 
 The main script to run the semi-supervised experiments is `src/eval_ssl.py`. The hyper-parameters used for this experiment and the path to the model weights are hard-coded at the top of the file. This script relies on freezing the backbone of a contrastive pre-trained model and training a MLP on top.
 
+To run this script, change `ckpt_path` to point to the pretrained model checkpoint, `cfg_path` to point to the config file (usually located in the `.hydra` folder with the results), and set `cfg.dataloader_cfg.dataset_cfg.dataset_dir` to the directory of your datasets. Set `feat_aug` to `Transop, Featmatch, None, Mixup` for VLGO, Featmatch, Pseudo-labeling, and MMICT augmentations. For the baseline, set `feat_aug` to `None` and set `con_weight=0`.
+
 There is a fine-tuning script that updates the backbone weights with `src/eval_ssl_finetune.py`, but this script results in overfitting in most cases.
